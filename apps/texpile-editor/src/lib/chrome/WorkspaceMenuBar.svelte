@@ -5,7 +5,7 @@
 	import { onMount, untrack } from 'svelte';
 	import { Menu, Portal } from '@skeletonlabs/skeleton-svelte';
 	// Menu is Skeleton's here, so lucide's hamburger comes in aliased
-	import { Menu as MenuIcon, MoreHorizontal } from '@lucide/svelte';
+	import { Menu as MenuIcon, MoreHorizontal, PanelLeftClose, PanelLeftOpen } from '@lucide/svelte';
 	import { editorConfigStore, cursorInCm } from '$lib/stores/editorStore';
 	import { recentFolders, activeFilePath } from '$lib/workspace/workspaceStore';
 	import { isDesktop, openNewWindow, openFolderInNewWindow } from '$lib/workspace/fileSystem';
@@ -86,6 +86,9 @@
 		spelling?: SpellingChoice | null;
 		/** absent for a guest: the folder's language is the host's to choose */
 		onSpellLanguage?: (value: string) => void;
+		/** the left file-tree sidebar's state, for the collapse button beside Preferences */
+		sidebarOpen?: boolean;
+		onToggleSidebar?: () => void;
 	};
 	let {
 		disabled = false,
@@ -113,7 +116,9 @@
 		onZoomOut,
 		onZoomReset,
 		spelling = null,
-		onSpellLanguage
+		onSpellLanguage,
+		sidebarOpen = true,
+		onToggleSidebar
 	}: Props = $props();
 
 	// What the open file supports, not just whether one is open. A PDF or an image has no text
@@ -283,12 +288,28 @@
 	<!-- no left padding: the app icon before it already provides the gap, and doubling up pushed File
 	     away from the mark. The triggers carry their own px-2.5 for their hover targets. -->
 	<nav class="app-no-drag flex items-center gap-0.5 pr-1" data-keep-caret onmousedown={(e) => e.preventDefault()}>
+		<!-- 侧边栏收起/展开（Ctrl+B）：图标随状态翻转，tooltip 说明当前动作 -->
+		{#if onToggleSidebar}
+			<button
+				class="rounded-base hover:preset-tonal shrink-0 px-2 py-1"
+				use:tip={sidebarOpen ? '收起侧边栏 (Ctrl+B)' : '展开侧边栏 (Ctrl+B)'}
+				aria-label={sidebarOpen ? '收起侧边栏' : '展开侧边栏'}
+				aria-pressed={sidebarOpen}
+				onclick={onToggleSidebar}
+			>
+				{#if sidebarOpen}
+					<PanelLeftClose class="size-4" />
+				{:else}
+					<PanelLeftOpen class="size-4" />
+				{/if}
+			</button>
+		{/if}
 		<!-- 独立的设置栏入口：菜单整体右移让位（返回 DSH 在右侧） -->
-		<button
-			class="rounded-base shrink-0 px-2 py-1 text-xs hover:preset-tonal"
-			title={'偏好设置'}
-			onclick={() => (preferencesOpen.current = true)}
-		>偏好设置</button>
+			<button
+				class="rounded-base shrink-0 px-2 py-1 text-xs hover:preset-tonal"
+				title={'偏好设置'}
+				onclick={() => (preferencesOpen.current = true)}
+			>偏好设置</button>
 		<span class="border-surface-300-700 mx-1 h-4 w-px shrink-0 self-center border-l"></span>
 		{@render topMenus(false)}
 		{#if overflowing}

@@ -47,6 +47,8 @@ export type ShortcutDeps = {
 	openPreferences(): void;
 	/** does nothing in a guest's window, which cannot swap its folder out */
 	openFolder(): void;
+	/** Ctrl+B: collapse or expand the file-tree sidebar */
+	toggleSidebar(): void;
 	stepDocumentHistory(direction: 'undo' | 'redo'): void;
 };
 
@@ -94,6 +96,11 @@ export function createKeydownHandler(deps: ShortcutDeps): (e: KeyboardEvent) => 
 			// the desktop convention; macOS also has it as a native accelerator (windowChrome.ts)
 			e.preventDefault();
 			deps.openPreferences();
+		} else if (mod && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'b') {
+			// Ctrl+B in the terminal is the shell's (backward-char), like Ctrl+O above
+			if (e.target instanceof Element && e.target.closest('.xterm')) return;
+			e.preventDefault();
+			deps.toggleSidebar();
 		} else if (e.ctrlKey && e.key === 'Tab') {
 			e.preventDefault();
 			// cycle by tab KEY, so a file and a comparison of it are two stops rather than one

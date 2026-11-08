@@ -334,6 +334,7 @@
 		stopCompile: () => compiler.stopCompile(),
 		openPreferences: () => (preferencesOpen.current = true),
 		openFolder: () => void (hostMode && files.folder.open()),
+		toggleSidebar: () => layout.toggleSidebar(),
 		stepDocumentHistory: (direction) => editSelect(direction),
 		openSourceControl: () => chromeActions.openSourceControl()
 	});

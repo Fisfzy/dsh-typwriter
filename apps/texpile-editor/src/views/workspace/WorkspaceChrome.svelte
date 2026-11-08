@@ -137,6 +137,8 @@
 			onZoomReset={actions.uiZoomReset}
 			spelling={menu.spelling}
 			onSpellLanguage={menu.hostMode ? chooseFolderLanguage : undefined}
+			sidebarOpen={layout.sidebarOpen}
+			onToggleSidebar={layout.toggleSidebar}
 		/>
 	{/snippet}
 </TitleBar>
