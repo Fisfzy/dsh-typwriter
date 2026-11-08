@@ -408,6 +408,26 @@
         return {};
       });
     },
+    // 预设选择器用：读本机 DSH 的技能 / 插件清单
+    listSkills: function () {
+      return invoke('agent:listSkills').catch(function () {
+        return { ok: false, skills: [] };
+      });
+    },
+    listPlugins: function () {
+      return invoke('agent:listPlugins').catch(function () {
+        return { ok: false, plugins: [] };
+      });
+    },
+    // 模型 / 思考强度（AGENT 工具栏）
+    modelInfo: function () {
+      return invoke('agent:modelInfo').catch(function () {
+        return { ok: false, models: [], current: { provider: null, model: null, reasoningEffort: null }, efforts: [] };
+      });
+    },
+    setModel: function (sel) {
+      return invoke('agent:setModel', sel);
+    },
     models: function () {
       // 形状必须与 AgentModelList 一致：{ ok: true, models: [...] }
       return Promise.resolve({ ok: true, models: [] });

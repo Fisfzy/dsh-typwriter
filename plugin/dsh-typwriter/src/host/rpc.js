@@ -4,10 +4,19 @@
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import * as fsops from './fsops.js';
+import * as agentlist from './agentlist.js';
 import { AcpHost } from './acp.js';
+import { dshHome } from './state.js';
 
 /** 需要"真实现"的通道→实现表；其余走桩 */
 export function createDispatch({ store, terminals, lsp, acp, appDir, binDir, clearPendingLsp }) {
+  // 选择器列出的是论文助手实际会看到的家目录：与 index.js 里 ACP 的 env() 同一规则
+  const agentHome = async () => {
+    const s = await store.getSettings();
+    if (s.agentInheritHostPlugins === false) return join(dshHome(), 'typwriter-agent');
+    return dshHome();
+  };
+
   // ---- 润色（Refine）：起一个临时 ACP 会话，收完文本就关掉 ----
   // 不用 `dsh --profile headless`：那个 profile 会被用户级 cordis.patch.yml 里失败的插件拖垮
   // （实测 "plugin tree failed to load"）。复用已经跑通的 acp 会话最稳，也不污染面板里的对话。
@@ -143,6 +152,12 @@ export function createDispatch({ store, terminals, lsp, acp, appDir, binDir, cle
     'acp:close': () => { acp.close(); return null; },
     // 润色用的命令行 agent：DSH 走 `--profile headless`（一句话任务、文本输出）
     'agent:detect': () => ({ claude: false, codex: false, agy: false, dsh: true }),
+    // 预设选择器的数据源：读本机 DSH 的技能 / 插件
+    'agent:listSkills': async () => ({ ok: true, skills: await agentlist.listSkills(await agentHome()) }),
+    'agent:listPlugins': async () => ({ ok: true, plugins: await agentlist.listPlugins(await agentHome()) }),
+    // AGENT 工具栏的模型 / 思考强度（写 <home>/settings.json，新 agent 生效）
+    'agent:modelInfo': async () => ({ ok: true, ...(await agentlist.modelInfo(await agentHome())) }),
+    'agent:setModel': async (sel) => ({ ok: true, ...(await agentlist.setModel(await agentHome(), sel || {})) }),
     'agent:run': (body) => runRefine(body || {}),
     'agent:cancel': () => {
       if (refineHost) {

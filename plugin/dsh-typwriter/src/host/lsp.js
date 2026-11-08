@@ -20,6 +20,11 @@ export class LspHost {
     this.child = null;
     this.buf = Buffer.alloc(0);
     this.root = null;
+    /** 握手状态：initReqId 是客户端第一次 initialize 的请求 id；
+     *  initialized/initResult 是服务端应答过的事实与原文，供进程复用时重放（见 send/#feed） */
+    this.initialized = false;
+    this.initReqId = null;
+    this.initResult = null;
   }
 
   #exe() {
@@ -42,8 +47,12 @@ export class LspHost {
     return env;
   }
 
-  /** 起一个 server；已在跑就先停掉（每个窗口一个，和 Texpile 的模型一致） */
+  /** 起一个 server；同一根目录且进程活着就复用（不重启）。
+   *  渲染端会在开关预览面板、会话重建时短时间内重复 start——无条件 stop+重启会把
+   *  刚拿到 preview 端口的进程杀掉，还会跟渲染端的会话重建互相触发成无限循环
+   *  （重启→exit→重建→又 start）。已握过手的进程由 send() 重放 initialize 响应接客。 */
   start(root) {
+    if (this.child && this.root === root) return { ok: true, command: this.#exe(), reused: true };
     this.stop();
     const exe = this.#exe();
     let child;
@@ -59,6 +68,9 @@ export class LspHost {
     }
     this.child = child;
     this.root = root;
+    this.initialized = false;
+    this.initReqId = null;
+    this.initResult = null;
     this.buf = Buffer.alloc(0);
 
     child.stdout.on('data', (chunk) => this.#feed(chunk));
@@ -100,6 +112,18 @@ export class LspHost {
       if (this.buf.length < start + len) return; // 等下一块
       const body = this.buf.subarray(start, start + len).toString('utf8');
       this.buf = this.buf.subarray(start + len);
+      // 第一次握手的服务端响应留底：进程复用给下一个客户端时重放（见 send）
+      if (!this.initialized && this.initReqId !== null && body.length < 65536) {
+        try {
+          const res = JSON.parse(body);
+          if (res.id === this.initReqId && res.result?.capabilities) {
+            this.initialized = true;
+            this.initResult = res.result;
+          }
+        } catch {
+          /* 非 JSON 帧：照常转发 */
+        }
+      }
       this.emit('typst:lsp:message', body);
     }
   }
@@ -107,6 +131,24 @@ export class LspHost {
   /** 渲染端发来的裸 JSON 字符串 */
   send(json) {
     if (!this.child || typeof json !== 'string') return;
+    // LSP 的握手只吃一次：进程已握过手时，新客户端的 initialize 由这里重放原响应接住，
+    // 不再转发（tinymist 对第二次 initialize 不应答，客户端会等超时——预览"等待首次渲染"的根因）
+    if (json.length < 8192) {
+      let head;
+      try {
+        head = JSON.parse(json);
+      } catch {
+        head = null;
+      }
+      if (head?.method === 'initialize' && head.id !== undefined) {
+        if (this.initialized && this.initResult) {
+          const replay = JSON.stringify({ jsonrpc: '2.0', id: head.id, result: this.initResult });
+          this.emit('typst:lsp:message', replay);
+          return; // initialized 通知等后续帧照常转发，tinymist 幂等接受
+        }
+        this.initReqId = head.id;
+      }
+    }
     const body = Buffer.from(json, 'utf8');
     const head = Buffer.from(`Content-Length: ${body.length}\r\n\r\n`, 'ascii');
     try {

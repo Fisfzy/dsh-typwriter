@@ -5,6 +5,7 @@ import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { readdir, readFile, stat } from 'node:fs/promises';
 import { join } from 'node:path';
+import { dshHome } from './state.js';
 
 const SKIP_DIRS = new Set(['node_modules', '.git', '.texpile', '.workbuddy', 'out', 'output', '__pycache__']);
 
@@ -201,7 +202,7 @@ export class AcpHost {
     if (this.starting) return this.starting;
     // 已经有活着的会话：直接复用，不重启进程
     if (this.child && this.sessionId) {
-      this.emit('acp:event', { type: 'state', state: 'ready', title: 'DeepSeek Harness', takesSelection: true, takesImages: false, history: false });
+      this.emit('acp:event', { type: 'state', state: 'ready', title: 'DeepSeek Harness', takesSelection: true, takesImages: false, history: true });
       return { ok: true, agent: 'dsh' };
     }
     this.starting = this.#startOnce();
@@ -285,7 +286,7 @@ export class AcpHost {
         title: 'DeepSeek Harness',
         takesSelection: true,
         takesImages: false,
-        history: false
+        history: true
       });
       return { ok: true, agent: 'dsh' };
     } catch (e) {
@@ -350,11 +351,24 @@ export class AcpHost {
     try {
       const res = await this.#request('session/list', {});
       const list = Array.isArray(res?.sessions) ? res.sessions : [];
-      return list.map((s) => ({
-        id: String(s.sessionId ?? s.id ?? ''),
-        title: s.title ?? null,
-        updatedAt: s.updatedAt ?? null
-      }));
+      // DSH 的 session/list 不带时间：每个会话在 ~/.dsh/sessions/<编码工作区>/<id> 有目录，
+      // 用目录 mtime 补上 updatedAt（一次遍历建映射，列表最多百来条）
+      const mtimes = new Map();
+      const base = join(dshHome(), 'sessions');
+      for (const ws of await readdir(base).catch(() => [])) {
+        for (const id of await readdir(join(base, ws)).catch(() => [])) {
+          const st = await stat(join(base, ws, id)).catch(() => null);
+          if (st?.isDirectory()) mtimes.set(id, st.mtime.toISOString());
+        }
+      }
+      return list.map((s) => {
+        const id = String(s.sessionId ?? s.id ?? '');
+        return {
+          id,
+          title: s.title ?? null,
+          updatedAt: s.updatedAt ?? mtimes.get(id) ?? null
+        };
+      });
     } catch {
       return [];
     }
