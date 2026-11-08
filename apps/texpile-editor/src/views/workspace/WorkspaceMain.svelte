@@ -13,6 +13,8 @@
 	import PreviewPopout from '$lib/preview/PreviewPopout.svelte';
 	import PaneSplitter from '$lib/components/PaneSplitter.svelte';
 	import TerminalDock from '$lib/terminal/TerminalDock.svelte';
+	import { PanelRightOpen } from '@lucide/svelte';
+	import { tip } from '$lib/components/tooltip.svelte';
 	import { m } from '$lib/paraglide/messages';
 	import { activeCompare, setSuggesting, workspaceRoot } from '$lib/workspace/workspaceStore';
 	import { ensureName } from '$lib/identity/ownName.svelte';
@@ -209,9 +211,38 @@
 {/snippet}
 
 <main
-	class="grid min-h-0 min-w-0 flex-1"
+	class="relative grid min-h-0 min-w-0 flex-1"
 	style="grid-template-columns: minmax(0, 1fr) auto auto auto; grid-template-rows: auto minmax(0, 1fr) auto auto"
 >
+	<!-- reopen strips: a shut right-hand pane keeps a flush open button at the window's right edge
+	     (PDF above Agent, the order they sit in when both are open). The panes' own collapse
+	     toggles live on their dividers, inside PreviewPane/AgentPane. -->
+	{#if !fileMode.current && (!layout.pdfPaneOpen || !layout.agentPaneOpen)}
+		<div class="absolute right-0.5 top-11 z-40 flex flex-col gap-1">
+			{#if !layout.pdfPaneOpen}
+				<button
+					class="bg-surface-200-800 border-surface-300-700 hover:preset-tonal flex size-6 items-center justify-center rounded-base border shadow-md"
+					use:tip={'展开预览面板'}
+					aria-label="展开预览面板"
+					onmousedown={(e) => e.preventDefault()}
+					onclick={layout.togglePdfPane}
+				>
+					<PanelRightOpen class="size-3.5 shrink-0" />
+				</button>
+			{/if}
+			{#if !layout.agentPaneOpen}
+				<button
+					class="bg-surface-200-800 border-surface-300-700 hover:preset-tonal flex size-6 items-center justify-center rounded-base border shadow-md"
+					use:tip={'展开代理面板'}
+					aria-label="展开代理面板"
+					onmousedown={(e) => e.preventDefault()}
+					onclick={() => layout.setAgentPane(true)}
+				>
+					<PanelRightOpen class="size-3.5 shrink-0" />
+				</button>
+			{/if}
+		</div>
+	{/if}
 	<!-- editor column (toolbar + content) with the PDF pane beside it, so the PDF skips the
 	     toolbar while the header (Compile) stays above it. the wrapper is display:contents so
 	     editor/splitter/preview place themselves on main's grid -->
@@ -241,6 +272,7 @@
 				onSettled={actions.onPreviewSettled}
 				onDiagnostics={actions.onPreviewDiagnostics}
 				slides={layout.pdfSlides}
+				onCollapse={layout.togglePdfPane}
 			/>
 		{:else if !fileMode.current && (termDock.available || guest || layout.pdfPopout)}
 			<!-- the pane is gone but its divider stays, on the editor's right edge.

@@ -3,12 +3,13 @@
 	// the aside on the workspace grid. What shows inside is PreviewBody's five-way cascade, shared
 	// with the popped-out preview window (PreviewPopout), which is why none of it lives here.
 	// Renders two grid siblings, so it must sit in a display:contents wrapper on the editor grid.
-	import { ArrowRight } from '@lucide/svelte';
+	import { ArrowRight, PanelRightClose } from '@lucide/svelte';
 	import { slide } from 'svelte/transition';
 	import PaneHandle from '$lib/components/PaneHandle.svelte';
 	import PaneSplitter from '$lib/components/PaneSplitter.svelte';
 	import PreviewBody from './PreviewBody.svelte';
 	import { editorGroups } from '$lib/workspace/groups/editorGroups.svelte';
+	import { tip } from '$lib/components/tooltip.svelte';
 	import type { DraftController } from '$lib/draft/draftController.svelte';
 	import { m } from '$lib/paraglide/messages';
 
@@ -51,6 +52,8 @@
 		onDiagnostics: (logPath: string) => void;
 		/** it opens or shuts on its own, not at a click (PaneLayout.pdfSlides), so it slides to be seen */
 		slides?: boolean;
+		/** shut this pane from the flush toggle on its own divider; undefined hides the toggle */
+		onCollapse?: () => void;
 	};
 	let {
 		width,
@@ -75,7 +78,8 @@
 		onInverseSync,
 		onSettled,
 		onDiagnostics,
-		slides = false
+		slides = false,
+		onCollapse
 	}: Props = $props();
 </script>
 
@@ -93,6 +97,19 @@
 	style="width: {width}px; grid-column: 3; grid-row: {dockShrunk ? '2 / -1' : '2'}"
 	transition:slide|global={{ axis: 'x', duration: slides ? 200 : 0 }}
 >
+	<!-- the pane's own collapse toggle, flush with the divider (it belongs to the frame, unlike the
+	     round sync chip below it that acts on the document); reopen from the strip at the right edge -->
+	{#if onCollapse}
+		<button
+			class="bg-surface-200-800 border-surface-300-700 hover:preset-tonal absolute -left-3 top-2 z-40 flex size-6 items-center justify-center rounded-base border shadow-md"
+			use:tip={'收起预览面板'}
+			aria-label="收起预览面板"
+			onmousedown={(e) => e.preventDefault()}
+			onclick={onCollapse}
+		>
+			<PanelRightClose class="size-3.5 shrink-0" />
+		</button>
+	{/if}
 	{#if onSyncToCursor && !mainUnset}
 		<!-- forward sync rides the divider. -12.5px centres a 24px chip on the rule. This one is wider than
 		     the 3px the panes hold clear, so it does cross the scrollbar - it is also the one you
