@@ -12,6 +12,8 @@
 	import LayoutControls from './titlebar/LayoutControls.svelte';
 	import { documentControls } from '$lib/preview/documentControls.svelte';
 	import WorkspaceSidebar from './WorkspaceSidebar.svelte';
+	import RightRail from './RightRail.svelte';
+	import ReviewPane from './ReviewPane.svelte';
 	import SnippetPatternsBar from './SnippetPatternsBar.svelte';
 	import { workspaceRoot } from '$lib/workspace/workspaceStore';
 	import GuestPresence from '$lib/collab/presence/GuestPresence.svelte';
@@ -189,10 +191,6 @@
 	<WorkspaceSidebar
 		width={layout.sidebarWidth}
 		animate={layout.settled}
-		pdfOpen={layout.pdfPaneOpen && !layout.pdfPopout}
-		agentOpen={layout.agentPaneOpen}
-		onTogglePdf={() => layout.togglePdfPane()}
-		onToggleAgent={agentOn ? () => layout.setAgentPane(!layout.agentPaneOpen) : undefined}
 		{guest}
 			bind:view={layout.sidebarView}
 			scmBusy={scm.busy}
@@ -254,4 +252,42 @@
 	{/if}
 
 	{@render children()}
+
+	<!-- 右缘活动栏的「代码修改」页：与左栏的源代码管理视图互斥（setReviewPane 负责切走） -->
+	{#if layout.reviewOpen && !fileMode.current}
+		<ReviewPane
+			onClose={() => layout.setReviewPane(false)}
+			scmBusy={scm.busy}
+			scmInit={scm.init}
+			scmDiscard={scm.discard}
+			scmCommit={scm.commit}
+			scmRestore={scm.restore}
+			scmIgnoreArtifacts={scm.ignoreArtifacts}
+			scmPublish={scm.publish}
+			scmSync={scm.sync}
+			scmRecheckGit={scm.recheckGit}
+			scmOpenDiff={scm.openDiff}
+			scmOpenConflict={scm.combine.openConflict}
+			scmFinishCombine={canCombine() ? scm.combine.finish : undefined}
+			scmCancelCombine={canCombine() ? scm.combine.cancel : undefined}
+			scmCompare={scm.compare}
+			scmChangesSince={scm.changesSince}
+			onRefreshGit={actions.refreshGit}
+			historyFraction={layout.historyFraction}
+			onStartHistoryResize={layout.startHistoryResize}
+			onResizeHistoryByKey={layout.resizeHistoryByKey}
+			bind:scmSplitEl={layout.scmSplitEl}
+		/>
+	{/if}
+	{#if !fileMode.current}
+		<RightRail
+			pdfOpen={layout.pdfPaneOpen && !layout.pdfPopout}
+			agentOpen={layout.agentPaneOpen}
+			scmOpen={layout.reviewOpen}
+			{agentOn}
+			onTogglePdf={() => layout.togglePdfPane()}
+			onToggleAgent={() => layout.setAgentPane(!layout.agentPaneOpen)}
+			onToggleScm={() => layout.setReviewPane(!layout.reviewOpen)}
+		/>
+	{/if}
 </div>

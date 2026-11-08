@@ -59,6 +59,15 @@ export class PaneLayout {
 		this.agentPaneOpen = open;
 	}
 
+	/** 右缘活动栏的「代码修改」页：源代码管理的修改审阅，显示在窗口右侧 */
+	reviewOpen = $state(false);
+
+	setReviewPane(open: boolean): void {
+		this.reviewOpen = open;
+		// 与左栏的源代码管理视图是同一面板的两个家，别同时住两边
+		if (open && this.sidebarView === 'scm') this.sidebarView = 'explorer';
+	}
+
 	/** a panel docked in the editor column beside the document (Version History), whose width the editor's room holds too */
 	editorAside = $state(0);
 	/** the preview was shut to make room for that panel, not by the reader, and comes back when there is room again */
