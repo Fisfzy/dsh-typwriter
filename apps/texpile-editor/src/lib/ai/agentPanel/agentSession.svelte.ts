@@ -116,9 +116,9 @@ export class AgentSession {
 		}
 	}
 
-	async send(text: string, attached: Attached | null, images: PastedImage[] = []): Promise<void> {
+	async send(text: string, attached: Attached[], images: PastedImage[] = []): Promise<void> {
 		const bridge = this.bridge();
-		if (!bridge || this.state !== 'ready' || (!text.trim() && !images.length)) return;
+		if (!bridge || this.state !== 'ready' || (!text.trim() && !images.length && !attached.length)) return;
 		const conversation = this.conversation;
 		// at once: a message sent while the save and main's look at the folder run would start a second turn
 		this.state = 'working';
@@ -131,7 +131,7 @@ export class AgentSession {
 			return;
 		}
 		const words = text.trim() ? [{ type: 'text', text }] : [];
-		const r = await bridge.prompt([...words, ...imageBlocks(images), ...attachedBlocks(attached)]);
+		const r = await bridge.prompt([...words, ...imageBlocks(images), ...attached.flatMap(attachedBlocks)]);
 		if (conversation !== this.conversation) return;
 		// read again: events moved it on while the turn ran. Main moves it on before it answers, so one still
 		// working is a turn main never began

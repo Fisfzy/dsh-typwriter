@@ -38,7 +38,7 @@ export type Attached = { path: string; lines: SelectedLines | null };
 export type PastedImage = { name: string; mimeType: string; base64: string; size: { width: number; height: number } | null };
 
 export type ChatItem =
-	| { kind: 'user'; id: string; text: string; attached: Attached | null; images?: PastedImage[] }
+	| { kind: 'user'; id: string; text: string; attached: Attached[]; images?: PastedImage[] }
 	| { kind: 'agent'; id: string; text: string }
 	| { kind: 'thought'; id: string; text: string }
 	| ToolItem

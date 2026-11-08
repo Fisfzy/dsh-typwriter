@@ -16,6 +16,7 @@
 	import { attachedKey } from '../../attach/attached';
 	import { EditorSelection } from '../../attach/editorSelection.svelte';
 	import { ImageAttachments } from '../../attach/imageAttachments.svelte';
+	import { droppedPaths } from '../../attach/dropPaths';
 	import { tip } from '$lib/components/tooltip.svelte';
 	import { m } from '$lib/paraglide/messages';
 	import type { AgentCommand, Attached, ConfigOption, ContextUsage, PastedImage } from '../../agentPanel.types';
@@ -32,7 +33,7 @@
 		/** the agent takes images, so a pasted, dropped or picked one goes with the message */
 		takesImages: boolean;
 		usage: ContextUsage | null;
-		onSend: (text: string, attached: Attached | null, images: PastedImage[]) => void;
+		onSend: (text: string, attached: Attached[], images: PastedImage[]) => void;
 		onStop: () => void;
 		onConfig: (id: string, value: string) => void;
 	};
@@ -55,14 +56,18 @@
 		const a = { path: props.file, lines };
 		return attachedKey(a) === detached ? null : a;
 	});
+	// files and folders dragged in from the tree (or another window); they ride the message as links
+	let extras = $state<Attached[]>([]);
+	const allAttached = $derived(attached ? [attached, ...extras] : extras);
 
-	const empty = $derived(!text.trim() && !images.list.length);
+	const empty = $derived(!text.trim() && !images.list.length && !extras.length);
 
 	function send(): void {
 		if (props.working || empty) return;
-		props.onSend(text, attached, images.list);
+		props.onSend(text, allAttached, images.list);
 		text = '';
 		images.clear();
+		extras = [];
 	}
 
 	// text on the clipboard beside an image still pastes for an agent that takes no images
@@ -70,8 +75,20 @@
 		if (images.add(e.clipboardData?.files)) e.preventDefault();
 	}
 
-	// a file let go anywhere on the box stays in it: left to the window, it would replace the app with the file
+	// a file let go anywhere on the box stays in it: left to the window, it would replace the app with the file.
+	// Tree drags carry paths (a file AND a folder both count); OS drags carry Files, which stay images.
 	function onDrop(e: DragEvent): void {
+		const paths = droppedPaths(e);
+		if (paths) {
+			e.preventDefault();
+			e.stopPropagation();
+			const seen = new Set(allAttached.map(attachedKey));
+			for (const path of paths) {
+				const a: Attached = { path, lines: null };
+				if (!seen.has(attachedKey(a))) extras = [...extras, a];
+			}
+			return;
+		}
 		if (!e.dataTransfer?.types.includes('Files')) return;
 		e.preventDefault();
 		e.stopPropagation();
@@ -113,15 +130,18 @@
 	<div
 		class="textarea relative [--field-size:var(--text-sm)]"
 		role="group"
-		ondragover={(e) => e.dataTransfer?.types.includes('Files') && e.preventDefault()}
+		ondragover={(e) => (e.dataTransfer?.types.includes('Files') || e.dataTransfer?.types.includes('application/x-texpile-paths')) && e.preventDefault()}
 		ondrop={onDrop}
 	>
 		{#if slash.open}
 			<AgentCommandMenu id={menuId} commands={slash.matches} picked={slash.picked} onPick={takeCommand} />
 		{/if}
-		{#if attached || images.list.length}
+		{#if attached || images.list.length || extras.length}
 			<div class="border-surface-200-800 mb-1.5 flex flex-wrap items-center gap-1 border-b pb-1.5">
 				{#if attached}<AgentFilePill {attached} onDetach={() => (detached = attachedKey(attached))} />{/if}
+				{#each extras as a, i (a.path)}
+					<AgentFilePill attached={a} onDetach={() => (extras = extras.filter((_, j) => j !== i))} />
+				{/each}
 				{#each images.list as image, i (i)}
 					<AgentImagePill {image} onDetach={() => images.remove(i)} />
 				{/each}
@@ -169,7 +189,7 @@
 					commands={props.commands}
 					working={props.working}
 					agent={props.agent}
-					onCompact={() => props.onSend(COMPACT_CHAT_MESSAGE, null, [])}
+					onCompact={() => props.onSend(COMPACT_CHAT_MESSAGE, [], [])}
 				/>
 			{/if}
 			{#if props.working}

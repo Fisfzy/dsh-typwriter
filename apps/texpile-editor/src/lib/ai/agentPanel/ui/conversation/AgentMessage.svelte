@@ -10,7 +10,7 @@
 	import { m } from '$lib/paraglide/messages';
 	import type { Attached, PastedImage } from '../../agentPanel.types';
 
-	type Props = { kind: 'user' | 'agent' | 'error'; text: string; attached?: Attached | null; images?: PastedImage[] };
+	type Props = { kind: 'user' | 'agent' | 'error'; text: string; attached?: Attached[] | null; images?: PastedImage[] };
 	const props: Props = $props();
 	const html = $derived(props.kind === 'agent' ? renderMarkdown(props.text) : '');
 </script>
@@ -18,7 +18,13 @@
 {#if props.kind === 'user'}
 	<!-- what it went with above it, as chats show what was attached -->
 	<div class="ml-auto flex max-w-[85%] flex-col items-end gap-1">
-		{#if props.attached}<AgentFilePill attached={props.attached} />{/if}
+		{#if props.attached?.length}
+			<div class="flex flex-wrap justify-end gap-1">
+				{#each props.attached as a (a.path + (a.lines ? `#${a.lines.first}` : ''))}
+					<AgentFilePill attached={a} />
+				{/each}
+			</div>
+		{/if}
 		{#if props.images?.length}
 			<div class="flex flex-wrap justify-end gap-1">
 				{#each props.images as image, i (i)}

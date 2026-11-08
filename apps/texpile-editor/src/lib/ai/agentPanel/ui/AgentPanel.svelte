@@ -17,6 +17,7 @@
 	import AgentChanges from './conversation/AgentChanges.svelte';
 	import AgentQuestion from './AgentQuestion.svelte';
 	import AgentPromptBox from './box/AgentPromptBox.svelte';
+	import AgentHistoryList from './AgentHistoryList.svelte';
 	import AgentNotice from './notice/AgentNotice.svelte';
 	import AgentNoticeBar from './notice/AgentNoticeBar.svelte';
 	import AgentUnavailable from './notice/AgentUnavailable.svelte';
@@ -72,7 +73,15 @@
 		<div class="flex min-h-0 flex-1 [scrollbar-gutter:stable_both-edges] flex-col-reverse overflow-y-auto pt-2 pb-5">
 			<!-- one readable column for the conversation, the question and the box, centered however wide the dock is -->
 			<div class="mx-auto flex w-full max-w-3xl flex-col gap-2 px-3">
-				{#if !agentSession.items.length}<p class="text-muted text-sm">{m.agent_panel_empty({ agent })}</p>{/if}
+				{#if !agentSession.items.length}
+					<p class="text-muted text-sm">{m.agent_panel_empty({ agent })}</p>
+					<!-- 空对话时先看见历史：接续一段旧对话，或开新对话把它归档 -->
+					{#if agentSession.history && agentSession.chats.length}
+						<div class="card border-surface-200-800 mt-2 border p-2">
+							<AgentHistoryList />
+						</div>
+					{/if}
+				{/if}
 				{#each blocks as block (block.id)}
 					{#if block.kind === 'steps'}
 						<AgentSteps tools={block.tools} {labels} />
