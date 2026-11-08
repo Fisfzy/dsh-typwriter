@@ -36,10 +36,10 @@ export class TerminalDockState {
 	/** stay mounted after the first open so shells persist across toggles */
 	mounted = $state(false);
 
-	/** 标题栏「代理对话」发出的请求：WorkspaceMain 收到后把底部面板切到 Agent 页，然后清掉它 */
+	/** 标题栏「AGENT 对话」发出的请求：WorkspaceMain 收到后把底部面板切到 Agent 页，然后清掉它 */
 	agentRequest = $state(false);
 
-	/** 布局菜单里的「代理对话」：打开底部面板并切到 Agent 页 */
+	/** 「AGENT 对话」入口：打开底部面板并切到 Agent 页 */
 	openAgent(): void {
 		this.show();
 		this.agentRequest = true;

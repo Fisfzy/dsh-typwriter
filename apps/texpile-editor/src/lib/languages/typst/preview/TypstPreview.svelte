@@ -290,16 +290,16 @@
 		<ColorVisionMenu {place} />
 	{/snippet}
 	<!-- no close button: Layout closes it docked, the OS window popped out, the Live button either way -->
-	<!-- 代理对话：打开底部面板的 Agent 页（由 WorkspaceMain 转发到 dock 状态） -->
+	<!-- AGENT 对话：打开右侧的 AGENT 面板（由 WorkspaceMain 转发） -->
 	{#snippet agentPanel(place: PreviewToolbarPlace)}
 		<button
 			class:menu-item={place === 'menu'}
 			onclick={() => window.dispatchEvent(new CustomEvent('typwriter:open-agent'))}
-			use:tip={'代理对话'}
-			aria-label={'代理对话'}
+			use:tip={'AGENT 对话'}
+			aria-label={'AGENT 对话'}
 		>
 			<Bot size={16} />
-			{#if place === 'menu'}代理对话{/if}
+			{#if place === 'menu'}AGENT 对话{/if}
 		</button>
 	{/snippet}
 	{#snippet popout()}

@@ -1,7 +1,6 @@
 <script lang="ts">
 	// the window's arrangement, in one place: which panels show, the editor layout and where the preview sits
 	import {
-		Bot,
 		ChevronDown,
 		Columns3,
 		Columns2,
@@ -25,8 +24,6 @@
 	import type { TerminalDockState } from '$lib/workspace/terminalDockState.svelte';
 	import PanelMenuItem from './PanelMenuItem.svelte';
 	import { m } from '$lib/paraglide/messages';
-	import { acpBridge } from '$lib/ai/agentPanel/acpBridge';
-	import { panelTabOff } from '$lib/ai/agentPanel/agentOffer.svelte';
 
 	type Props = {
 		panes: PaneLayout;
@@ -45,7 +42,6 @@
 	];
 
 	// the Agent tab can run here: the bridge exists and AI is not turned off
-	const agentOn = $derived(!panelTabOff() && !!acpBridge());
 
 	let open = $state(false);
 	// the menu had the keyboard for its moment; the editor being written in gets it back, as in VS Code
@@ -104,20 +100,12 @@
 						onclick={() => toggle(() => props.termDock.toggle())}
 					/>
 				{/if}
-				{#if agentOn}
-					<PanelMenuItem
-						icon={Bot}
-						open={props.panes.agentPaneOpen}
-						label={'代理对话'}
-						onclick={() => toggle(() => props.panes.setAgentPane(!props.panes.agentPaneOpen))}
-					/>
-				{/if}
-				<PanelMenuItem
-					icon={PanelRight}
-					open={props.panes.pdfPaneOpen && !props.panes.pdfPopout}
-					label={m.wsview_pdf_preview_label()}
-					onclick={() => toggle(togglePreview)}
-				/>
+			<PanelMenuItem
+				icon={PanelRight}
+				open={props.panes.pdfPaneOpen && !props.pdfPopout}
+				label={m.wsview_pdf_preview_label()}
+				onclick={() => toggle(togglePreview)}
+			/>
 			</div>
 			<span class="text-muted px-1 text-xs">{m.groups_layout_editors()}</span>
 			<div class="flex gap-0.5">

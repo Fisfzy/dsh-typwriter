@@ -4,6 +4,10 @@
 	import type { PaneLayout } from '$lib/workspace/paneLayout.svelte';
 	import type { TerminalDockState } from '$lib/workspace/terminalDockState.svelte';
 	import LayoutMenu from './LayoutMenu.svelte';
+	import { Bot } from '@lucide/svelte';
+	import { tip } from '$lib/components/tooltip.svelte';
+	import { acpBridge } from '$lib/ai/agentPanel/acpBridge';
+	import { panelTabOff } from '$lib/ai/agentPanel/agentOffer.svelte';
 
 	type Props = {
 		panes: PaneLayout;
@@ -19,10 +23,25 @@
 	const divided = $derived(!isDesktop() || buttonsAtEnd);
 	// 只有被 DSH 宿主用 iframe 嵌进来时才提供「返回 DSH」
 	const embedded = typeof window !== 'undefined' && window.self !== window.top;
+	// the AGENT pane can run here: the bridge exists and AI is not turned off (same gate as LayoutMenu's items)
+	const agentOn = $derived(!panelTabOff() && !!acpBridge());
 </script>
 
 {#if props.project}
 	<div class="app-no-drag flex items-center self-center {divided ? '' : 'mr-1.5'}">
+		<!-- AGENT 对话：从布局菜单里独立出来，常驻在「布局」左边；tint = 面板开着 -->
+		{#if agentOn}
+			<button
+				class="btn btn-sm preset-tonal mr-0.5 gap-1 px-2 text-xs {props.panes.agentPaneOpen ? 'preset-filled-primary-500' : ''}"
+				use:tip={'AGENT 对话'}
+				aria-label="AGENT 对话"
+				aria-pressed={props.panes.agentPaneOpen}
+				onclick={() => props.panes.setAgentPane(!props.panes.agentPaneOpen)}
+			>
+				<Bot class="size-3.5 shrink-0" />
+				<span class="hidden xl:inline">AGENT 对话</span>
+			</button>
+		{/if}
 		<LayoutMenu panes={props.panes} termDock={props.termDock} splittable={props.splittable} />
 	</div>
 {/if}

@@ -42,13 +42,18 @@
 	import { combo } from '$lib/chrome/shortcutText';
 	import { canKeepLocalHistory } from '$lib/workspace/localHistory/localHistory.svelte';
 	import { Popover, Portal } from '@skeletonlabs/skeleton-svelte';
-	import { FilePlus, FolderPlus, RefreshCw, GitBranch, Search, MoreHorizontal } from '@lucide/svelte';
+	import { FilePlus, FolderPlus, RefreshCw, GitBranch, Search, MoreHorizontal, FileText, Bot } from '@lucide/svelte';
 
 	type Props = {
 		width: number;
 		/** user-driven flips animate; the session-restore flip (PaneLayout.settled false) does not */
 		animate?: boolean;
 		guest: boolean;
+		/** the right-hand review panes, toggled from this bar too: docked PDF and the AGENT chat */
+		pdfOpen?: boolean;
+		agentOpen?: boolean;
+		onTogglePdf?: () => void;
+		onToggleAgent?: () => void;
 		view: 'explorer' | 'scm' | 'search';
 		scmBusy: boolean;
 		/** what the Contents pane under the tree lists */
@@ -104,6 +109,10 @@
 		width,
 		animate = true,
 		guest,
+		pdfOpen = false,
+		agentOpen = false,
+		onTogglePdf,
+		onToggleAgent,
 		view = $bindable(),
 		scmBusy,
 		toc,
@@ -209,6 +218,8 @@
 
 	// The view toggles hold their place at every width: each one carries state, and a tint inside a
 	// closed menu is a state you cannot see. A guest has neither.
+	// The last two are pane toggles, not sidebar views: PDF 审阅 and AGENT 对话 live on the RIGHT of
+	// the editor (they need the width); the sidebar bar is their front door, one entry point per pane.
 	const pinned = $derived<SidebarAction[]>(
 		guest
 			? []
@@ -229,7 +240,29 @@
 						title: m.wsview_find_in_files_title({ combo: combo('F', { shift: true }) }),
 						active: view === 'search',
 						run: () => (view === 'search' ? (view = 'explorer') : onOpenGlobalSearch())
-					}
+					},
+					...(onTogglePdf
+						? [
+								{
+									key: 'pdf',
+									icon: FileText,
+									label: 'PDF 审阅',
+									active: pdfOpen,
+									run: onTogglePdf
+								}
+							]
+						: []),
+					...(onToggleAgent
+						? [
+								{
+									key: 'agent',
+									icon: Bot,
+									label: 'AGENT 对话',
+									active: agentOpen,
+									run: onToggleAgent
+								}
+							]
+						: [])
 				]
 	);
 

@@ -50,11 +50,11 @@ export class PaneLayout {
 	 * persisted: a restored session must not open a second window before the user asked for one.
 	 */
 	pdfPopout = $state(false);
-	/** 右侧独立的代理面板：与 PDF 预览并列，占编辑器网格的最后一列（固定宽度，暂不支持拖拽） */
+	/** 右侧独立的 AGENT 对话面板：与 PDF 预览并列，占编辑器网格的最后一列（固定宽度，暂不支持拖拽） */
 	agentPaneOpen = $state(false);
 	agentPaneWidth = $state(420);
 
-	/** 打开/关闭代理面板 */
+	/** 打开/关闭 AGENT 对话面板 */
 	setAgentPane(open: boolean): void {
 		this.agentPaneOpen = open;
 	}

@@ -18,6 +18,8 @@
 	import WindowDialogs from '$lib/modals/window/WindowDialogs.svelte';
 	import PaneSplitter from '$lib/components/PaneSplitter.svelte';
 	import { ShieldQuestion } from '@lucide/svelte';
+	import { acpBridge } from '$lib/ai/agentPanel/acpBridge';
+	import { panelTabOff } from '$lib/ai/agentPanel/agentOffer.svelte';
 	import type GlobalSearch from '$lib/search/GlobalSearch.svelte';
 	import type { PaneLayout } from '$lib/workspace/paneLayout.svelte';
 	import type { TerminalDockState } from '$lib/workspace/terminalDockState.svelte';
@@ -87,6 +89,9 @@
 		openSpelling.current = { choice: menu.spelling, fixed: !menu.hostMode };
 		return () => (openSpelling.current = null);
 	});
+
+	// the AGENT pane can run here: the bridge exists and AI is not turned off (same gate as LayoutControls)
+	const agentOn = $derived(!panelTabOff() && !!acpBridge());
 </script>
 
 <!-- One title bar for both roles. A guest used to get a bare one, which meant no menus on Windows
@@ -181,10 +186,14 @@
 
 <div class="flex min-h-0 flex-1 overflow-clip">
 	{#if layout.sidebarOpen && !fileMode.current}
-		<WorkspaceSidebar
-			width={layout.sidebarWidth}
-			animate={layout.settled}
-			{guest}
+	<WorkspaceSidebar
+		width={layout.sidebarWidth}
+		animate={layout.settled}
+		pdfOpen={layout.pdfPaneOpen && !layout.pdfPopout}
+		agentOpen={layout.agentPaneOpen}
+		onTogglePdf={() => layout.togglePdfPane()}
+		onToggleAgent={agentOn ? () => layout.setAgentPane(!layout.agentPaneOpen) : undefined}
+		{guest}
 			bind:view={layout.sidebarView}
 			scmBusy={scm.busy}
 			{toc}
