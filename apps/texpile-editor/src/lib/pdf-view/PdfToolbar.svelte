@@ -49,7 +49,7 @@
 	<button
 		onclick={() => ctx.actions.goToPage(ctx.state.currentPage - 1)}
 		disabled={ctx.state.currentPage <= 1}
-		aria-label={'上一页'}
+		aria-label="上一页"
 		use:tip={'上一页'}
 	>
 		<ChevronUp size={16} />
@@ -57,7 +57,7 @@
 	<button
 		onclick={() => ctx.actions.goToPage(ctx.state.currentPage + 1)}
 		disabled={ctx.state.currentPage >= ctx.state.totalPages}
-		aria-label={'下一页'}
+		aria-label="下一页"
 		use:tip={'下一页'}
 	>
 		<ChevronDown size={16} />
@@ -65,11 +65,11 @@
 {/snippet}
 
 {#snippet zoom()}
-	<button onclick={() => ctx.actions.zoomOut()} aria-label={'缩小'} use:tip={'缩小'}>
+	<button onclick={() => ctx.actions.zoomOut()} aria-label="缩小" use:tip={'缩小'}>
 		<ZoomOut size={16} />
 	</button>
 	<PdfZoomMenu />
-	<button onclick={() => ctx.actions.zoomIn()} aria-label={'放大'} use:tip={'放大'}>
+	<button onclick={() => ctx.actions.zoomIn()} aria-label="放大" use:tip={'放大'}>
 		<ZoomIn size={16} />
 	</button>
 {/snippet}
@@ -86,19 +86,14 @@
 
 <!-- pinned: one switch for the find bar, on the bar at every width -->
 {#snippet search()}
-	<button aria-pressed={findOpen} onclick={() => onToggleFind?.()} aria-label={'查找'} use:tip={'查找'}>
+	<button aria-pressed={findOpen} onclick={() => onToggleFind?.()} aria-label="查找" use:tip={'查找'}>
 		<Search size={16} />
 	</button>
 {/snippet}
 
 <!-- these live in the "..." at every width, where they draw as named rows -->
 {#snippet rotate(place: PreviewToolbarPlace)}
-	<button
-		class:menu-item={place === 'menu'}
-		onclick={() => ctx.actions.rotateClockwise()}
-		aria-label={'顺时针旋转'}
-		use:tip={'顺时针旋转'}
-	>
+	<button class:menu-item={place === 'menu'} onclick={() => ctx.actions.rotateClockwise()} aria-label="顺时针旋转" use:tip={'顺时针旋转'}>
 		<RotateCw size={16} />
 		{#if place === 'menu'}Rotate{/if}
 	</button>
@@ -109,7 +104,7 @@
 		class:menu-item={place === 'menu'}
 		onclick={() => ctx.actions.enterPresentationMode()}
 		disabled={inPopout}
-		aria-label={'演示模式'}
+		aria-label="演示模式"
 		use:tip={inPopout ? 'Presentation mode is not available in a separate window' : 'Presentation mode'}
 	>
 		<Presentation size={16} />
@@ -120,7 +115,7 @@
 <!-- "Save", not "Download": the PDF is already on this machine (or in memory for a guest), so this
      writes a copy wherever the user picks. -->
 {#snippet save(place: PreviewToolbarPlace)}
-	<button class:menu-item={place === 'menu'} onclick={() => ctx.actions.savePdf()} aria-label={'保存 PDF'} use:tip={'保存 PDF'}>
+	<button class:menu-item={place === 'menu'} onclick={() => ctx.actions.savePdf()} aria-label="保存 PDF" use:tip={'保存 PDF'}>
 		<Save size={16} />
 		{#if place === 'menu'}Save PDF{/if}
 	</button>

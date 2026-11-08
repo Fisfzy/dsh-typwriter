@@ -48,13 +48,32 @@
 		onResizeHistoryByKey: (e: KeyboardEvent) => void;
 		scmSplitEl?: HTMLDivElement;
 	};
-	let { onClose, scmBusy, scmInit, scmDiscard, scmCommit, scmRestore, scmIgnoreArtifacts, scmPublish, scmSync, scmRecheckGit, scmOpenDiff, scmOpenConflict, scmFinishCombine, scmCancelCombine, scmCompare, scmChangesSince, onRefreshGit, historyFraction, onStartHistoryResize, onResizeHistoryByKey, scmSplitEl = $bindable() }: Props = $props();
+	let {
+		onClose,
+		scmBusy,
+		scmInit,
+		scmDiscard,
+		scmCommit,
+		scmRestore,
+		scmIgnoreArtifacts,
+		scmPublish,
+		scmSync,
+		scmRecheckGit,
+		scmOpenDiff,
+		scmOpenConflict,
+		scmFinishCombine,
+		scmCancelCombine,
+		scmCompare,
+		scmChangesSince,
+		onRefreshGit,
+		historyFraction,
+		onStartHistoryResize,
+		onResizeHistoryByKey,
+		scmSplitEl = $bindable()
+	}: Props = $props();
 </script>
 
-<aside
-	class="bg-surface-50-950 border-surface-200-800 relative flex min-h-0 w-80 shrink-0 flex-col border-l"
-	aria-label="代码修改"
->
+<aside class="bg-surface-50-950 border-surface-200-800 relative flex min-h-0 w-80 shrink-0 flex-col border-l" aria-label="代码修改">
 	<header class="border-surface-200-800 flex shrink-0 items-center gap-2 border-b px-2 py-1">
 		<span class="truncate text-xs font-medium">代码修改</span>
 		<span class="flex-1"></span>

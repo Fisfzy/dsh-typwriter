@@ -21,6 +21,7 @@ const inert = {
 	stopCompile: () => {},
 	openPreferences: () => {},
 	openFolder: () => {},
+	toggleSidebar: () => {},
 	stepDocumentHistory: () => {}
 };
 

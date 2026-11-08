@@ -167,4 +167,3 @@ export class TerminalDockState {
 			commit: this.commit
 		});
 }
-

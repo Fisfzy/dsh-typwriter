@@ -66,11 +66,21 @@
 
 	// ===== 论文助手预设：人格文本 + 从本机 DSH 读技能 / 插件 =====
 	const PERSONA_MAX = 4000;
-	const extra = () => settings.current as Record<string, unknown>;
+	function extra(): Record<string, unknown> {
+		return settings.current as Record<string, unknown>;
+	}
 	const personaLen = $derived(String(extra().agentPersona ?? '').length);
 	// 历史值可能是逗号分隔字符串（旧版纯文本框），统一当成数组用
-	const asList = (v: unknown): string[] =>
-		Array.isArray(v) ? (v as string[]) : typeof v === 'string' && v.trim() ? v.split(',').map((s) => s.trim()).filter(Boolean) : [];
+	function asList(v: unknown): string[] {
+		return Array.isArray(v)
+			? (v as string[])
+			: typeof v === 'string' && v.trim()
+				? v
+						.split(',')
+						.map((s) => s.trim())
+						.filter(Boolean)
+				: [];
+	}
 	const presetSkills = $derived(asList(extra().agentPresetSkills));
 	const presetPlugins = $derived(asList(extra().agentPresetPlugins));
 
@@ -151,9 +161,8 @@
 		spellcheck="false"
 		maxlength={PERSONA_MAX}
 		placeholder="例如：你是我的论文润色助手，保持学术语气，改动默认走修订模式…"
-		value={extra().agentPersona ?? ''}
-		onchange={(e) => updateSettings({ agentPersona: e.currentTarget.value } as never)}
-	></textarea>
+		value={String(extra().agentPersona ?? '')}
+		onchange={(e) => updateSettings({ agentPersona: e.currentTarget.value } as never)}></textarea>
 </div>
 
 <AgentAssetPicker
@@ -213,13 +222,12 @@
 	<div class="min-w-0">
 		<div class="text-sm">继承宿主插件</div>
 		<div class="text-muted text-xs">
-			开着：论文助手复用本机 DSH 的插件与登录态（启动约 9 秒）。关掉：用独立的 DSH 家目录，插件更干净、启动更快，
-			但需要在那个家目录里有 API key。
+			开着：论文助手复用本机 DSH 的插件与登录态（启动约 9 秒）。关掉：用独立的 DSH 家目录，插件更干净、启动更快， 但需要在那个家目录里有 API
+			key。
 		</div>
 	</div>
-	{@render toggle(
-		(settings.current as Record<string, unknown>).agentInheritHostPlugins !== false,
-		(v) => updateSettings({ agentInheritHostPlugins: v } as never)
+	{@render toggle((settings.current as Record<string, unknown>).agentInheritHostPlugins !== false, (v) =>
+		updateSettings({ agentInheritHostPlugins: v } as never)
 	)}
 </div>
 <PrefsRow id="ai-off">
@@ -272,5 +280,3 @@
 </div>
 
 <McpSetupModal bind:open={setupOpen} port={mcp?.port ?? null} />
-
-

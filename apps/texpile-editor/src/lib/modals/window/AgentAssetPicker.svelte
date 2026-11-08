@@ -43,13 +43,13 @@
 	}
 
 	const needle = $derived(query.trim().toLowerCase());
-	const filtered = $derived(
-		assets === null
-			? []
-			: needle
-				? assets.filter((a) => `${a.name} ${a.description ?? ''}`.toLowerCase().includes(needle))
-				: assets
-	);
+	const filtered = $derived.by(() => {
+		// read the state once: a re-read inside the expression loses the null narrowing
+		const list = assets;
+		if (list === null) return [];
+		if (!needle) return list;
+		return list.filter((a) => `${a.name} ${a.description ?? ''}`.toLowerCase().includes(needle));
+	});
 </script>
 
 <div class="border-surface-200-800 border-b">
@@ -77,16 +77,11 @@
 			{:else if assets !== null && assets.length === 0}
 				<p class="text-muted px-1 py-4 text-center text-xs">{props.emptyText}</p>
 			{:else if assets !== null}
-				<input
-					class="input w-full text-xs"
-					type="search"
-					placeholder={props.searchPlaceholder}
-					bind:value={query}
-				/>
-				<div class="surface-100-900 mt-1 max-h-56 overflow-y-auto rounded-base border">
+				<input class="input w-full text-xs" type="search" placeholder={props.searchPlaceholder} bind:value={query} />
+				<div class="surface-100-900 rounded-base mt-1 max-h-56 overflow-y-auto border">
 					{#each filtered as a (a.name)}
 						<label
-							class="hover:preset-tonal flex cursor-pointer items-start gap-2 border-b border-surface-200-800 px-2 py-1.5 last:border-b-0"
+							class="hover:preset-tonal border-surface-200-800 flex cursor-pointer items-start gap-2 border-b px-2 py-1.5 last:border-b-0"
 						>
 							<input
 								type="checkbox"

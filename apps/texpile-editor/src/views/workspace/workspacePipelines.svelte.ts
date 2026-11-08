@@ -79,7 +79,9 @@ export function createWorkspacePipelines(d: PipelineDeps) {
 	});
 	// 预览工具栏的「刷新编译」按钮：TypstPreview 拿不到 controller，事件冒泡到这里接住
 	$effect(() => {
-		const h = () => typstPreview.restart();
+		function h(): void {
+			typstPreview.restart();
+		}
 		window.addEventListener('typwriter:restart-preview', h);
 		return () => window.removeEventListener('typwriter:restart-preview', h);
 	});

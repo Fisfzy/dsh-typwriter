@@ -76,4 +76,3 @@ export function shrunkLayout(layout: EditorLayout, filled: boolean[]): { layout:
 	const [a, b] = full.map((i) => cellOf('grid', i));
 	return { layout: a.column === b.column ? 'rows' : 'columns', keep: full };
 }
-

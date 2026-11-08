@@ -43,4 +43,3 @@ export function signInCommand(agent: PanelAgent | ''): string | null {
 	};
 	return agent ? commands[agent] : null;
 }
-

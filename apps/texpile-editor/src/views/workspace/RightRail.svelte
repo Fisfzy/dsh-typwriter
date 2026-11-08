@@ -21,9 +21,7 @@
 	type RailItem = { key: string; icon: Component; label: string; on: boolean; run: () => void };
 	const items = $derived<RailItem[]>([
 		{ key: 'pdf', icon: FileText, label: 'PDF 审阅', on: props.pdfOpen, run: props.onTogglePdf },
-		...(props.agentOn
-			? [{ key: 'agent', icon: Bot, label: 'AGENT 对话', on: props.agentOpen, run: props.onToggleAgent }]
-			: []),
+		...(props.agentOn ? [{ key: 'agent', icon: Bot, label: 'AGENT 对话', on: props.agentOpen, run: props.onToggleAgent }] : []),
 		{ key: 'scm', icon: FileDiff, label: '代码修改', on: props.scmOpen, run: props.onToggleScm }
 	]);
 </script>
@@ -43,7 +41,7 @@
 		>
 			<Icon class="size-4" />
 			<!-- active 的左侧竖条：与左栏视图切换同一种"这是当前页"的语言 -->
-			<span class="bg-primary-500 absolute left-0 top-1/2 h-5 w-0.5 -translate-y-1/2 rounded-r" class:hidden={!it.on}></span>
+			<span class="bg-primary-500 absolute top-1/2 left-0 h-5 w-0.5 -translate-y-1/2 rounded-r" class:hidden={!it.on}></span>
 		</button>
 	{/each}
 </nav>

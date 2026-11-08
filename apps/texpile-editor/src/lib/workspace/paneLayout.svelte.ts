@@ -320,4 +320,3 @@ export class PaneLayout {
 			commit: this.savePdfFraction
 		});
 }
-

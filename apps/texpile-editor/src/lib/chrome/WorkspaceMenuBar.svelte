@@ -1,6 +1,4 @@
 <script lang="ts">
-	// 只有在 iframe 里嵌进来（DSH 插件宿主）才显示「返回 DSH」
-	const embedded = typeof window !== 'undefined' && window.self !== window.top;
 	import { tip } from '$lib/components/tooltip.svelte';
 	import { onMount, untrack } from 'svelte';
 	import { Menu, Portal } from '@skeletonlabs/skeleton-svelte';
@@ -305,11 +303,11 @@
 			</button>
 		{/if}
 		<!-- 独立的设置栏入口：菜单整体右移让位（返回 DSH 在右侧） -->
-			<button
-				class="rounded-base shrink-0 px-2 py-1 text-xs hover:preset-tonal"
-				title={'偏好设置'}
-				onclick={() => (preferencesOpen.current = true)}
-			>偏好设置</button>
+		<button
+			class="rounded-base hover:preset-tonal shrink-0 px-2 py-1 text-xs"
+			title="偏好设置"
+			onclick={() => (preferencesOpen.current = true)}>偏好设置</button
+		>
 		<span class="border-surface-300-700 mx-1 h-4 w-px shrink-0 self-center border-l"></span>
 		{@render topMenus(false)}
 		{#if overflowing}
@@ -404,6 +402,3 @@
      a guest session renders no menu bar, and they are window features rather than menu features.
      This file still OPENS them, through dialogStore. -->
 <TextPrompt bind:this={textPrompt} />
-
-
-

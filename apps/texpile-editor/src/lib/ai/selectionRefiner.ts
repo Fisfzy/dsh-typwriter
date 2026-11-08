@@ -162,4 +162,3 @@ export class SelectionRefiner {
 
 /** the open workspace's refiner, for the right-click menus; null while no folder is open */
 export const refiner = box<SelectionRefiner | null>(null);
-

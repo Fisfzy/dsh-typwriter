@@ -87,7 +87,7 @@
 			<button
 				bind:this={bar.menu.button}
 				onclick={bar.menu.toggle}
-				aria-label={'更多选项'}
+				aria-label="更多选项"
 				use:tip={'更多选项'}
 				aria-expanded={bar.menu.open}
 			>

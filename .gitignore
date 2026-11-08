@@ -4,6 +4,9 @@
 /dist-web/
 /dist-plugin/
 /dist-typwriter/
+# Typwriter 构建在 apps 下的变体目录（vite outDir）
+/apps/texpile-editor/dist-plugin/
+/apps/texpile-editor/dist-typwriter/
 /build/
 /.wrangler/
 *.log

@@ -3,10 +3,12 @@ import { cellOf, type EditorLayout } from './layouts';
 
 export type DropZone = 'center' | 'left' | 'right' | 'top' | 'bottom';
 
-/** the layout one track bigger along an axis, if there is one */
+/** the layout one track bigger along an axis, if there is one. columns3 grows no way: nothing on offer
+ *  holds a third column (grid is two), so edge drops on it stay center drops */
 const GROWN: Record<EditorLayout, { across: EditorLayout | null; down: EditorLayout | null }> = {
 	one: { across: 'columns', down: 'rows' },
-	columns: { across: null, down: 'grid' },
+	columns: { across: 'columns3', down: 'grid' },
+	columns3: { across: null, down: null },
 	rows: { across: 'grid', down: null },
 	grid: { across: null, down: null }
 };

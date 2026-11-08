@@ -32,7 +32,7 @@ function appendChunk(items: ChatItem[], kind: 'agent' | 'thought' | 'user', chun
 	if (!chunk) return items;
 	const last = items.at(-1);
 	if (last?.kind === kind) return [...items.slice(0, -1), { ...last, text: last.text + chunk }];
-	return [...items, kind === 'user' ? { kind, id: itemId(), text: chunk, attached: null } : { kind, id: itemId(), text: chunk }];
+	return [...items, kind === 'user' ? { kind, id: itemId(), text: chunk, attached: [] } : { kind, id: itemId(), text: chunk }];
 }
 
 function paths(locations: unknown): string[] | undefined {

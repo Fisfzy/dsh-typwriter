@@ -100,12 +100,12 @@
 						onclick={() => toggle(() => props.termDock.toggle())}
 					/>
 				{/if}
-			<PanelMenuItem
-				icon={PanelRight}
-				open={props.panes.pdfPaneOpen && !props.pdfPopout}
-				label={m.wsview_pdf_preview_label()}
-				onclick={() => toggle(togglePreview)}
-			/>
+				<PanelMenuItem
+					icon={PanelRight}
+					open={props.panes.pdfPaneOpen && !props.panes.pdfPopout}
+					label={m.wsview_pdf_preview_label()}
+					onclick={() => toggle(togglePreview)}
+				/>
 			</div>
 			<span class="text-muted px-1 text-xs">{m.groups_layout_editors()}</span>
 			<div class="flex gap-0.5">
@@ -142,6 +142,3 @@
 		</div>
 	{/if}
 </div>
-
-
-

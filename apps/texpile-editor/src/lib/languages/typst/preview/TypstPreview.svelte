@@ -296,7 +296,7 @@
 			class:menu-item={place === 'menu'}
 			onclick={() => window.dispatchEvent(new CustomEvent('typwriter:restart-preview'))}
 			use:tip={'刷新编译'}
-			aria-label={'刷新编译'}
+			aria-label="刷新编译"
 		>
 			<RefreshCw size={16} />
 			{#if place === 'menu'}刷新编译{/if}
@@ -366,5 +366,3 @@
 		{/if}
 	</div>
 </div>
-
-

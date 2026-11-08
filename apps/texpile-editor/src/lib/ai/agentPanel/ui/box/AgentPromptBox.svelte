@@ -112,13 +112,19 @@
 	type ModelSel = { provider: string | null; model: string | null; reasoningEffort: string | null };
 	let modelData = $state<{ models: ModelEntry[]; current: ModelSel; efforts: string[] } | null>(null);
 	$effect(() => {
-		void (window as unknown as { texpileAgent?: { modelInfo?: () => Promise<{ models: ModelEntry[]; current: ModelSel; efforts: string[] }> } })
-			.texpileAgent?.modelInfo?.()
-			.then((r) => (modelData = r && r.models ? r : { models: [], current: { provider: null, model: null, reasoningEffort: null }, efforts: [] }))
+		void (
+			window as unknown as { texpileAgent?: { modelInfo?: () => Promise<{ models: ModelEntry[]; current: ModelSel; efforts: string[] }> } }
+		).texpileAgent
+			?.modelInfo?.()
+			.then(
+				(r) =>
+					(modelData = r && r.models ? r : { models: [], current: { provider: null, model: null, reasoningEffort: null }, efforts: [] })
+			)
 			.catch(() => {});
 	});
 	async function applyModel(patch: Partial<ModelSel>): Promise<void> {
-		const api = (window as unknown as { texpileAgent?: { setModel?: (s: Partial<ModelSel>) => Promise<{ current: ModelSel }> } }).texpileAgent;
+		const api = (window as unknown as { texpileAgent?: { setModel?: (s: Partial<ModelSel>) => Promise<{ current: ModelSel }> } })
+			.texpileAgent;
 		if (!api?.setModel || !modelData) return;
 		try {
 			const r = await api.setModel(patch);
@@ -194,7 +200,8 @@
 	<div
 		class="textarea relative [--field-size:var(--text-sm)]"
 		role="group"
-		ondragover={(e) => (e.dataTransfer?.types.includes('Files') || e.dataTransfer?.types.includes('application/x-texpile-paths')) && e.preventDefault()}
+		ondragover={(e) =>
+			(e.dataTransfer?.types.includes('Files') || e.dataTransfer?.types.includes('application/x-texpile-paths')) && e.preventDefault()}
 		ondrop={onDrop}
 	>
 		{#if slash.open}
@@ -247,10 +254,14 @@
 			/>
 			{#if modelData && modelGroups.length}
 				<!-- 模型 / 思考强度：写 DSH 的默认模型选择（settings.json），新对话起生效 -->
-				<MenuDropdown groups={modelGroups} placement="bottom-start" onSelect={(v) => {
-					const [provider, ...rest] = String(v).split('::');
-					void applyModel({ provider, model: rest.join('::') });
-				}}>
+				<MenuDropdown
+					groups={modelGroups}
+					placement="bottom-start"
+					onSelect={(v) => {
+						const [provider, ...rest] = String(v).split('::');
+						void applyModel({ provider, model: rest.join('::') });
+					}}
+				>
 					{#snippet trigger(attrs)}
 						<button
 							{...attrs}
@@ -262,7 +273,11 @@
 						</button>
 					{/snippet}
 				</MenuDropdown>
-				<MenuDropdown groups={effortGroups} placement="bottom-start" onSelect={(v) => void applyModel({ reasoningEffort: v === '' ? null : String(v) })}>
+				<MenuDropdown
+					groups={effortGroups}
+					placement="bottom-start"
+					onSelect={(v) => void applyModel({ reasoningEffort: v === '' ? null : String(v) })}
+				>
 					{#snippet trigger(attrs)}
 						<button
 							{...attrs}

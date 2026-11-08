@@ -333,8 +333,7 @@ class EditorGroups {
 			this.empty(id);
 			return;
 		}
-		const next: EditorLayout =
-			this.layout === 'grid' ? 'columns3' : this.layout === 'columns3' ? 'columns' : 'one';
+		const next: EditorLayout = this.layout === 'grid' ? 'columns3' : this.layout === 'columns3' ? 'columns' : 'one';
 		if (next === this.layout) {
 			this.empty(id);
 			return;

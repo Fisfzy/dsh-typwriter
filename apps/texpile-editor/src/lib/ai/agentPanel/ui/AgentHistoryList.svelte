@@ -46,7 +46,9 @@
 	<div class="max-h-56 overflow-y-auto">
 		{#each sorted as chat, i (chat.id)}
 			<button
-				class="hover:preset-tonal flex w-full items-center gap-2 rounded-base px-2 py-1.5 text-left text-xs {chat.id === agentSession.chat ? 'preset-tonal' : ''}"
+				class="hover:preset-tonal rounded-base flex w-full items-center gap-2 px-2 py-1.5 text-left text-xs {chat.id === agentSession.chat
+					? 'preset-tonal'
+					: ''}"
 				onclick={() => void resume(chat.id)}
 			>
 				<span class="text-muted w-6 shrink-0 text-right tabular-nums">#{i + 1}</span>
@@ -60,7 +62,7 @@
 	</div>
 	<p class="text-muted px-1 text-[11px] leading-relaxed">接续后上下文延续到该对话；历史内容不回显，直接继续提问即可。</p>
 	<button
-		class="preset-tonal hover:preset-tonal-primary mt-1 flex items-center justify-center gap-1.5 rounded-base px-2 py-1.5 text-xs"
+		class="preset-tonal hover:preset-tonal-primary rounded-base mt-1 flex items-center justify-center gap-1.5 px-2 py-1.5 text-xs"
 		onclick={() => {
 			props.onPicked?.();
 			void restartAgentSession();

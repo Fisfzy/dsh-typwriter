@@ -21,8 +21,6 @@
 	let buttonsAtEnd = $state(windowButtonsAtEnd());
 	$effect(() => onWindowButtonsMoved(() => (buttonsAtEnd = windowButtonsAtEnd())));
 	const divided = $derived(!isDesktop() || buttonsAtEnd);
-	// 只有被 DSH 宿主用 iframe 嵌进来时才提供「返回 DSH」
-	const embedded = typeof window !== 'undefined' && window.self !== window.top;
 	// the AGENT pane can run here: the bridge exists and AI is not turned off (same gate as LayoutMenu's items)
 	const agentOn = $derived(!panelTabOff() && !!acpBridge());
 </script>
@@ -50,8 +48,14 @@
 {/if}
 
 <!-- 右侧：回 DSH 主对话 -->
-	<button
-		class="app-no-drag rounded-base ml-1 shrink-0 px-2 py-1 text-xs hover:preset-tonal"
-		title={'返回 DSH'}
-		onclick={() => { try { window.parent.postMessage({ type: 'typwriter:back' }, '*'); } catch { /* ignore */ } }}
-	>返回 DSH</button>
+<button
+	class="app-no-drag rounded-base hover:preset-tonal ml-1 shrink-0 px-2 py-1 text-xs"
+	title="返回 DSH"
+	onclick={() => {
+		try {
+			window.parent.postMessage({ type: 'typwriter:back' }, '*');
+		} catch {
+			/* ignore */
+		}
+	}}>返回 DSH</button
+>

@@ -29,7 +29,7 @@ it('sends nothing when Stop comes while the save before the turn is still runnin
 	const session = new AgentSession(() => bridge);
 	await session.start('/p');
 	session.receive({ type: 'state', state: 'ready' });
-	const sent = session.send('rewrite the intro', null);
+	const sent = session.send('rewrite the intro', []);
 	session.cancel();
 	saved();
 	await sent;

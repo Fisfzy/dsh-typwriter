@@ -14,7 +14,7 @@
 	class:menu-item={place === 'menu'}
 	aria-pressed={inverted}
 	onclick={togglePagesInverted}
-	aria-label={'反转页面颜色'}
+	aria-label="反转页面颜色"
 	use:tip={'反转页面颜色'}
 >
 	<Contrast size={16} />

@@ -23,7 +23,7 @@
 <aside
 	class="bg-surface-50-950 relative flex min-h-0 min-w-0 flex-col border-l"
 	style="grid-column: 4; grid-row: 2; width: {width}px"
-	aria-label={'AGENT 对话'}
+	aria-label="AGENT 对话"
 >
 	<header class="border-surface-200-800 flex shrink-0 items-center gap-2 border-b px-2 py-1">
 		<Bot class="size-4 opacity-70" />
@@ -48,7 +48,7 @@
 				</Portal>
 			</Popover>
 		{/if}
-		<button class="btn-icon btn-icon-sm" aria-label={'关闭 AGENT 对话'} title={'关闭 AGENT 对话'} onclick={onClose}>
+		<button class="btn-icon btn-icon-sm" aria-label="关闭 AGENT 对话" title="关闭 AGENT 对话" onclick={onClose}>
 			<X class="size-4" />
 		</button>
 	</header>

@@ -56,19 +56,19 @@
 >
 	<EditorPane {...props.pane} />
 	{#if props.closable}
-	<button
-		class="btn-icon btn-icon-xs absolute top-1 right-1 z-50 opacity-60 hover:opacity-100"
-		aria-label={'关闭此窗格'}
-		title={'关闭此窗格'}
-		onclick={(e) => {
-			e.stopPropagation();
-			props.onClose?.();
-		}}
-	>
-		<X class="size-3.5" />
-	</button>
-{/if}
-{#if props.hint}
+		<button
+			class="btn-icon btn-icon-xs absolute top-1 right-1 z-50 opacity-60 hover:opacity-100"
+			aria-label="关闭此窗格"
+			title="关闭此窗格"
+			onclick={(e) => {
+				e.stopPropagation();
+				props.onClose?.();
+			}}
+		>
+			<X class="size-3.5" />
+		</button>
+	{/if}
+	{#if props.hint}
 		<div class="bg-primary-500/15 border-primary-500 pointer-events-none absolute z-40 border-2 {HALVES[props.hint]}"></div>
 	{/if}
 </div>

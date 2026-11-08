@@ -67,4 +67,3 @@ export function revealShift(start: number, size: number, room: number): number {
 	if (start < 0 || size > room) return start;
 	return Math.max(0, start + size - room);
 }
-

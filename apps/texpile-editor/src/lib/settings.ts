@@ -97,16 +97,16 @@ export type AppSettings = {
 	/** Preferences › AI Assistant's switch: Refine and the Agent tab gone, the MCP server stopped, whatever is picked below it */
 	aiOff: boolean;
 	/** the agent Refine runs, alone in the list; null = none chosen yet, empty = None, Refine off. Main reads it, see electron/src/ai */
-	refineAgents: ('claude' | 'codex' | 'agy' | 'custom')[] | null;
+	refineAgents: ('claude' | 'codex' | 'agy' | 'dsh' | 'custom')[] | null;
 	/** the command line for Refine's custom agent; the prompt goes on its stdin */
 	aiAgentCommand: string;
 	/** each preset agent's --model for Refine, one of the ids it lists; missing or '' = its own default */
 	aiAgentModels: Record<string, string>;
 	/** the agent the dock's Agent tab talks to over ACP, of those it offers; '' until one is picked. Main reads it, see
 	 *  electron/src/ai/acp */
-	agentPanel: '' | 'codex' | 'claude' | 'opencode' | 'copilot' | 'gemini' | 'custom';
+	agentPanel: '' | 'codex' | 'claude' | 'opencode' | 'copilot' | 'gemini' | 'dsh' | 'custom';
 	/** the agents the Agent tab's menu offers; null = the ones installed, [] = the tab turned off */
-	agentPanelAgents: ('codex' | 'claude' | 'opencode' | 'copilot' | 'gemini' | 'custom')[] | null;
+	agentPanelAgents: ('codex' | 'claude' | 'opencode' | 'copilot' | 'gemini' | 'dsh' | 'custom')[] | null;
 	/** the command line when agentPanel is 'custom'; it speaks ACP on its input and output */
 	agentPanelCommand: string;
 	/** folders searched before PATH; per machine, so never in a project's config */

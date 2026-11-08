@@ -157,8 +157,7 @@
 	// while a drag sets `width` directly, which no transition touches.
 	// `animate` is PaneLayout.settled: the flip restore() makes on load snaps; user flips slide.
 	// prefers-reduced-motion: 0ms keeps the toggle instant for those who asked for less motion.
-	const SLIDE_MS =
-		typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 200;
+	const SLIDE_MS = typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 200;
 
 	// The timeline loads when the panel is opened rather than on every tree refresh: status is cheap
 	// and runs constantly, `git log` is not and only changes when a version is saved. Commits and

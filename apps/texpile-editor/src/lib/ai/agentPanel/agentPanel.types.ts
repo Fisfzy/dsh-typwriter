@@ -89,4 +89,3 @@ export type ChatInfo = { id: string; title: string | null; updatedAt: string | n
 export type TurnChange = { path: string; kind: ChangedFile['change']; before: string | null };
 export type PromptResult = { ok: boolean; stopReason?: string; error?: string; changes: TurnChange[] };
 export type StartResult = { ok: true; agent: PanelAgent } | { ok: false; reason: 'no-folder' | 'unset' | 'missing'; program?: string };
-
