@@ -3,7 +3,7 @@ import {
 	FilePlus2,
 	FolderGit2,
 	FolderOpen,
-	Github,
+	GitBranch,
 	History,
 	KeyRound,
 	LayoutTemplate,
@@ -133,7 +133,7 @@ export function fileItems(a: PaletteActions): PaletteItem[] {
 			label: github.login ? m.palette_github_sign_out({ login: github.login }) : m.palette_github_sign_in(),
 			group,
 			keywords: 'github account login logout browser oauth token',
-			icon: Github,
+			icon: GitBranch,
 			run: () => void (github.login ? signOutOfGithub() : signInToGithub())
 		});
 	// Local History: the open file's copies, and the way back to a deleted file's (the File menu's two)
