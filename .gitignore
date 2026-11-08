@@ -1,14 +1,14 @@
-# 依赖与构建产物不入库
-node_modules/
-dist/
-dist-web/
-dist-plugin/
-dist-typwriter/
-build/
-.wrangler/
+# 依赖与构建产物不入库（注意：锚定到仓库根，避免误伤 plugin/*/dist 里手写的客户端 bundle）
+/node_modules/
+/dist/
+/dist-web/
+/dist-plugin/
+/dist-typwriter/
+/build/
+/.wrangler/
 *.log
 
-# 插件：构建产物与第三方二进制不入库（见 README「Toolchain」）
+# 插件：只排除构建出来的应用包与第三方二进制（见 README「Toolchain」）
 plugin/*/app/
 plugin/*/bin/
 plugin/*/node_modules/
