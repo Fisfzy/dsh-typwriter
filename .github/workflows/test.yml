@@ -35,15 +35,14 @@ jobs:
       - run: pnpm --filter mathlive test
       - run: npx tsc -p electron --noEmit
 
-  # Upstream Texpile's Electron integration suite — kept for signal, but NOT adapted to the
-  # Typwriter fork yet (the fork pivoted the app to a browser-hosted DSH plugin, and this suite
-  # has never passed here: 20+ failures from the missing Electron-side wiring). Dependabot
-  # branches skip it (a red X they can never clear would just drown the useful test signal);
-  # runs elsewhere stay non-blocking. Remove the skip and the flag once the suite is fixed.
+  # Upstream Texpile's Electron integration suite — DISABLED: not adapted to the Typwriter fork
+  # (the fork pivoted the app to a browser-hosted DSH plugin; the suite has never passed here,
+  # 20+ failures from the missing Electron-side wiring). A permanently red check only mails
+  # failure reports no one can act on yet, drowning the real signal. To re-enable once the
+  # suite is adapted: delete the leading `false && ` in the condition below.
   app:
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' || !startsWith(github.head_ref, 'dependabot/')
-    continue-on-error: true
+    if: false && (github.event_name == 'push' || !startsWith(github.head_ref, 'dependabot/'))
     steps:
       - uses: actions/checkout@v7
 
