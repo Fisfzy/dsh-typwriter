@@ -1,0 +1,388 @@
+<script lang="ts">
+	// 只有在 iframe 里嵌进来（DSH 插件宿主）才显示「返回 DSH」
+	const embedded = typeof window !== 'undefined' && window.self !== window.top;
+	import { tip } from '$lib/components/tooltip.svelte';
+	import { onMount, untrack } from 'svelte';
+	import { Menu, Portal } from '@skeletonlabs/skeleton-svelte';
+	// Menu is Skeleton's here, so lucide's hamburger comes in aliased
+	import { Menu as MenuIcon, MoreHorizontal } from '@lucide/svelte';
+	import { editorConfigStore, cursorInCm } from '$lib/stores/editorStore';
+	import { recentFolders, activeFilePath } from '$lib/workspace/workspaceStore';
+	import { isDesktop, openNewWindow, openFolderInNewWindow } from '$lib/workspace/fileSystem';
+	import { isMac } from '$lib/platform';
+	import { setSpellcheckEnabled } from '$lib/editor/spellcheck/config/spellcheckConfig';
+	import { hasVisualMode, isRawTextKind, formatOf, type FileKind } from '$lib/workspace/documentBuffer.svelte';
+	import { editSelect, formatSelect } from './menuBarCommands';
+	import { preferencesOpen, shortcutsOpen, openPreferencesAt } from '$lib/stores/dialogStore';
+	import { commandPalette } from '$lib/workspace/commandPalette.svelte';
+	import { attachNativeMenu, publishMenuState } from '$lib/workspace/nativeMenu';
+	import { typstExport } from '$lib/languages/typst/export/dialog/typstExportState.svelte';
+	import { titleBarLayout } from '$lib/chrome/titleBarLayout.svelte';
+	import { whatsNewOpen } from '$lib/whatsNew';
+	import { triggerClass, menuContentClass } from '$lib/menus/menuStyles';
+	import { makeInsertHandlers } from './menubar/insert/menuBarInsert';
+	import { checkUpdates } from './menubar/menuBarUpdates';
+	import FileMenu from './menubar/FileMenu.svelte';
+	import EditMenu from './menubar/EditMenu.svelte';
+	import ViewMenu from './menubar/ViewMenu.svelte';
+	import InsertMenu from './menubar/insert/InsertMenu.svelte';
+	import { nativeInsertParts } from './menubar/insert/insertListSelect';
+	import { GRAPHICX, ensurePackage } from './menubar/insert/packageOnInsert';
+	import { insertItems } from '$lib/editor/visual/insert/insertItems.svelte';
+	import FormatMenu from './menubar/FormatMenu.svelte';
+	import SpellingMenu from './menubar/SpellingMenu.svelte';
+	import { folderLanguageItems } from '$lib/editor/spellcheck/languages/folderLanguageMenu';
+	import type { SpellingChoice } from '$lib/editor/spellcheck/languages/spellingLanguage.svelte';
+	import TerminalMenu from './menubar/TerminalMenu.svelte';
+	import HelpMenu from './menubar/HelpMenu.svelte';
+	import TextPrompt from './menubar/TextPrompt.svelte';
+	import { reportProblemUrl } from './menubar/reportProblemUrl';
+	import ImagePickerInput from './menubar/ImagePickerInput.svelte';
+	import { m } from '$lib/paraglide/messages';
+
+	type Props = {
+		disabled?: boolean;
+		/** what is open in the editor pane; decides which menus apply and which dialect they write */
+		fileKind?: FileKind;
+		imageDir?: string;
+		/**
+		 * Create a new file. `ext` (tex/bib/cls/sty) seeds the name + content; omitted = a plain new file.
+		 *
+		 * Undefined when the workspace cannot take tree writes - a guest edits through the shared CRDT
+		 * and owns none of the host's folder. Presence of the callback IS the gate, the way
+		 * onShareSession and onCloseWorkspace already work, so there is one thing to get right rather
+		 * than a callback plus a flag that can disagree.
+		 */
+		onNewFile?: (ext?: string) => void;
+		/** the compile target is Typst: New offers .typ instead of .tex/.cls/.sty (md either way) */
+		typstProject?: boolean;
+		onOpenFolder?: (path?: string) => void;
+		/** Save the folder as a template of the user's own (desktop, host only). */
+		onSaveAsTemplate?: () => void;
+		onCloneRepository?: () => void;
+		/** File › Local History… and Restore Deleted File…: the host's own workspace */
+		onLocalHistory?: () => void;
+		onRestoreDeleted?: () => void;
+		/** Close the current folder and return to the Start screen. */
+		onCloseWorkspace?: () => void;
+		onSave?: () => void;
+		/** shared-session dialog (desktop only). */
+		onShareSession?: () => void;
+		/** Terminal menu (shown only in the desktop app). */
+		terminalAvailable?: boolean;
+		terminalVisible?: boolean;
+		onCompile?: () => void;
+		onConfigureCompile?: () => void;
+		onNewTerminal?: () => void;
+		onToggleTerminal?: () => void;
+		/** Reindent the current document via latexindent (opens the confirm-first modal). */
+		onFormatDocument?: () => void;
+		/** whole-window zoom, shown as a percentage in the View menu. */
+		uiZoomPercent?: number;
+		onZoomIn?: () => void;
+		onZoomOut?: () => void;
+		onZoomReset?: () => void;
+		/** the open file's spelling language, for Spelling > Folder Language */
+		spelling?: SpellingChoice | null;
+		/** absent for a guest: the folder's language is the host's to choose */
+		onSpellLanguage?: (value: string) => void;
+	};
+	let {
+		disabled = false,
+		fileKind = null,
+		imageDir,
+		onNewFile,
+		typstProject = false,
+		onOpenFolder,
+		onSaveAsTemplate,
+		onCloneRepository,
+		onLocalHistory,
+		onRestoreDeleted,
+		onCloseWorkspace,
+		onSave,
+		onShareSession,
+		terminalAvailable = false,
+		terminalVisible = false,
+		onCompile,
+		onConfigureCompile,
+		onNewTerminal,
+		onToggleTerminal,
+		onFormatDocument,
+		uiZoomPercent = 100,
+		onZoomIn,
+		onZoomOut,
+		onZoomReset,
+		spelling = null,
+		onSpellLanguage
+	}: Props = $props();
+
+	// What the open file supports, not just whether one is open. A PDF or an image has no text
+	// buffer, so Edit's undo/redo would reach nothing; a .bib edits as raw text, so Insert/Format
+	// have no structured document to write into; and a .typ or .md must never be offered LaTeX.
+	/** there is a text buffer (visual or raw) for Edit/Spelling to act on */
+	const editable = $derived(!disabled && (hasVisualMode(fileKind) || isRawTextKind(fileKind)));
+	/** there is a structured (tex/md/typ) document for Insert/Format to act on */
+	const structured = $derived(!disabled && hasVisualMode(fileKind));
+	const findable = $derived(editable || (!disabled && fileKind === 'pdf'));
+	/** which syntax Insert/Format write; only meaningful while `structured` */
+	const dialect = $derived(formatOf(fileKind));
+
+	/**
+	 * Progressive overflow. The menus render inline left to right for as long as they fit, and the
+	 * rest move into a trailing overflow button - `File Edit View ...` - rather than the whole bar
+	 * collapsing at once. Help goes first because it is last and least used; zero visible is the
+	 * degenerate case and looks like the hamburger it used to be.
+	 *
+	 * TitleBar decides how many fit: it is the only place that can measure the row, the menus and the
+	 * window controls together, and the budget comes from keeping the command center centred.
+	 */
+	// file edit view insert format spelling [terminal] help. The count has to follow terminalAvailable
+	// rather than being a constant 8: the fit loop advances one step per resize, so a menu that renders
+	// nothing would be a step that frees no width, produce no resize, and stall the loop one short.
+	const menuCount = $derived(terminalAvailable ? 8 : 7);
+	const helpIndex = $derived(terminalAvailable ? 7 : 6);
+	$effect(() => {
+		const n = menuCount;
+		untrack(() => titleBarLayout.setTotal(n)); // setTotal writes what it reads; see TitleBar's fit()
+	});
+	const visible = $derived(titleBarLayout.visibleMenus);
+	const overflowing = $derived(visible < menuCount);
+	/** does menu `i` belong to the pass currently rendering? */
+	function showAt(i: number, overflow: boolean) {
+		return overflow ? i >= visible : i < visible;
+	}
+
+	let imagePicker: ImagePickerInput;
+	let textPrompt: TextPrompt;
+
+	function viewSelect(value: string) {
+		if (value === 'zoom-in') onZoomIn?.();
+		else if (value === 'zoom-out') onZoomOut?.();
+		else if (value === 'zoom-reset') onZoomReset?.();
+	}
+
+	function helpSelect(value: string) {
+		if (value === 'shortcuts') shortcutsOpen.current = true;
+		else if (value === 'whatsnew') whatsNewOpen.current = true;
+		else if (value === 'docs') window.open('https://texpile.com/docs', '_blank', 'noopener,noreferrer');
+		else if (value === 'discord') window.open('https://discord.gg/7wanVzCBWf', '_blank', 'noopener,noreferrer');
+		else if (value === 'report') window.open(reportProblemUrl(__APP_VERSION__), '_blank', 'noopener,noreferrer');
+		else if (value === 'updates') void checkUpdates();
+	}
+
+	function fileSelect(value: string) {
+		if (value === 'save') onSave?.();
+		else if (value === 'new-window') openNewWindow();
+		else if (value === 'open-folder-new-window') openFolderInNewWindow();
+		else if (value === 'export-typst') typstExport.show();
+		else if (value === 'clone') onCloneRepository?.();
+		else if (value === 'local-history') onLocalHistory?.();
+		else if (value === 'restore-deleted') onRestoreDeleted?.();
+		else if (value === 'share-session') onShareSession?.();
+		else if (value === 'save-as-template') onSaveAsTemplate?.();
+		else if (value === 'close-workspace') onCloseWorkspace?.();
+		else if (value === 'preferences') preferencesOpen.current = true;
+	}
+	function newFileSelect(ext: string) {
+		onNewFile?.(ext);
+	}
+
+	// "newfolder" opens the native picker; any other value is a recent folder path
+	function openFolderSelect(value: string) {
+		if (value === 'newfolder') onOpenFolder?.();
+		else onOpenFolder?.(value);
+	}
+
+	const { mathSelect, insertSelect } = makeInsertHandlers({
+		dialect: () => dialect,
+		askText: (title, initial, offered) => textPrompt.askText(title, initial, offered),
+		pickImage: () => imagePicker?.pick()
+	});
+
+	// a text style the visual editor draws goes in as a chip, the way the Insert menu's drawn items do
+	function formatMenuSelect(value: string) {
+		if (value === 'format-document') onFormatDocument?.();
+		else if (value.startsWith('style:')) void insertSelect(value);
+		else formatSelect(value, dialect);
+	}
+
+	const spellcheckOn = $derived(editorConfigStore.current?.spellcheck ?? false);
+	const spellLanguages = $derived(folderLanguageItems(spelling));
+	function spellcheckSelect(value: string) {
+		if (value === 'toggle') setSpellcheckEnabled(!spellcheckOn);
+		else if (value.startsWith('lang:')) onSpellLanguage?.(value.slice(5));
+		// the dictionary is a section of the Spelling tab
+		else if (value === 'dictionary' || value === 'settings') openPreferencesAt('proofing');
+	}
+
+	function terminalSelect(value: string) {
+		if (value === 'compile') onCompile?.();
+		else if (value === 'configure') onConfigureCompile?.();
+		else if (value === 'new') onNewTerminal?.();
+		else if (value === 'toggle') onToggleTerminal?.();
+	}
+
+	// On macOS the menus are drawn by the system menu bar, and a native selection arrives here as the
+	// same `menu:value` string a trigger would have produced - so both paths run one dispatcher.
+	const nativeMenus = isMac && isDesktop();
+	onMount(() =>
+		attachNativeMenu({
+			file: fileSelect,
+			newFile: newFileSelect,
+			openFolder: openFolderSelect,
+			edit: (v) => (v === 'palette' ? commandPalette.show() : v === 'goToFile' ? commandPalette.show('files') : editSelect(v)),
+			view: viewSelect,
+			insert: (v) => void insertSelect(v),
+			math: mathSelect,
+			format: formatMenuSelect,
+			spelling: spellcheckSelect,
+			terminal: terminalSelect,
+			help: helpSelect
+		})
+	);
+	// what the native bar needs to know about this window; re-sent whenever any of it changes
+	$effect(() =>
+		publishMenuState({
+			disabled,
+			editable,
+			findable,
+			structured,
+			dialect,
+			cursorInCm: cursorInCm.current,
+			spellcheck: spellcheckOn,
+			spellLanguages,
+			canChooseSpellLanguage: !!onSpellLanguage,
+			terminalAvailable,
+			terminalVisible,
+			canShare: !!onShareSession,
+			canCloseWorkspace: !!onCloseWorkspace,
+			canFormat: !!onFormatDocument,
+			canNewFile: !!onNewFile,
+			typstProject,
+			canExportTypst: typstExport.available,
+			canInsertImage: !!imageDir,
+			insertParts: nativeInsertParts(insertItems.current),
+			canOpenFolder: !!onOpenFolder,
+			canSaveTemplate: !!onSaveAsTemplate,
+			canClone: !!onCloneRepository,
+			canLocalHistory: !!onLocalHistory,
+			fileOpen: !!activeFilePath.current,
+			recentFolders: recentFolders.current
+		})
+	);
+</script>
+
+<!-- Lives inside TitleBar's row, so the row owns the border and the height; this only lays out its
+     own triggers. no-drag because the row around it is a drag region.
+     On macOS the triggers are gone and the real menu bar carries them (windowChrome.ts), but the
+     component still mounts: it owns Preferences, the dictionary, the shortcut sheet and the image
+     picker, none of which have anything to do with where the menus are drawn.
+     preventDefault on mousedown so opening a menu doesn't blur the editor; inserts land at the cursor -->
+{#if !nativeMenus}
+	<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+	<!-- no left padding: the app icon before it already provides the gap, and doubling up pushed File
+	     away from the mark. The triggers carry their own px-2.5 for their hover targets. -->
+	<nav class="app-no-drag flex items-center gap-0.5 pr-1" data-keep-caret onmousedown={(e) => e.preventDefault()}>
+		<!-- 独立的设置栏入口：菜单整体右移让位（返回 DSH 在右侧） -->
+		<button
+			class="rounded-base shrink-0 px-2 py-1 text-xs hover:preset-tonal"
+			title={'偏好设置'}
+			onclick={() => (preferencesOpen.current = true)}
+		>偏好设置</button>
+		<span class="border-surface-300-700 mx-1 h-4 w-px shrink-0 self-center border-l"></span>
+		{@render topMenus(false)}
+		{#if overflowing}
+			<!-- the leftovers, as submenus. A hamburger when it holds everything, an ellipsis when it
+			     is genuinely an overflow of a bar that still shows some menus. -->
+			<Menu>
+				<Menu.Trigger class={triggerClass} aria-label={m.menubar_all_menus()}>
+					{#snippet element(attrs)}
+						<button {...attrs} use:tip={m.menubar_all_menus()}>
+							{#if visible === 0}<MenuIcon class="size-4" />{:else}<MoreHorizontal class="size-4" />{/if}
+						</button>
+					{/snippet}
+				</Menu.Trigger>
+				<Portal>
+					<Menu.Positioner>
+						<Menu.Content class={menuContentClass}>
+							{@render topMenus(true)}
+						</Menu.Content>
+					</Menu.Positioner>
+				</Portal>
+			</Menu>
+		{/if}
+	</nav>
+{/if}
+
+<!--
+	The eight top-level menus, once. Rendered straight into the row normally, or into a single
+	dropdown when the window is too narrow for them (VS Code's compact menu bar). Each menu's
+	MenuBarTrigger switches between the two layouts, so everything underneath is shared -
+	duplicating the item lists per layout would have guaranteed they drift.
+-->
+{#snippet topMenus(overflow: boolean)}
+	{#if showAt(0, overflow)}
+		<FileMenu
+			index={0}
+			select={fileSelect}
+			{newFileSelect}
+			{openFolderSelect}
+			canNewFile={!!onNewFile}
+			{typstProject}
+			canExportTypst={typstExport.available}
+			canOpenFolder={!!onOpenFolder}
+			canSaveAsTemplate={!!onSaveAsTemplate}
+			canClone={!!onCloneRepository}
+			canLocalHistory={!!onLocalHistory}
+			fileOpen={!!activeFilePath.current}
+			canCloseWorkspace={!!onCloseWorkspace}
+			canShareSession={!!onShareSession}
+		/>
+	{/if}
+	{#if showAt(1, overflow)}
+		<EditMenu
+			index={1}
+			select={(v) => (v === 'palette' ? commandPalette.show() : v === 'goToFile' ? commandPalette.show('files') : editSelect(v))}
+			{editable}
+			{findable}
+		/>
+	{/if}
+	<!-- zoom is webContents.setZoomFactor, which the browser has its own of; the color vision check
+	     there is the eye on the preview toolbar -->
+	{#if !__WEB__ && showAt(2, overflow)}
+		<ViewMenu index={2} select={viewSelect} {uiZoomPercent} />
+	{/if}
+	{#if showAt(3, overflow)}
+		<InsertMenu index={3} select={(v) => void insertSelect(v)} {mathSelect} {structured} {dialect} canInsertImage={!!imageDir} />
+	{/if}
+	{#if showAt(4, overflow)}
+		<FormatMenu index={4} select={formatMenuSelect} {structured} {dialect} {fileKind} canFormatDocument={!!onFormatDocument} />
+	{/if}
+	{#if showAt(5, overflow)}
+		<SpellingMenu
+			index={5}
+			select={spellcheckSelect}
+			{editable}
+			{spellcheckOn}
+			languages={spellLanguages}
+			languagesFixed={!onSpellLanguage}
+		/>
+	{/if}
+	{#if terminalAvailable && showAt(6, overflow)}
+		<TerminalMenu index={6} select={terminalSelect} {terminalVisible} />
+	{/if}
+	{#if showAt(helpIndex, overflow)}
+		<HelpMenu index={helpIndex} select={helpSelect} />
+	{/if}
+{/snippet}
+
+<!-- outside the nav so it survives on macOS, where the nav is not rendered at all -->
+<ImagePickerInput bind:this={imagePicker} {imageDir} onInserted={() => dialect === 'tex' && ensurePackage(GRAPHICX)} />
+
+<!-- Preferences, the dictionary and the shortcut sheet are mounted by WindowDialogs, not here:
+     a guest session renders no menu bar, and they are window features rather than menu features.
+     This file still OPENS them, through dialogStore. -->
+<TextPrompt bind:this={textPrompt} />
+
+
+

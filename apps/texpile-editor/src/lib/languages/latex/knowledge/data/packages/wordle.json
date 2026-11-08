@@ -1,0 +1,32 @@
+{
+	"version": 1,
+	"deps": [
+		{"id":"packages/tikz"},
+		{"id":"packages/pgf"},
+		{"id":"packages/pgfrcs"},
+		{"id":"packages/pgfcore"},
+		{"id":"packages/graphicx"},
+		{"id":"packages/keyval"},
+		{"id":"packages/graphics"},
+		{"id":"packages/trig"},
+		{"id":"packages/pgfsys"},
+		{"id":"packages/xcolor"},
+		{"id":"packages/pgfcomp-version-0-65"},
+		{"id":"packages/pgfcomp-version-1-18"},
+		{"id":"packages/pgffor"},
+		{"id":"packages/pgfkeys"},
+		{"id":"packages/pgfmath"}
+	],
+	"macros": [
+		{"name":"ParamsSutom","args":[{"kind":"m","keys":["packages/wordle#l3keys:wordle"]}]},
+		{"name":"WordleSetup","args":[{"kind":"m","keys":["packages/wordle#l3keys:wordle"]}]}
+	],
+	"envs": [
+		{"name":"GridWordle","args":[{"kind":"o","keys":["packages/wordle#l3keys:wordle"]},{"kind":"m"},{"kind":"o"}]},
+		{"name":"GrilleSutom","args":[{"kind":"o","keys":["packages/wordle#l3keys:wordle"]},{"kind":"m"},{"kind":"o"}]},
+		{"name":"wordle","args":[{"kind":"o","keys":["packages/wordle#l3keys:wordle"]},{"kind":"m"},{"kind":"o"}],"doc":"the wordle environment automatically colours the letter tiles green when the letter is in the same position as the solution, and as gold when the letter is in the solution but it is not in the correct position."}
+	],
+	"keys": {
+		"packages/wordle#l3keys:wordle": [{"key":"Arrondi","bare":true,"default":"4pt"},{"key":"BorderColor","placeholder":"","role":"color"},{"key":"Cadres","placeholder":""},{"key":"CouleurBordures","placeholder":"","role":"color"},{"key":"CouleurLettres","placeholder":"","role":"color"},{"key":"Couleurs","placeholder":"","role":"color"},{"key":"Echelle","placeholder":""},{"key":"Epaisseur","placeholder":"length"},{"key":"Fonte","placeholder":""},{"key":"Formes","placeholder":""},{"key":"Lignes","placeholder":"number"},{"key":"Nom","placeholder":""},{"key":"Police","placeholder":""},{"key":"Rounded","bare":true,"default":"4pt"},{"key":"Separation","placeholder":"length"},{"key":"Style case","placeholder":""},{"key":"Taille","placeholder":"length"},{"key":"Unit","placeholder":""},{"key":"Unite","placeholder":""},{"key":"absent border","placeholder":"","role":"color"},{"key":"absent color","placeholder":"","role":"color"},{"key":"absent colour","placeholder":"","role":"color"},{"key":"absent frame","bare":true,"default":"true"},{"key":"absent shape","placeholder":""},{"key":"absent text","placeholder":"","role":"color"},{"key":"absent","placeholder":"","role":"color"},{"key":"borders","placeholder":"","role":"color"},{"key":"bordure absent","placeholder":"","role":"color"},{"key":"bordure correct","placeholder":"","role":"color"},{"key":"bordure present","placeholder":""},{"key":"bordure vide","placeholder":""},{"key":"cadre absent","placeholder":""},{"key":"cadre correct","placeholder":""},{"key":"cadre present","placeholder":""},{"key":"cadre vide","placeholder":""},{"key":"colors","placeholder":"","role":"color"},{"key":"colours","placeholder":"","role":"color"},{"key":"correct border","placeholder":"","role":"color"},{"key":"correct color","placeholder":"","role":"color"},{"key":"correct colour","placeholder":"","role":"color"},{"key":"correct frame","bare":true,"default":"true"},{"key":"correct shape","placeholder":""},{"key":"correct text","placeholder":"","role":"color"},{"key":"correct","placeholder":"","role":"color"},{"key":"couleur absent","placeholder":"","role":"color"},{"key":"couleur correct","placeholder":"","role":"color"},{"key":"couleur present","placeholder":""},{"key":"couleur vide","placeholder":""},{"key":"coultxt absent","placeholder":"","role":"color"},{"key":"coultxt correct","placeholder":"","role":"color"},{"key":"coultxt present","placeholder":""},{"key":"coultxt vide","placeholder":""},{"key":"empty border","placeholder":""},{"key":"empty color","placeholder":""},{"key":"empty colour","placeholder":""},{"key":"empty frame","bare":true,"default":"true"},{"key":"empty shape","placeholder":""},{"key":"empty text","placeholder":""},{"key":"empty","placeholder":""},{"key":"font","placeholder":""},{"key":"forme absent","placeholder":""},{"key":"forme correct","placeholder":""},{"key":"forme present","placeholder":""},{"key":"forme vide","placeholder":""},{"key":"frames","bare":true,"default":"true"},{"key":"name","placeholder":""},{"key":"present border","placeholder":""},{"key":"present color","placeholder":""},{"key":"present colour","placeholder":""},{"key":"present frame","bare":true,"default":"true"},{"key":"present shape","placeholder":""},{"key":"present text","placeholder":""},{"key":"present","placeholder":""},{"key":"rounded","bare":true,"default":"4pt"},{"key":"rows","placeholder":"number"},{"key":"scale","placeholder":""},{"key":"separation","placeholder":"length"},{"key":"shapes","placeholder":""},{"key":"size","placeholder":"length"},{"key":"text","placeholder":"","role":"color"},{"key":"thickness","placeholder":"length"},{"key":"tikz","placeholder":""},{"key":"tile style","placeholder":""},{"key":"Lettres","bare":true},{"key":"NonLettres","bare":true},{"key":"align","bare":true},{"key":"letters","bare":true},{"key":"lower case","bare":true},{"key":"natural case","bare":true},{"key":"noalign","bare":true},{"key":"noletters","bare":true},{"key":"upper case","bare":true},{"key":"Strict","values":["false","true"],"bare":true},{"key":"case sensitive","values":["false","true"],"bare":true},{"key":"strict","values":["false","true"],"bare":true},{"key":"style","placeholder":""},{"key":"Style","placeholder":""},{"key":"valign","values":["bottom","center","centre","top"]},{"key":"nonalign","bare":true}]
+	}
+}

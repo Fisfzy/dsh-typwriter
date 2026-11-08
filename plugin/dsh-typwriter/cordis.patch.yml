@@ -1,0 +1,4 @@
+# dsh-typwriter bundle patch：同一个包提供 host 半片与浏览器半片
+- insert:
+    - id: typwriter
+      name: 'dsh-typwriter'

@@ -1,0 +1,118 @@
+<script lang="ts">
+	// Every modal the workspace can raise, in one place. These are all independent of each other
+	// and of the layout; keeping them here stops WorkspaceView's markup from being half dialogs.
+	import MainFileModal from './MainFileModal.svelte';
+	import CompileCommandModal from './CompileCommandModal.svelte';
+	import FormatModal from './FormatModal.svelte';
+	import GitDialogsHost from './GitDialogsHost.svelte';
+	import CommandPalette from '$lib/palette/CommandPalette.svelte';
+	import SymbolPicker from '$lib/editor/symbols/SymbolPicker/SymbolPicker.svelte';
+	import MathSearchPanel from '$lib/editor/visual/extensions/mathlivebridge/mathSearch/MathSearchPanel.svelte';
+	import TemplateDetailsDialog from '$lib/workspace/templates/saved/TemplateDetailsDialog.svelte';
+	import TypstExportDialog from '$lib/languages/typst/export/dialog/TypstExportDialog.svelte';
+	import { promptAsk } from '$lib/modals/confirm.svelte';
+	import type { RefUpdate } from '$lib/workspace/refUpdate';
+	import { m } from '$lib/paraglide/messages';
+	import type { MainFilePrompt } from '$lib/workspace/mainFilePrompt.svelte';
+	import FileCacheConflictModal from '$lib/files/sync/FileCacheConflictModal.svelte';
+	import type { CompileSettings } from '$lib/workspace/compileSettings.svelte';
+
+	let {
+		mainPrompt = $bindable(),
+		compileSettings = $bindable(),
+		formatModalOpen = $bindable(),
+		formatTool,
+		formatting,
+		pendingRefUpdate,
+		onSaveCompile,
+		onRunCompile,
+		onFormat,
+		onKeepRefs,
+		onApplyRefs
+	}: {
+		mainPrompt: MainFilePrompt;
+		compileSettings: CompileSettings;
+		formatModalOpen: boolean;
+		/** which formatter Format will run for the open file */
+		formatTool: 'latexindent' | 'typstyle';
+		formatting: boolean;
+		pendingRefUpdate: RefUpdate | null;
+		onSaveCompile: (thenRun: boolean) => void;
+		onRunCompile: () => void;
+		onFormat: () => void;
+		onKeepRefs: () => void;
+		onApplyRefs: () => void;
+	} = $props();
+
+	// The forced-choice prompts are message boxes (confirm.svelte.ts): the OS draws them on the
+	// desktop, ConfirmHost on the web. Each fires once per state object; a stale answer (the state
+	// moved on while the box was up) is dropped rather than resolving the newer one.
+
+	// after a rename or move, offer to repoint the references we found; dismissing keeps them
+	let askedRefs: object | null = null;
+	$effect(() => {
+		const u = pendingRefUpdate;
+		if (!u || u === askedRefs) return;
+		askedRefs = u;
+		void promptAsk({
+			title: m.wsview_refupdate_title(),
+			message: refUpdateBody(u),
+			buttons: [
+				{ id: 'apply', label: m.wsview_refupdate_apply(), primary: true },
+				{ id: 'keep', label: m.wsview_refupdate_keep() }
+			],
+			cancelId: 'keep'
+		}).then((id) => {
+			if (pendingRefUpdate === u) (id === 'apply' ? onApplyRefs : onKeepRefs)();
+		});
+	});
+
+	// total refs and file count pluralize independently
+	function refUpdateBody(u: RefUpdate): string {
+		const refClause =
+			u.total === 1 ? m.wsview_refupdate_ref_count_one({ count: u.total }) : m.wsview_refupdate_ref_count_other({ count: u.total });
+		const fileClause =
+			u.hits.length === 1
+				? m.wsview_refupdate_file_count_one({ count: u.hits.length })
+				: m.wsview_refupdate_file_count_other({ count: u.hits.length });
+		const args = { refClause, fileClause, oldRel: u.oldRel, newRel: u.newRel };
+		return u.total === 1 ? m.wsview_refupdate_body_one(args) : m.wsview_refupdate_body_other(args);
+	}
+</script>
+
+{#if mainPrompt.open}
+	<MainFileModal
+		candidates={mainPrompt.candidates}
+		tooMany={mainPrompt.tooMany}
+		bind:choice={mainPrompt.choice}
+		detected={mainPrompt.detected}
+		docRoots={mainPrompt.docRoots}
+		onConfirm={() => mainPrompt.confirm()}
+		onDismiss={() => mainPrompt.dismiss()}
+	/>
+{/if}
+
+<CompileCommandModal
+	bind:open={compileSettings.modalOpen}
+	bind:command={compileSettings.draft}
+	bind:outputs={compileSettings.outputsDraft}
+	bind:advancedOpen={compileSettings.advancedOpen}
+	onSave={onSaveCompile}
+	onRun={onRunCompile}
+/>
+
+<FormatModal bind:open={formatModalOpen} {formatting} tool={formatTool} {onFormat} />
+
+<FileCacheConflictModal />
+
+<!-- takes no props: it reads the action registry WorkspaceView fills in, and owns its own Ctrl+K -->
+<CommandPalette />
+
+<!-- takes no props either: the source toolbar, the Insert menu and the palette open it -->
+<SymbolPicker />
+<!-- Tab in an equation opens it -->
+<MathSearchPanel />
+<TemplateDetailsDialog />
+<TypstExportDialog />
+<!-- who is committing, where to publish, and git's own sign-in questions -->
+<GitDialogsHost />

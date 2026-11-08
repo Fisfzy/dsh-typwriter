@@ -1,0 +1,250 @@
+/* Texpile's own colour tokens, derived from whichever Skeleton theme is on.
+
+   The app paints more roles than Skeleton names (syntax highlighting, find matches, proofread
+   underlines, review comments, the PDF chrome...). Each gets a variable here, built from the
+   theme's families, so switching data-theme to any Skeleton theme recolours all of it.
+
+   The default theme (texpile-default-theme.css) overrides every one of these with the exact value
+   it always painted: its [data-theme] selector outranks the bare html below, so the default look
+   is untouched and only other themes take these derivations. A new theme overrides what it likes
+   and inherits the rest. Pairs are light-dark(), the way Skeleton's own pairing tokens are built. */
+
+html {
+	/* secondary and faint text as a share of the text colour, whatever the theme's scale does */
+	--muted-share: 60%;
+	--faint-share: 40%;
+	--muted-text: color-mix(in oklab, currentColor var(--muted-share), transparent);
+	--faint-text: color-mix(in oklab, currentColor var(--faint-share), transparent);
+	/* a theme colour as text or a mark on the ground: its hue and chroma, with the lightness held
+	   at or below 0.5 on a light ground and at or above 0.85 on a dark one, so it reads on any
+	   preset, including one whose whole scale is pastel (Reign's primary never leaves 87-97%) */
+	--primary-ink: light-dark(oklch(from var(--color-primary-500) min(l, 0.5) c h), oklch(from var(--color-primary-500) max(l, 0.85) c h));
+	--secondary-ink: light-dark(
+		oklch(from var(--color-secondary-500) min(l, 0.5) c h),
+		oklch(from var(--color-secondary-500) max(l, 0.85) c h)
+	);
+	--tertiary-ink: light-dark(oklch(from var(--color-tertiary-500) min(l, 0.5) c h), oklch(from var(--color-tertiary-500) max(l, 0.85) c h));
+	--success-ink: light-dark(oklch(from var(--color-success-500) min(l, 0.5) c h), oklch(from var(--color-success-500) max(l, 0.85) c h));
+	--warning-ink: light-dark(oklch(from var(--color-warning-500) min(l, 0.5) c h), oklch(from var(--color-warning-500) max(l, 0.85) c h));
+	--error-ink: light-dark(oklch(from var(--color-error-500) min(l, 0.5) c h), oklch(from var(--color-error-500) max(l, 0.85) c h));
+	/* a theme colour over the ground: tint at rest, wash on hover and for hairlines, flood for a pressed
+	   or selected state. Tokens rather than bg-primary-500/15 because Tailwind bakes an alpha-modified
+	   family colour to Skeleton's base placeholder, a grey that never changes with the theme */
+	--primary-tint: color-mix(in oklab, var(--color-primary-500) 15%, transparent);
+	--primary-tint-solid: color-mix(in oklab, var(--color-primary-500) 15%, var(--color-surface-50-950));
+	--primary-wash: color-mix(in oklab, var(--color-primary-500) 35%, transparent);
+	--primary-flood: color-mix(in oklab, var(--color-primary-500) 55%, transparent);
+	--secondary-tint: color-mix(in oklab, var(--color-secondary-500) 15%, transparent);
+	--secondary-wash: color-mix(in oklab, var(--color-secondary-500) 35%, transparent);
+	--secondary-flood: color-mix(in oklab, var(--color-secondary-500) 55%, transparent);
+	--tertiary-tint: color-mix(in oklab, var(--color-tertiary-500) 15%, transparent);
+	--tertiary-wash: color-mix(in oklab, var(--color-tertiary-500) 35%, transparent);
+	--tertiary-flood: color-mix(in oklab, var(--color-tertiary-500) 55%, transparent);
+	--success-tint: color-mix(in oklab, var(--color-success-500) 15%, transparent);
+	--success-wash: color-mix(in oklab, var(--color-success-500) 35%, transparent);
+	--success-flood: color-mix(in oklab, var(--color-success-500) 55%, transparent);
+	--warning-tint: color-mix(in oklab, var(--color-warning-500) 15%, transparent);
+	--warning-wash: color-mix(in oklab, var(--color-warning-500) 35%, transparent);
+	--warning-flood: color-mix(in oklab, var(--color-warning-500) 55%, transparent);
+	--error-tint: color-mix(in oklab, var(--color-error-500) 15%, transparent);
+	--error-wash: color-mix(in oklab, var(--color-error-500) 35%, transparent);
+	--error-flood: color-mix(in oklab, var(--color-error-500) 55%, transparent);
+	/* the tonal fill: opaque, the family's hue toward the far end for the mode with the chroma eased the
+	   way a scale's own 50 and 950 steps are, computed from the 500 so a pastel scale gets it too. Dark
+	   stops at .46 rather than the 950 step's .38: that is the dark ground's own lightness (surface-950
+	   is .386), so a fill there read as a hole cut in the panel. The hover sits one step on */
+	--primary-tonal: light-dark(
+		oklch(from var(--color-primary-500) max(l, 0.94) calc(c * 0.2) h),
+		oklch(from var(--color-primary-500) min(l, 0.46) calc(c * 0.55) h)
+	);
+	--primary-tonal-hover: light-dark(
+		oklch(from var(--color-primary-500) max(l, 0.87) calc(c * 0.37) h),
+		oklch(from var(--color-primary-500) min(l, 0.52) calc(c * 0.65) h)
+	);
+	--secondary-tonal: light-dark(
+		oklch(from var(--color-secondary-500) max(l, 0.94) calc(c * 0.2) h),
+		oklch(from var(--color-secondary-500) min(l, 0.46) calc(c * 0.55) h)
+	);
+	--secondary-tonal-hover: light-dark(
+		oklch(from var(--color-secondary-500) max(l, 0.87) calc(c * 0.37) h),
+		oklch(from var(--color-secondary-500) min(l, 0.52) calc(c * 0.65) h)
+	);
+	--tertiary-tonal: light-dark(
+		oklch(from var(--color-tertiary-500) max(l, 0.94) calc(c * 0.2) h),
+		oklch(from var(--color-tertiary-500) min(l, 0.46) calc(c * 0.55) h)
+	);
+	--tertiary-tonal-hover: light-dark(
+		oklch(from var(--color-tertiary-500) max(l, 0.87) calc(c * 0.37) h),
+		oklch(from var(--color-tertiary-500) min(l, 0.52) calc(c * 0.65) h)
+	);
+	--success-tonal: light-dark(
+		oklch(from var(--color-success-500) max(l, 0.94) calc(c * 0.2) h),
+		oklch(from var(--color-success-500) min(l, 0.46) calc(c * 0.55) h)
+	);
+	--success-tonal-hover: light-dark(
+		oklch(from var(--color-success-500) max(l, 0.87) calc(c * 0.37) h),
+		oklch(from var(--color-success-500) min(l, 0.52) calc(c * 0.65) h)
+	);
+	--warning-tonal: light-dark(
+		oklch(from var(--color-warning-500) max(l, 0.94) calc(c * 0.2) h),
+		oklch(from var(--color-warning-500) min(l, 0.46) calc(c * 0.55) h)
+	);
+	--warning-tonal-hover: light-dark(
+		oklch(from var(--color-warning-500) max(l, 0.87) calc(c * 0.37) h),
+		oklch(from var(--color-warning-500) min(l, 0.52) calc(c * 0.65) h)
+	);
+	--error-tonal: light-dark(
+		oklch(from var(--color-error-500) max(l, 0.94) calc(c * 0.2) h),
+		oklch(from var(--color-error-500) min(l, 0.46) calc(c * 0.55) h)
+	);
+	--error-tonal-hover: light-dark(
+		oklch(from var(--color-error-500) max(l, 0.87) calc(c * 0.37) h),
+		oklch(from var(--color-error-500) min(l, 0.52) calc(c * 0.65) h)
+	);
+	/* text on the tonal fill: the same hue, pulled to the near end for the mode. Its own token, not the
+	   ink, because a theme may set its ink for text on the ground (Texpile's is its 500), which sits
+	   too close to the deep fill */
+	--primary-on-tonal: light-dark(
+		oklch(from var(--color-primary-500) min(l, 0.42) c h),
+		oklch(from var(--color-primary-500) max(l, 0.86) c h)
+	);
+	--secondary-on-tonal: light-dark(
+		oklch(from var(--color-secondary-500) min(l, 0.42) c h),
+		oklch(from var(--color-secondary-500) max(l, 0.86) c h)
+	);
+	--tertiary-on-tonal: light-dark(
+		oklch(from var(--color-tertiary-500) min(l, 0.42) c h),
+		oklch(from var(--color-tertiary-500) max(l, 0.86) c h)
+	);
+	--success-on-tonal: light-dark(
+		oklch(from var(--color-success-500) min(l, 0.42) c h),
+		oklch(from var(--color-success-500) max(l, 0.86) c h)
+	);
+	--warning-on-tonal: light-dark(
+		oklch(from var(--color-warning-500) min(l, 0.42) c h),
+		oklch(from var(--color-warning-500) max(l, 0.86) c h)
+	);
+	--error-on-tonal: light-dark(oklch(from var(--color-error-500) min(l, 0.42) c h), oklch(from var(--color-error-500) max(l, 0.86) c h));
+	/* the same for the neutral surface pair: a faint overlay, a hover, a stronger wash, a scrim */
+	--surface-tint: color-mix(in oklab, var(--color-surface-200-800) 40%, transparent);
+	/* hover:preset-tonal's fill laid on the ground, for a control that must hide what is under it */
+	--tonal-hover-solid: color-mix(in oklab, light-dark(var(--color-surface-950), var(--color-surface-50)) 10%, var(--color-surface-50-950));
+	/* a preset-tonal button's hover, one step on from its fill */
+	--tonal-hover: color-mix(in oklab, light-dark(var(--color-surface-950), var(--color-surface-50)) 18%, transparent);
+	--surface-wash: color-mix(in oklab, var(--color-surface-200-800) 60%, transparent);
+	--surface-strong-wash: color-mix(in oklab, var(--color-surface-300-700) 60%, transparent);
+	--surface-strong-wash-solid: color-mix(in oklab, var(--color-surface-300-700) 60%, var(--color-surface-50-950));
+	--surface-scrim: color-mix(in oklab, var(--color-surface-100-900) 60%, transparent);
+	/* CodeMirror syntax roles (cmHighlight.ts) */
+	--syntax-comment: var(--muted-text);
+	--syntax-keyword: var(--error-ink);
+	--syntax-import: var(--secondary-ink);
+	--syntax-command: var(--primary-ink);
+	--syntax-math-ident: var(--tertiary-ink);
+	--syntax-math-text: var(--success-ink);
+	--syntax-literal: var(--warning-ink);
+	--syntax-string: var(--primary-ink);
+	--syntax-url: var(--primary-ink);
+	--syntax-monospace: var(--warning-ink);
+	--syntax-operator: var(--secondary-ink);
+	--syntax-inserted: var(--success-ink);
+	--syntax-deleted: var(--error-ink);
+
+	/* find-in-document matches, both editors */
+	--find-match-bg: light-dark(rgba(255, 255, 0, 0.4), rgba(255, 255, 0, 0.25));
+	--find-match-active-bg: light-dark(rgba(255, 128, 0, 0.6), rgba(255, 128, 0, 0.4));
+
+	/* spell and grammar underlines (suggestion.css), one hue per proofread category */
+	--proof-default: var(--tertiary-ink);
+	--proof-spelling: var(--error-ink);
+	--proof-typo: var(--error-ink);
+	--proof-capitalization: var(--warning-ink);
+	--proof-wordchoice: var(--primary-ink);
+	--proof-style: var(--secondary-ink);
+	--proof-repetition: var(--warning-ink);
+
+	/* review comments: the thread tint. The selection a composer is open for wears the editor's own
+	   selection color (app.css), so it has no token of its own */
+	--comment-tint: var(--color-warning-500);
+
+	/* the "you are here" flash after a SyncTeX, mode-switch or reference jump */
+	--jump-flash: var(--color-warning-400);
+	/* draft mode: the band around the paragraph being edited */
+	--draft-band: var(--color-warning-300);
+
+	/* suggestion and agent diff tints in the visual editor */
+	--diff-insert-tint: var(--color-success-500);
+	--diff-delete-tint: var(--color-error-500);
+	--diff-highlight-tint: var(--color-warning-400);
+
+	/* \ref and \cite chips */
+	--ref-fg: var(--primary-ink);
+	--ref-bg: color-mix(in oklab, var(--color-primary-500) 15%, transparent);
+	--ref-broken-fg: var(--error-ink);
+	--ref-broken-bg: color-mix(in oklab, var(--color-error-500) 15%, transparent);
+
+	/* git status, carried by the file name's colour */
+	--git-modified: var(--warning-ink);
+	--git-added: var(--success-ink);
+	--git-deleted: var(--error-ink);
+	--git-renamed: var(--secondary-ink);
+
+	/* math symbol keys */
+	--math-key-hover: var(--primary-tint);
+	--math-key-edge: var(--color-primary-400);
+	--math-key-down: color-mix(in oklab, var(--color-primary-500) 25%, transparent);
+
+	/* the colour picker's clear mark */
+	--swatch-clear: var(--color-error-500);
+	/* page view: the sheet behind the document, paper-white in both modes */
+	--page-sheet: var(--color-surface-50);
+	/* an empty math field, and one about to be deleted */
+	--math-empty-tint: var(--color-error-500);
+	--mathfield-focus-border: light-dark(var(--color-surface-950), var(--color-surface-50));
+	/* the selected block's outline while the context menu is open */
+	--selected-node-outline: var(--color-primary-300);
+	/* a peer's cursor label when it carries no colour of its own */
+	--collab-cursor-fallback: var(--color-warning-500);
+	/* the source editor's math preview: its control buttons on hover */
+	--math-preview-btn-hover: color-mix(in srgb, var(--color-surface-500) 18%, transparent);
+	/* the image resize frame */
+	--image-frame: light-dark(var(--color-surface-950), var(--color-surface-50));
+	/* the terminal: dark in both modes; xterm reads these through themeColour() */
+	--terminal-bg: light-dark(var(--color-surface-50), var(--color-surface-950));
+	--terminal-fg: light-dark(var(--color-surface-950), var(--color-surface-50));
+	/* the brand blue and the one legacy grey still referenced (@theme aliases in app.css) */
+	--brand-blue: var(--color-primary-500);
+	--brand-gray: var(--color-surface-200);
+
+	/* the PDF pane's chrome */
+	--pdf-viewer-bg: light-dark(var(--color-surface-100), var(--color-surface-950));
+	--pdf-page-area-bg: light-dark(var(--color-surface-100), var(--color-surface-950));
+	--page-shadow: 0 2px 8px light-dark(rgb(0 0 0 / 0.12), rgb(0 0 0 / 0.55)), 0 1px 3px light-dark(rgb(0 0 0 / 0.08), rgb(0 0 0 / 0.4));
+	/* the bar sits in the editor column's tab-strip row, so it wears the tab strip's band and the
+	   app's own text colour: at that height the thing beside it is the tab strip, not the toolbar */
+	--pdf-toolbar-bg: light-dark(var(--color-surface-100), var(--color-surface-900));
+	--pdf-toolbar-fg: light-dark(var(--color-surface-950), var(--color-surface-50));
+	--pdf-toolbar-border: light-dark(var(--color-surface-200), var(--color-surface-700));
+	/* between control groups, the editor toolbar's border-surface-300-700 */
+	--pdf-toolbar-divider: light-dark(var(--color-surface-300), var(--color-surface-700));
+	--pdf-toolbar-btn-bg: transparent;
+	--pdf-toolbar-btn-border: transparent;
+	--pdf-toolbar-btn-fg: light-dark(var(--color-surface-950), var(--color-surface-50));
+	--pdf-toolbar-btn-hover-bg: light-dark(var(--color-surface-200), var(--color-surface-700));
+	--pdf-toolbar-btn-hover-border: light-dark(var(--color-surface-300), var(--color-surface-600));
+	--pdf-toolbar-btn-active-bg: light-dark(var(--color-surface-300), var(--color-surface-600));
+	/* a tint of the bar rather than a filled block: beside bare icon buttons a solid field was the
+	   heaviest thing on the row */
+	--pdf-toolbar-input-bg: light-dark(
+		color-mix(in oklab, var(--color-surface-950) 6%, transparent),
+		color-mix(in oklab, var(--color-surface-50) 8%, transparent)
+	);
+	--pdf-toolbar-input-border: light-dark(
+		color-mix(in oklab, var(--color-surface-950) 12%, transparent),
+		color-mix(in oklab, var(--color-surface-50) 14%, transparent)
+	);
+	--pdf-toolbar-accent: var(--color-primary-500);
+	--pdf-toolbar-accent-ring: color-mix(in srgb, var(--color-primary-500) 25%, transparent);
+	--pdf-toolbar-muted: color-mix(in oklab, var(--pdf-toolbar-fg) 60%, transparent);
+	--pdf-toolbar-muted-strong: color-mix(in oklab, var(--pdf-toolbar-fg) 80%, transparent);
+}

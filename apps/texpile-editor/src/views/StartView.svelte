@@ -1,0 +1,212 @@
+<script lang="ts">
+	import { tip } from '$lib/components/tooltip.svelte';
+	import { navigate } from '$lib/router.svelte';
+	import { AppWindow, Folder, FolderGit2, FolderOpen, Loader2, Settings, Users } from '@lucide/svelte';
+	import { combo } from '$lib/chrome/shortcutText';
+	import { whatsNewOpen, hasUnseenWhatsNew } from '$lib/whatsNew';
+	import AppFrame from '$lib/chrome/AppFrame.svelte';
+	import RecentFoldersModal from '$lib/modals/start/RecentFoldersModal.svelte';
+	// dark wordmark for light backgrounds, white one for dark mode
+	import logoOnLight from '$branding/Logo-dark.svg';
+	import logoOnDark from '$branding/Logo-light.svg';
+	import { pickFolder, isDesktop, openNewWindow, basename } from '$lib/workspace/fileSystem';
+	import { recentFolders } from '$lib/workspace/workspaceStore';
+	import { onMount } from 'svelte';
+	import { mark } from '$lib/debug/startupDoctor';
+	import { openFolderInWindow } from '$lib/workspace/openWorkspace';
+	import { warnMissingFolder } from '$lib/workspace/missingFolder';
+	import { m } from '$lib/paraglide/messages';
+	import { takePreferencesReopen } from '$lib/stores/dialogStore';
+	import { RecentsFit } from './startRecentsFit.svelte';
+	import GitDialogsHost from '$lib/modals/workspace/GitDialogsHost.svelte';
+	import { startClone } from '$lib/workspace/scm/remote/cloneFlow';
+	import { canClone } from '$lib/workspace/scm/remote/gitClone';
+
+	let busy = $state(false);
+	let error = $state<string | null>(null);
+	// the start screen must fit a default window without a scrollbar, so a long history
+	// lives in a popup instead of inline
+	const RECENT_COLLAPSED_COUNT = 5;
+	let recentModalOpen = $state(false);
+	const fit = new RecentsFit(RECENT_COLLAPSED_COUNT);
+	const visibleRecents = $derived(recentFolders.current.slice(0, fit.count));
+	let prefsOpen = $state(false); // the menu bar isn't on this screen, so settings need a way in from here
+	const appVersion = __APP_VERSION__; // injected by Vite from package.json
+
+	// prefs chains into the editor bundle (it reaches harper via spellcheck), so it loads on first open
+	// instead of riding in the boot chunk
+	let PrefsDialog = $state<typeof import('$lib/modals/window/PreferencesDialog.svelte').default | null>(null);
+
+	async function showPrefs() {
+		PrefsDialog ??= (await import('$lib/modals/window/PreferencesDialog.svelte')).default;
+		prefsOpen = true;
+	}
+
+	// every entry on this screen is the same row: muted icon, label, optional shortcut on the right
+	const rowClass = 'hover:preset-tonal rounded-base flex w-full items-center gap-2.5 px-2 py-1.5 text-left text-sm disabled:opacity-50';
+	const shortcutClass = 'text-faint ml-auto shrink-0 pl-4 text-xs';
+
+	// WorkspaceView is route-split (App.svelte); kick its chunk off as soon as an open begins so
+	// it streams while the folder scans. failures are non-fatal here: App's own loader retries
+	// and owns the error path
+	function preloadWorkspace() {
+		return void import('./workspace/WorkspaceView.svelte').catch(() => {});
+	}
+
+	async function openFolder(path?: string) {
+		preloadWorkspace();
+		error = null;
+		const root = path ?? (await pickFolder());
+		if (!root) return;
+		busy = true;
+		try {
+			// 'elsewhere' means another window already had it and was focused: stay on the start screen
+			// not awaited: the prompt is modal on its own, and awaiting it kept the busy spinner up behind it
+			if ((await openFolderInWindow(root)) === 'missing') void warnMissingFolder(root);
+		} catch (e) {
+			error = e instanceof Error ? e.message : m.start_error_open_folder();
+		} finally {
+			busy = false;
+		}
+	}
+
+	// the clone dialog stays up until the folder exists, then this opens it like any other
+	function cloneRepository() {
+		preloadWorkspace();
+		error = null;
+		void startClone(async (path) => {
+			busy = true;
+			try {
+				if ((await openFolderInWindow(path)) === 'missing') error = m.start_error_open_folder();
+			} finally {
+				busy = false;
+			}
+		});
+	}
+
+	// NOTE: session restore no longer lives here. The main process remembers the open folders
+	// (settings.openFolders) and pushes a main:open-folder to each restored window at launch;
+	// App.svelte handles it. A StartView-side auto-reopen would make every NEW window reopen
+	// the last folder too.
+
+	onMount(() => {
+		mark('start-screen');
+		if (takePreferencesReopen()) void showPrefs();
+	});
+
+	// Ctrl+O off macOS, where no native menu carries it; a Mac's start screen menu takes Cmd+O first
+	function onKeydown(e: KeyboardEvent) {
+		if (!(e.metaKey || e.ctrlKey) || e.shiftKey || e.altKey) return;
+		if (e.key === ',') {
+			e.preventDefault();
+			void showPrefs();
+		} else if (e.key.toLowerCase() === 'o' && !busy) {
+			e.preventDefault();
+			void openFolder();
+		} else {
+			// the key's place, so Ctrl+1 is the same key on AZERTY, where it types &
+			const digit = /^Digit([1-9])$/.exec(e.code);
+			const folder = digit && visibleRecents[Number(digit[1]) - 1];
+			if (!folder || busy) return;
+			e.preventDefault();
+			void openFolder(folder);
+		}
+	}
+</script>
+
+<svelte:window onkeydown={onKeydown} />
+<svelte:head><title>Typwriter</title></svelte:head>
+
+<!-- my-auto rather than centering the container: a tall list on a short window would otherwise
+     push the top above the scroll origin, where it can't be reached -->
+<AppFrame>
+	<div class="flex min-h-full shrink-0 justify-center px-6 py-12">
+		<div class="my-auto w-full max-w-md" use:fit.attach>
+			<img src={logoOnLight} alt="Typwriter" class="mx-auto mb-8 h-9 w-auto dark:hidden" />
+			<img src={logoOnDark} alt="Typwriter" class="mx-auto mb-8 hidden h-9 w-auto dark:block" />
+
+			<div class="mb-1 flex items-center gap-3">
+				<span class="text-muted shrink-0 text-xs font-semibold tracking-wider uppercase">{m.start_heading()}</span>
+				<span class="border-surface-200-800 h-px flex-1 border-t"></span>
+			</div>
+
+			<button class={rowClass} onclick={() => openFolder()} disabled={busy}>
+				{#if busy}<Loader2 class="text-muted size-4 shrink-0 animate-spin" />{:else}<FolderOpen class="text-muted size-4 shrink-0" />{/if}
+				<span>{m.start_open_folder()}</span>
+				<span class={shortcutClass}>{combo('O')}</span>
+			</button>
+			{#if canClone()}
+				<button class={rowClass} onclick={cloneRepository} disabled={busy}>
+					<FolderGit2 class="text-muted size-4 shrink-0" />
+					<span>{m.start_clone_repository()}</span>
+				</button>
+			{/if}
+			<button class={rowClass} onclick={() => navigate('/session')}>
+				<Users class="text-muted size-4 shrink-0" />
+				<span>{m.start_join_session()}</span>
+			</button>
+			{#if isDesktop()}
+				<button class={rowClass} onclick={openNewWindow}>
+					<AppWindow class="text-muted size-4 shrink-0" />
+					<span>{m.start_new_window()}</span>
+					<span class={shortcutClass}>{combo('N', { shift: true })}</span>
+				</button>
+			{/if}
+			<button class={rowClass} onclick={showPrefs}>
+				<Settings class="text-muted size-4 shrink-0" />
+				<span>{m.menubar_preferences()}</span>
+				<span class={shortcutClass}>{combo(',')}</span>
+			</button>
+
+			{#if error}
+				<p class="text-error-ink mt-2 px-2 text-sm">{error}</p>
+			{/if}
+
+			{#if recentFolders.current.length > 0 && fit.count > 0}
+				<div data-recent-block class="pt-7">
+					<div class="mb-1 flex items-center gap-3">
+						<span class="text-muted shrink-0 text-xs font-semibold tracking-wider uppercase">{m.start_recent_heading()}</span>
+						<span class="border-surface-200-800 h-px flex-1 border-t"></span>
+					</div>
+					{#each visibleRecents as folder, i (folder)}
+						<!-- min-w-0 on the row and the path: flex items default to min-width:auto, so
+					     without it `truncate` never engages and long paths overflow -->
+						<button class="{rowClass} group min-w-0" data-recent-row onclick={() => openFolder(folder)} disabled={busy} use:tip={folder}>
+							<Folder class="text-muted size-4 shrink-0" />
+							<!-- inner baseline row: the icon stays centred in the row, but the name (text-sm) and
+						     path (text-xs) sit on a shared baseline, else the smaller one rides low -->
+							<span class="flex min-w-0 flex-1 items-baseline gap-2">
+								<span class="max-w-[45%] shrink-0 truncate group-hover:underline">{basename(folder)}</span>
+								<span class="text-faint min-w-0 truncate text-xs">{folder}</span>
+							</span>
+							<span class={shortcutClass}>{combo(String(i + 1))}</span>
+						</button>
+					{/each}
+					{#if recentFolders.current.length > visibleRecents.length}
+						<button class="text-muted hover:text-surface-950-50 mt-1 px-2 text-xs" onclick={() => (recentModalOpen = true)}>
+							{m.start_recent_show_all({ count: recentFolders.current.length })}
+						</button>
+					{/if}
+				</div>
+			{/if}
+
+			<!-- release notes belong next to the version, not competing with the actions above -->
+			<div class="border-surface-200-800 text-muted mt-8 flex items-center justify-between gap-2 border-t px-2 pt-3 text-xs">
+				<span>{m.menubar_version_footer({ version: appVersion })}</span>
+				<button class="hover:text-surface-950-50 inline-flex items-center gap-1.5" onclick={() => (whatsNewOpen.current = true)}>
+					{m.whatsnew_menu_label()}
+					{#if hasUnseenWhatsNew.current}<span class="bg-primary-500 size-1.5 shrink-0 rounded-full"></span>{/if}
+				</button>
+			</div>
+		</div>
+	</div>
+</AppFrame>
+
+<!-- the clone dialog, and git's sign-in questions while it runs -->
+<GitDialogsHost />
+
+<RecentFoldersModal bind:open={recentModalOpen} folders={recentFolders.current} onPick={(folder) => openFolder(folder)} />
+
+{#if PrefsDialog}
+	<PrefsDialog bind:open={prefsOpen} />
+{/if}

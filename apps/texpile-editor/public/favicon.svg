@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Typwriter">
+	<rect x="4" y="4" width="120" height="120" rx="28" fill="#1f2430"/>
+	<!-- 纸页 -->
+	<rect x="30" y="26" width="52" height="66" rx="6" fill="none" stroke="#7dd3fc" stroke-width="6"/>
+	<!-- 折角 -->
+	<path d="M62 26v18h18" fill="none" stroke="#7dd3fc" stroke-width="6" stroke-linejoin="round"/>
+	<!-- 笔尖：自右上斜向左下收尖 -->
+	<path d="M104 34l10 10-38 38-14 4 4-14z" fill="#ffffff"/>
+	<path d="M76 78l-14 4 4-14z" fill="#7dd3fc"/>
+</svg>

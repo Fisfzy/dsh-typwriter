@@ -1,0 +1,171 @@
+/* eslint-disable no-param-reassign -- builds mathlive's static DOM by writing the handed elements */
+// Placeholders standing in for math node views until a real MathfieldElement is built.
+//
+// There are three stages, not two, and the middle one exists because of a measurement: typesetting
+// every placeholder at mount cost ~1.1 s of frozen UI on a 1048-equation document, which just moved
+// the freeze rather than removing it.
+//
+//   1. mount        cheap box, size estimated from the latex. Costs almost nothing.
+//   2. idle         real typeset, in document order, in slices that yield to the browser.
+//   3. hovered or reached by the caret  the actual MathfieldElement takes over (mlview.svelte.ts).
+//
+// So opening a document is never blocked on typesetting, sizes converge within a second or so, and
+// a fast scroll finds properly rendered math rather than empty boxes.
+//
+// The typeset is mathlive's own renderer, the same one the live field paints itself with, so the
+// swap at stage 3 is visually a no-op. That is the reason not to reach for KaTeX: a second engine
+// would lay the same latex out differently and every equation would twitch as it went live.
+//
+// The document's own macros are passed here AND to the live field, from the same dictionary. That
+// is not incidental: give one of them a \newcommand the other lacks and every equation using it
+// would visibly change as it went live, which is the twitch stage 3 exists to avoid.
+import { convertLatexToMarkup, convertTypstToMarkup } from 'mathlive';
+import { mathMacros } from './mathMacros.svelte';
+import { themeStaticMarkup } from './themeBlack';
+import type { MathSyntax } from './mathFieldFactory';
+import 'mathlive/static.css';
+
+export const PLACEHOLDER_CLASS = 'math-static-placeholder';
+
+/** how much of a slice to spend typesetting before handing the thread back */
+const SLICE_MS = 5;
+/** rough height of one line of display math, in em */
+const BLOCK_LINE_EM = 2.2;
+
+const latexOf = new WeakMap<HTMLElement, string>();
+const pending = new Set<HTMLElement>();
+let draining = false;
+
+/** Rendered width of a math fragment in `ch`, roughly: commands and names collapse to about one
+ * glyph, and braces and sub/superscript markers vanish. It only has to be close: the idle typeset
+ * corrects it, and browser scroll anchoring absorbs the corrections made above the viewport. */
+function estimateWidthCh(source: string, syntax: MathSyntax): number {
+	const collapsed = (syntax === 'typst' ? source.replace(/\p{L}{2,}(\.\p{L}+)*/gu, 'x') : source.replace(/\\[a-zA-Z]+/g, 'x'))
+		.replace(/[{}$&]/g, '')
+		.replace(/[\^_]/g, '');
+	return Math.max(1, collapsed.length);
+}
+
+function estimateLines(source: string, syntax: MathSyntax): number {
+	const breaks = syntax === 'typst' ? /\\(?=\s)/g : /\\\\/g;
+	return (source.match(breaks)?.length ?? 0) + 1;
+}
+
+function applyEstimate(el: HTMLElement, source: string, isBlock: boolean): void {
+	const syntax = el.dataset.syntax as MathSyntax;
+	if (isBlock) {
+		el.style.height = `${(estimateLines(source, syntax) * BLOCK_LINE_EM).toFixed(1)}em`;
+		el.style.width = '100%';
+	} else {
+		el.style.display = 'inline-block';
+		el.style.width = `${estimateWidthCh(source, syntax)}ch`;
+		el.style.height = '1em';
+	}
+}
+
+const idle: (cb: () => void) => void =
+	typeof requestIdleCallback === 'function' ? (cb) => requestIdleCallback(() => cb()) : (cb) => setTimeout(cb, 0);
+
+function scheduleDrain(): void {
+	if (draining || pending.size === 0) return;
+	draining = true;
+	idle(drain);
+}
+
+function drainSlice(budgetMs: number): void {
+	const start = performance.now();
+	// insertion order is document order, since node views are built top-down: typeset what the
+	// reader is nearest to first
+	for (const el of pending) {
+		pending.delete(el);
+		// dropped from the document, or already upgraded to a live field
+		if (!el.isConnected) continue;
+		typeset(el, latexOf.get(el) ?? '');
+		if (performance.now() - start > budgetMs) break;
+	}
+}
+
+function drain(): void {
+	draining = false;
+	drainSlice(SLICE_MS);
+	scheduleDrain();
+}
+
+/**
+ * Typeset now, up to `budgetMs`, rather than waiting for an idle callback.
+ *
+ * For the reveal, and only that: an un-typeset formula is a blank box of about the right size, so a
+ * document shown before the queue has run is one that fills itself in while you watch. Bounded,
+ * because the queue can be the whole document and this runs on the main thread - whatever it does
+ * not reach keeps its place in the idle drain.
+ */
+export function typesetNow(budgetMs: number): void {
+	drainSlice(budgetMs);
+	scheduleDrain();
+}
+
+function typeset(el: HTMLElement, latex: string): void {
+	try {
+		// 'math' matches MathfieldElement's own default mode; anything else would resize on upgrade
+		const markup =
+			el.dataset.syntax === 'typst'
+				? convertTypstToMarkup(latex, { defaultMode: 'math' })
+				: convertLatexToMarkup(latex, { defaultMode: 'math', macros: mathMacros.current });
+		el.innerHTML = themeStaticMarkup(markup);
+	} catch {
+		// mathlive throws outright on some malformed input. Fall back to the source text so the node
+		// still occupies roughly the right space instead of collapsing to nothing.
+		el.textContent = latex;
+		return;
+	}
+	// the real render supersedes the estimate; let the content decide the box from here
+	el.style.width = '';
+	el.style.height = '';
+}
+
+/** a cheap, roughly-sized stand-in, queued for typesetting once the thread is free */
+export function renderStaticMath(latex: string, isBlock: boolean, syntax: MathSyntax = 'latex'): HTMLElement {
+	const el = document.createElement(isBlock ? 'div' : 'span');
+	el.className = PLACEHOLDER_CLASS;
+	el.dataset.syntax = syntax;
+	// it lives inside prosemirror's contenteditable, and unlike a MathfieldElement it has nothing of
+	// its own guarding the caret, so say plainly that it cannot be typed into
+	el.contentEditable = 'false';
+	// the generated markup marks its visual half aria-hidden, so name the node for screen readers
+	el.setAttribute('role', 'math');
+	el.setAttribute('aria-label', latex);
+	el.dataset.block = String(isBlock);
+	latexOf.set(el, latex);
+	applyEstimate(el, latex, isBlock);
+	pending.add(el);
+	scheduleDrain();
+	return el;
+}
+
+/** re-render a placeholder for an edit that landed while it was still offscreen */
+export function setStaticMath(el: HTMLElement, latex: string): void {
+	el.setAttribute('aria-label', latex);
+	latexOf.set(el, latex);
+	if (pending.has(el)) {
+		// not typeset yet: just re-estimate, the queue will pick up the new latex
+		applyEstimate(el, latex, el.dataset.block === 'true');
+		return;
+	}
+	typeset(el, latex);
+}
+
+/** stop tracking a placeholder that has been replaced by a live field or removed */
+export function cancelStaticMath(el: HTMLElement): void {
+	pending.delete(el);
+}
+
+/** Re-typeset what is already on screen, for when a \newcommand changed under it. Found through
+ *  the DOM rather than a registry: a placeholder that was removed without being cancelled would
+ *  otherwise be held alive by it, and this only runs when a definition actually changes. */
+export function retypesetStaticMath(): void {
+	for (const el of document.querySelectorAll<HTMLElement>(`.${PLACEHOLDER_CLASS}`)) {
+		const latex = latexOf.get(el);
+		// still queued: the drain will pick up the new dictionary on its own
+		if (latex !== undefined && !pending.has(el)) typeset(el, latex);
+	}
+}

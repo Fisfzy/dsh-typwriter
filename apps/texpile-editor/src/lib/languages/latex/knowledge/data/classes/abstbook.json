@@ -1,0 +1,50 @@
+{
+	"version": 1,
+	"deps": [
+		{"id":"classes/report"},
+		{"id":"packages/makeidx"},
+		{"id":"packages/graphicx"},
+		{"id":"packages/keyval"},
+		{"id":"packages/graphics"},
+		{"id":"packages/trig"},
+		{"id":"packages/minitoc"},
+		{"id":"packages/mtcmess"}
+	],
+	"macros": [
+		{"name":"adr","args":[{"kind":"m","placeholder":"addresses"}]},
+		{"name":"conferenceday","args":[{"kind":"m","placeholder":"day"}]},
+		{"name":"loadabstr","args":[{"kind":"o","placeholder":"additional"},{"kind":"m","placeholder":"TOC entry"},{"kind":"m","placeholder":"file name","role":"file","loads":true,"ext":".tex","appends":"missing"}]},
+		{"name":"loadpsabstr","args":[{"kind":"o","placeholder":"additional"},{"kind":"m","placeholder":"TOC entry"},{"kind":"m","placeholder":"file name","role":"graphic"},{"kind":"m","placeholder":"includegraphics options","keys":["packages/graphicx#keyval:Gin"],"role":"color"}]},
+		{"name":"name","args":[{"kind":"m","placeholder":"author names"}]},
+		{"name":"sessionname","args":[{"kind":"m","placeholder":"short name"},{"kind":"m","placeholder":"long name"}]},
+		{"name":"titl","args":[{"kind":"m","placeholder":"title"}]}
+	],
+	"envs": [
+		{"name":"abstr"}
+	],
+	"keys": {
+		"classes/abstbook#options": [{"key":"twocolumn","bare":true}]
+	},
+	"provides": {
+		"counterForms": [
+			{"name":"part","form":"[Roman]"},
+			{"name":"chapter","form":"[arabic]","appendix":"[Alph]"},
+			{"name":"section","form":"{chapter}.[arabic]"},
+			{"name":"subsection","form":"{section}.[arabic]"},
+			{"name":"subsubsection","form":"{subsection}.[arabic]","numbered":false},
+			{"name":"paragraph","form":"{subsubsection}.[arabic]","numbered":false},
+			{"name":"subparagraph","form":"{paragraph}.[arabic]","numbered":false},
+			{"name":"equation","form":"{chapter}.[arabic]"},
+			{"name":"figure","form":"{chapter}.[arabic]"},
+			{"name":"table","form":"{chapter}.[arabic]"},
+			{"name":"footnote","form":"[arabic]"},
+			{"name":"mpfootnote","form":"[alph]"}
+		],
+		"counters": [
+			{"name":"equation","within":"chapter"},
+			{"name":"footnote","within":"chapter"}
+		]
+	},
+	"passOptions": ["classes/report"],
+	"ctan": "ltxmisc"
+}

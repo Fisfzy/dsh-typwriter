@@ -1,0 +1,19 @@
+{
+	"version": 1,
+	"deps": [
+		{"id":"packages/keyval"},
+		{"id":"packages/ifpdf"},
+		{"id":"packages/iftex"}
+	],
+	"macros": [
+		{"name":"hyperlinkmovie","args":[{"kind":"o","keys":["packages/multimedia#keyval:multimedia"]},{"kind":"m"},{"kind":"m"}],"doc":"Causes the ⟨text⟩ to become a movie hyperlink."},
+		{"name":"hyperlinkmute","args":[{"kind":"m"}],"doc":"Causes the ⟨text⟩ to become a hyperlink that, when clicked, stops the playback of all sounds."},
+		{"name":"hyperlinksound","args":[{"kind":"o","keys":["packages/multimedia#keyval:multimedia"]},{"kind":"m"},{"kind":"m"}],"doc":"Causes the ⟨text⟩ to become a sound hyperlink."},
+		{"name":"movie","args":[{"kind":"o","keys":["packages/multimedia#keyval:multimedia"]},{"kind":"m"},{"kind":"m"}],"doc":"This command will insert the movie with the filename ⟨movie filename⟩ into the pdf file."},
+		{"name":"sound","args":[{"kind":"o","keys":["packages/multimedia#keyval:multimedia"]},{"kind":"m"},{"kind":"m"}],"doc":"This command will insert the sound with the filename ⟨sound filename⟩ into the pdf file."}
+	],
+	"keys": {
+		"packages/multimedia#keyval:multimedia": [{"key":"automute","bare":true,"placeholder":""},{"key":"autostart","bare":true,"placeholder":""},{"key":"borderwidth","placeholder":"length"},{"key":"depth","placeholder":"length"},{"key":"externalviewer","bare":true},{"key":"height","placeholder":"length"},{"key":"inlinesound","bare":true,"placeholder":""},{"key":"label","placeholder":""},{"key":"loop","bare":true},{"key":"mixsound","bare":true,"placeholder":""},{"key":"once","bare":true},{"key":"open","bare":true},{"key":"palindrome","bare":true},{"key":"pause","bare":true},{"key":"play","bare":true},{"key":"poster","bare":true,"placeholder":""},{"key":"repeat","bare":true},{"key":"resume","bare":true},{"key":"showcontrols","bare":true,"placeholder":""},{"key":"stop","bare":true},{"key":"width","placeholder":"length"},{"key":"bitspersample","placeholder":""},{"key":"channels","placeholder":""},{"key":"encoding","placeholder":""},{"key":"duration","placeholder":"times"},{"key":"start","placeholder":"times"},{"key":"samplingrate","placeholder":"number"}]
+	},
+	"ctan": "beamer"
+}

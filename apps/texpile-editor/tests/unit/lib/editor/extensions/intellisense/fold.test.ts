@@ -1,0 +1,83 @@
+import { describe, it, expect } from 'vitest';
+import { foldRangeAt } from '../../../../../../src/lib/languages/latex/intellisense/fold';
+import { latexState } from '../../../languages/latex/latexState';
+
+function foldAtLine(doc: string, lineNumber: number) {
+	const state = latexState(doc);
+	const line = state.doc.line(lineNumber);
+	return foldRangeAt(state, line.from, line.to);
+}
+
+describe('folding: environments and sections', () => {
+	it('folds a simple \\begin{...}/\\end{...} pair', () => {
+		const doc = '\\begin{itemize}\n\\item a\n\\item b\n\\end{itemize}';
+		const range = foldAtLine(doc, 1);
+		expect(range).not.toBeNull();
+		expect(doc.slice(range!.from, range!.to)).toBe('\n\\item a\n\\item b\n');
+	});
+
+	it('respects nesting of the SAME environment name', () => {
+		const doc = '\\begin{itemize}\nouter\n\\begin{itemize}\ninner\n\\end{itemize}\nouter2\n\\end{itemize}';
+		const range = foldAtLine(doc, 1);
+		const folded = doc.slice(range!.from, range!.to);
+		expect(folded).toContain('inner');
+		expect(folded).toContain('outer2');
+	});
+
+	it('does not fold an unterminated environment', () => {
+		const doc = '\\begin{itemize}\n\\item a';
+		expect(foldAtLine(doc, 1)).toBeNull();
+	});
+
+	it('folds the preamble from \\documentclass down to the line before \\begin{document}', () => {
+		const doc = '\\documentclass{article}\n\\usepackage{amsmath}\n% \\begin{document} in a comment\n\\title{T}\n\\begin{document}\nBody';
+		const range = foldAtLine(doc, 1);
+		expect(doc.slice(range!.from, range!.to)).toBe('\n\\usepackage{amsmath}\n% \\begin{document} in a comment\n\\title{T}');
+	});
+
+	it('has no preamble to fold when \\begin{document} follows the class, or the class is commented out', () => {
+		expect(foldAtLine('\\documentclass{article}\n\\begin{document}\nBody', 1)).toBeNull();
+		expect(foldAtLine('% \\documentclass{article}\n\\usepackage{x}\n\\begin{document}', 1)).toBeNull();
+	});
+
+	it('folds a section down to the next same-or-higher-level heading', () => {
+		const doc = '\\section{A}\ntext A\n\\subsection{A1}\ntext A1\n\\section{B}\ntext B';
+		const range = foldAtLine(doc, 1); // the \section{A} line
+		const folded = doc.slice(range!.from, range!.to);
+		expect(folded).toContain('text A');
+		expect(folded).toContain('A1');
+		expect(folded).not.toContain('text B');
+	});
+
+	it('a subsection folds only down to the next section OR subsection, not past it', () => {
+		const doc = '\\section{A}\n\\subsection{A1}\ntext A1\n\\subsection{A2}\ntext A2';
+		const range = foldAtLine(doc, 2); // the \subsection{A1} line
+		const folded = doc.slice(range!.from, range!.to);
+		expect(folded).toContain('text A1');
+		expect(folded).not.toContain('text A2');
+	});
+
+	it('a section ends at a class heading of its level and a paragraph folds', () => {
+		const doc = '\\section{A}\ntext A\n\\specialsection{S}\ntext S\n\\paragraph{P}\ntext P\n\\paragraph{Q}\ntext Q';
+		expect(doc.slice(foldAtLine(doc, 1)!.from, foldAtLine(doc, 1)!.to)).not.toContain('text S');
+		const paragraph = foldAtLine(doc, 5)!;
+		expect(doc.slice(paragraph.from, paragraph.to)).not.toContain('text Q');
+	});
+
+	it('folds a heading with a short title or a space before its title', () => {
+		for (const heading of ['\\section[Short]{A}', '\\section {A}', '\\section*{A}']) {
+			const doc = `${heading}\ntext A\n\\section{B}\ntext B`;
+			expect(doc.slice(foldAtLine(doc, 1)!.from, foldAtLine(doc, 1)!.to)).toBe('\ntext A');
+		}
+	});
+
+	it('ignores a heading in a comment and a section command with no title', () => {
+		const doc = '\\section{A}\ntext A\n% \\section{B}\n\\newcommand{\\x}{\\section}\ntext B';
+		const range = foldAtLine(doc, 1)!;
+		expect(doc.slice(range.from, range.to)).toContain('text B');
+	});
+
+	it('returns null on a plain content line', () => {
+		expect(foldAtLine('just some text\nmore text', 1)).toBeNull();
+	});
+});

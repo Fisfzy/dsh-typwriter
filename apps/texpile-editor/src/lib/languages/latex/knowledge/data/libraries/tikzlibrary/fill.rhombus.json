@@ -1,0 +1,9 @@
+{
+	"version": 1,
+	"deps": [
+		{"id":"libraries/tikzlibrary/patterns.meta"}
+	],
+	"keys": {
+		"packages/tikz#tikz": [{"key":"pattern rhombus","bare":true,"placeholder":""}]
+	}
+}

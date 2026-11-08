@@ -1,0 +1,33 @@
+{
+	"version": 1,
+	"deps": [
+		{"id":"packages/tikz"},
+		{"id":"packages/pgf"},
+		{"id":"packages/pgfrcs"},
+		{"id":"packages/pgfcore"},
+		{"id":"packages/graphicx"},
+		{"id":"packages/keyval"},
+		{"id":"packages/graphics"},
+		{"id":"packages/trig"},
+		{"id":"packages/pgfsys"},
+		{"id":"packages/xcolor"},
+		{"id":"packages/pgfcomp-version-0-65"},
+		{"id":"packages/pgfcomp-version-1-18"},
+		{"id":"packages/pgffor"},
+		{"id":"packages/pgfkeys"},
+		{"id":"packages/pgfmath"},
+		{"id":"packages/xkeyval"},
+		{"id":"packages/ifthen"},
+		{"id":"packages/xstring"}
+	],
+	"macros": [
+		{"name":"karnaughmap","args":[{"kind":"o","placeholder":"key=value","keys":["packages/karnaughmap#keyval:karnaughmap"]},{"kind":"m","placeholder":"entries"}],"doc":"Use this macro inside of a tikzpicture-environment to typeset a Karnaugh map of a corresponding truth table."},
+		{"name":"karnaughmapcolorfield","args":[{"kind":"o","placeholder":"key=value","keys":["packages/karnaughmap#keyval:karnaughmap"]},{"kind":"m","placeholder":"map size"},{"kind":"m","placeholder":"field string"},{"kind":"m","placeholder":"color"}]},
+		{"name":"setkarnaughmap","args":[{"kind":"o","placeholder":"key=value","keys":["packages/karnaughmap#keyval:karnaughmap"]}],"doc":"This is the interface function for setting the keys."},
+		{"name":"thekarnaughmapIdxCounter","hidden":true},
+		{"name":"thekarnaughmapStrCounter","hidden":true}
+	],
+	"keys": {
+		"packages/karnaughmap#keyval:karnaughmap": [{"key":"color","bare":true,"placeholder":"","role":"color"},{"key":"dontcare","bare":true,"placeholder":""},{"key":"draw","bare":true,"placeholder":"","role":"color"},{"key":"function","bare":true,"placeholder":""},{"key":"labelcolor","bare":true,"placeholder":"","role":"color"},{"key":"opacity","bare":true,"placeholder":""},{"key":"variables","bare":true,"placeholder":""},{"key":"xshift","bare":true,"placeholder":""},{"key":"yshift","bare":true,"placeholder":""},{"key":"omitzeros","bare":true,"placeholder":""},{"key":"omitones","bare":true,"placeholder":""},{"key":"omitdontcares","bare":true,"placeholder":""},{"key":"omitbinaries","bare":true,"placeholder":""},{"key":"omitvariables","bare":true,"placeholder":""},{"key":"omitidx","bare":true,"placeholder":""},{"key":"binaryidx","bare":true,"placeholder":""},{"key":"omitnegated","bare":true,"placeholder":""},{"key":"outline","bare":true,"placeholder":""},{"key":"fill","bare":true,"placeholder":""},{"key":"defaultmap","bare":true,"placeholder":""},{"key":"outlinefalse","placeholder":""},{"key":"omitdontcarestrue","placeholder":""},{"key":"binaryidxfalse","placeholder":""},{"key":"omitdontcaresfalse","placeholder":""},{"key":"omitnegatedfalse","placeholder":""},{"key":"filltrue","placeholder":""},{"key":"omitidxtrue","placeholder":""},{"key":"omitzerosfalse","placeholder":""},{"key":"outlinetrue","placeholder":""},{"key":"binaryidxtrue","placeholder":""},{"key":"omitnegatedtrue","placeholder":""},{"key":"fillfalse","placeholder":""},{"key":"omitbinariesfalse","placeholder":""},{"key":"omitvariablesfalse","placeholder":""},{"key":"omitonesfalse","placeholder":""},{"key":"omitzerostrue","placeholder":""},{"key":"omitbinariestrue","placeholder":""},{"key":"omitvariablestrue","placeholder":""},{"key":"omitidxfalse","placeholder":""},{"key":"omitonestrue","placeholder":""}]
+	}
+}

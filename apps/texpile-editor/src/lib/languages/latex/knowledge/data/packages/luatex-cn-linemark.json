@@ -1,0 +1,28 @@
+{
+	"version": 1,
+	"deps": [
+		{"id":"packages/xparse"}
+	],
+	"macros": [
+		{"name":"BookTitleMark","args":[{"kind":"o","placeholder":"options","keys":["packages/luatex-cn-linemark#luatexcn-linemark"]},{"kind":"m","placeholder":"content"}]},
+		{"name":"LineMark","args":[{"kind":"o","placeholder":"options","keys":["packages/luatex-cn-linemark#luatexcn-linemark"]},{"kind":"m","placeholder":"content"}]},
+		{"name":"lineMarkSetup","args":[{"kind":"m"}],"hidden":true},
+		{"name":"ProperNameMark","args":[{"kind":"o","placeholder":"options","keys":["packages/luatex-cn-linemark#luatexcn-linemark"]},{"kind":"m","placeholder":"content"}]},
+		{"name":"Underline","args":[{"kind":"o","placeholder":"options","keys":["packages/luatex-cn-linemark#luatexcn-linemark"]},{"kind":"m","placeholder":"content"}]},
+		{"name":"WavyUnderline","args":[{"kind":"o","placeholder":"options","keys":["packages/luatex-cn-linemark#luatexcn-linemark"]},{"kind":"m","placeholder":"content"}]},
+		{"name":"下划线","args":[{"kind":"o","placeholder":"options"},{"kind":"m","placeholder":"content"}]},
+		{"name":"下劃線","args":[{"kind":"o","placeholder":"options"},{"kind":"m","placeholder":"content"}]},
+		{"name":"专名号","args":[{"kind":"o","placeholder":"options"},{"kind":"m","placeholder":"content"}]},
+		{"name":"书名号","args":[{"kind":"o","placeholder":"options"},{"kind":"m","placeholder":"content"}]},
+		{"name":"專名號","args":[{"kind":"o","placeholder":"options"},{"kind":"m","placeholder":"content"}]},
+		{"name":"書名號","args":[{"kind":"o","placeholder":"options"},{"kind":"m","placeholder":"content"}]},
+		{"name":"波浪线","args":[{"kind":"o","placeholder":"options"},{"kind":"m","placeholder":"content"}]},
+		{"name":"波浪線","args":[{"kind":"o","placeholder":"options"},{"kind":"m","placeholder":"content"}]},
+		{"name":"线标","args":[{"kind":"o","placeholder":"options"},{"kind":"m","placeholder":"content"}]},
+		{"name":"線標","args":[{"kind":"o","placeholder":"options"},{"kind":"m","placeholder":"content"}]}
+	],
+	"keys": {
+		"packages/luatex-cn-linemark#luatexcn-linemark": [{"key":"amplitude","placeholder":""},{"key":"type","placeholder":""},{"key":"color","placeholder":""},{"key":"style","placeholder":""},{"key":"line-width","placeholder":""},{"key":"offset","placeholder":""},{"key":"åç§»","placeholder":""},{"key":"æ¯å¹","placeholder":""},{"key":"é¡è²","placeholder":""},{"key":"é£æ ¼","placeholder":""},{"key":"é¡å","placeholder":""},{"key":"é¢è²","placeholder":""},{"key":"é¢¨æ ¼","placeholder":""},{"key":"ç·å¯¬","placeholder":""},{"key":"ç±»å","placeholder":""},{"key":"çº¿å®½","placeholder":""}]
+	},
+	"ctan": "luatex-cn"
+}

@@ -1,0 +1,34 @@
+{
+	"version": 1,
+	"deps": [
+		{"id":"classes/extarticle"}
+	],
+	"macros": [
+		{"name":"copyrightspace"},
+		{"name":"pagename","hidden":true},
+		{"name":"maketitle"}
+	],
+	"envs": [
+		{"name":"abstract"}
+	],
+	"keys": {
+		"classes/extproc#options": [{"key":"a5paper","bare":true},{"key":"b5paper","bare":true},{"key":"onecolumn","bare":true},{"key":"titlepage","bare":true}]
+	},
+	"provides": {
+		"counterForms": [
+			{"name":"part","form":"[Roman]"},
+			{"name":"section","form":"[arabic]","appendix":"[Alph]"},
+			{"name":"subsection","form":"{section}.[arabic]"},
+			{"name":"subsubsection","form":"{subsection}.[arabic]"},
+			{"name":"paragraph","form":"{subsubsection}.[arabic]","numbered":false},
+			{"name":"subparagraph","form":"{paragraph}.[arabic]","numbered":false},
+			{"name":"equation","form":"[arabic]"},
+			{"name":"figure","form":"[arabic]"},
+			{"name":"table","form":"[arabic]"},
+			{"name":"footnote","form":"[arabic]"},
+			{"name":"mpfootnote","form":"[alph]"}
+		]
+	},
+	"passOptions": ["classes/extarticle"],
+	"ctan": "extsizes"
+}

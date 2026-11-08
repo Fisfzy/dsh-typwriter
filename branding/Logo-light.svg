@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 64" role="img" aria-label="Typwriter">
+	<g transform="translate(2,8) scale(0.375)">
+		<rect x="4" y="4" width="120" height="120" rx="28" fill="#f4f4f5"/>
+		<rect x="30" y="26" width="52" height="66" rx="6" fill="none" stroke="#0369a1" stroke-width="6"/>
+		<path d="M62 26v18h18" fill="none" stroke="#0369a1" stroke-width="6" stroke-linejoin="round"/>
+		<path d="M104 34l10 10-38 38-14 4 4-14z" fill="#1f2430"/>
+		<path d="M76 78l-14 4 4-14z" fill="#0369a1"/>
+	</g>
+	<text x="60" y="43"
+		font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif"
+		font-size="34" font-weight="650" letter-spacing="-0.5"
+		fill="#f4f4f5">Typwriter</text>
+</svg>

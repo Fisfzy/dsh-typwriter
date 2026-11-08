@@ -1,0 +1,21 @@
+# 依赖与构建产物不入库
+node_modules/
+dist/
+dist-web/
+dist-plugin/
+dist-typwriter/
+build/
+.wrangler/
+*.log
+
+# 插件：构建产物与第三方二进制不入库（见 README「Toolchain」）
+plugin/*/app/
+plugin/*/bin/
+plugin/*/node_modules/
+
+# Texpile 的 i18n 编译缓存（可重新生成）
+apps/texpile-editor/project.inlang/cache/
+
+# 系统垃圾
+.DS_Store
+Thumbs.db

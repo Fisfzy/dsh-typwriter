@@ -1,0 +1,494 @@
+// The E2EE session engine: one Y.Doc + awareness synced over a blind relay. Framework-agnostic
+// (no Svelte, no fs) so the whole thing runs headless in tests; the host's file glue lives in
+// materialize.ts and the UI glue in the views.
+//
+// Topology: every sealed frame is broadcast by the relay; addressing lives inside the ciphertext
+// (to=0 broadcast, else a Y clientID) and receivers drop frames not meant for them. Sync is
+// star-shaped in practice — guests handshake with the host — but incremental updates broadcast
+// to everyone, and Yjs idempotence makes duplicate delivery harmless.
+
+import * as Y from 'yjs';
+import * as encoding from 'lib0/encoding';
+import * as decoding from 'lib0/decoding';
+import * as syncProtocol from 'y-protocols/sync';
+import { Awareness, applyAwarenessUpdate, encodeAwarenessUpdate, removeAwarenessStates } from 'y-protocols/awareness';
+import { seal, unseal } from './e2e/seal';
+import { gzip, gunzip } from './compress';
+import {
+	FrameType,
+	BROADCAST,
+	encodeFrame,
+	decodeFrame,
+	chunkBlob,
+	BlobAssembler,
+	type Frame,
+	type ControlPayload,
+	type PreviewPayload,
+	type RelayNotice
+} from './protocol';
+import type { Transport, TransportStatus } from './transport';
+import { THIS_VERSION, commonVersion, sessionMismatch, type SessionVersion } from './compatibility';
+
+export type PeerInfo = {
+	name: string;
+	color: string;
+	role: 'host' | 'guest';
+	/** the peer's edit mode, absent when its build does not advertise one */
+	suggesting?: boolean;
+	/** the name the peer signs comments with, absent when its build does not advertise one */
+	author?: string;
+};
+
+export type SessionEndReason =
+	'host-ended' | 'relay-closed' | 'quota' | 'error' | 'no-session' | 'full' | 'host-outdated' | 'guest-outdated' | 'app-outdated';
+
+// the relay drops any WebSocket message over 1 MiB, which would crash the session into a reconnect
+// loop; stay under it with margin for the seal nonce/tag and the codec byte. Frames still over this
+// after gzip (a pathologically large or incompressible doc) are dropped, not sent: a degraded
+// session (a file that won't sync) beats a socket that keeps dying.
+const MAX_FRAME_BYTES = 900 * 1024;
+// gzip only pays off past a few hundred bytes; below this the header outweighs any saving, so the
+// per-keystroke sync/awareness frames ride uncompressed
+const COMPRESS_THRESHOLD = 512;
+
+// [1-byte codec: 0 raw, 1 gzip][body]. Compression sits INSIDE the seal, so the relay only ever
+// sees ciphertext; the codec byte tells the receiver whether to inflate before decoding.
+async function pack(framed: Uint8Array): Promise<Uint8Array> {
+	if (framed.byteLength >= COMPRESS_THRESHOLD) {
+		const gz = await gzip(framed);
+		if (gz.byteLength < framed.byteLength) {
+			const out = new Uint8Array(gz.byteLength + 1);
+			out[0] = 1;
+			out.set(gz, 1);
+			return out;
+		}
+	}
+	const out = new Uint8Array(framed.byteLength + 1);
+	out[0] = 0;
+	out.set(framed, 1);
+	return out;
+}
+
+async function unpack(body: Uint8Array): Promise<Uint8Array> {
+	const rest = body.subarray(1);
+	return body[0] === 1 ? gunzip(rest) : rest;
+}
+
+// a relay close code is authoritative for WHY the socket ended (the relay only sends 4003/4006 at
+// join time, never mid-session), so the code alone maps to a reason
+function closeReason(code?: string): SessionEndReason {
+	if (code === '4010') return 'quota';
+	if (code === '4001') return 'host-ended';
+	if (code === '4006') return 'full';
+	if (code === '4003') return 'no-session';
+	return 'relay-closed';
+}
+
+const OUTDATED_REASON = { them: 'host-outdated', guest: 'guest-outdated', me: 'app-outdated' } as const;
+
+export type SessionEvents = {
+	onPeersChange?: (peers: Map<number, PeerInfo>) => void;
+	onControl?: (payload: ControlPayload, from: number) => void;
+	/** a fully reassembled blob arrived (v1: the compiled PDF). */
+	onBlob?: (name: string, rev: number, bytes: Uint8Array) => void;
+	/** the host was asked for a blob; answer with sendBlob(...) addressed to `from`. */
+	onBlobRequest?: (name: string, from: number) => void;
+	/** a guest uploaded a file (host only): write it to disk. */
+	onUpload?: (path: string, bytes: Uint8Array) => void;
+	/** one hop of the Typst preview relay; guests only ever see host-origin frames. */
+	onPreview?: (payload: PreviewPayload, from: number) => void;
+	onStatus?: (s: TransportStatus | 'host-gone' | 'host-back', detail?: string) => void;
+	onSessionEnd?: (reason: SessionEndReason, detail?: string) => void;
+};
+
+/** shared-doc layout: the manifest (file tree), per-file bodies, and host locks. */
+export function manifestOf(doc: Y.Doc) {
+	return doc.getMap<ManifestEntry>('manifest');
+}
+export function locksOf(doc: Y.Doc) {
+	return doc.getMap<number>('locks');
+}
+export function metaOf(doc: Y.Doc) {
+	return doc.getMap<number | string>('meta');
+}
+export function textOf(doc: Y.Doc, relPath: string) {
+	return doc.getText('f:' + relPath);
+}
+
+export type ManifestEntry = {
+	kind: 'text' | 'binary';
+	size: number;
+	/** tombstone: file was deleted on the host. */
+	gone?: boolean;
+	/** binaries only: changes when the bytes do (host mtime), so a guest can drop a stale blob.
+	 *  Text needs none, its edits arrive through the CRDT. */
+	rev?: number;
+};
+
+export class CollabSession {
+	readonly doc: Y.Doc;
+	readonly awareness: Awareness;
+	readonly role: 'host' | 'guest';
+	readonly peers = new Map<number, PeerInfo>();
+	// every peer as it last described itself, kept after its awareness lapses: its edits can still arrive
+	private readonly lastSeen = new Map<number, PeerInfo>();
+
+	private readonly transport: Transport;
+	private readonly key: CryptoKey;
+	private readonly events: SessionEvents;
+	private readonly assembler = new BlobAssembler();
+	private readonly uploadAssembler = new BlobAssembler();
+	private user: PeerInfo;
+	private readonly version: SessionVersion;
+	// peers on a version this one cannot share a session with; nothing they send is applied
+	private readonly outdated = new Set<number>();
+	// host only: the versions of the guests it let in, which a newcomer must share a session with too
+	private readonly admitted = new Map<number, Partial<SessionVersion>>();
+	private destroyed = false;
+	/** the awareness came from outside (the workspace's, which outlives the session) */
+	private readonly borrowedAwareness: boolean;
+	// the host's clientID, learned ONLY from frames the relay marked host-origin — never from a
+	// peer's self-reported role, so a guest can't impersonate the host
+	private authHostId: number | null = null;
+	// seal/open are async; frames must apply in arrival order, so both directions run on chains
+	private sendChain: Promise<void> = Promise.resolve();
+	private recvChain: Promise<void> = Promise.resolve();
+	// the peer whose sync frame is being applied, so a Y.Text observer can name who made a change
+	private applyingFrom: number | null = null;
+	// that frame is a catch-up after this side was away, so it can hold anyone's edits
+	private applyingCatchUp = false;
+	private handshakes = 0;
+	// peers whose state came back since this side last connected: only that first step2 is a catch-up
+	private caughtUp = new Set<number>();
+
+	constructor(opts: {
+		doc: Y.Doc;
+		transport: Transport;
+		key: CryptoKey;
+		role: 'host' | 'guest';
+		user: { name: string; color: string };
+		events?: SessionEvents;
+		version?: SessionVersion;
+		awareness?: Awareness;
+	}) {
+		this.doc = opts.doc;
+		this.version = opts.version ?? THIS_VERSION;
+		this.transport = opts.transport;
+		this.key = opts.key;
+		this.role = opts.role;
+		this.events = opts.events ?? {};
+		this.user = { ...opts.user, role: opts.role };
+		this.borrowedAwareness = !!opts.awareness;
+		this.awareness = opts.awareness ?? new Awareness(this.doc);
+		if (this.awareness.getLocalState() === null) this.awareness.setLocalState({});
+		this.awareness.setLocalStateField('user', opts.user);
+		this.awareness.setLocalStateField('role', opts.role);
+
+		this.doc.on('update', this.onDocUpdate);
+		this.awareness.on('update', this.onAwarenessUpdate);
+		this.awareness.on('change', this.rebuildPeers);
+		this.transport.onMessage = (frame, fromHost) => {
+			this.recvChain = this.recvChain.then(() => this.receive(frame, fromHost)).catch(() => {});
+		};
+		this.transport.onNotice = this.onNotice;
+		this.transport.onStatus = (s, detail) => {
+			if (s === 'connected') this.handshake();
+			if (s === 'closed') this.end(closeReason(detail), detail);
+			this.events.onStatus?.(s, detail);
+		};
+	}
+
+	get clientId(): number {
+		return this.doc.clientID;
+	}
+
+	setIdentity(user: { name: string; color: string }): void {
+		this.user = { ...user, role: this.role };
+		this.awareness.setLocalStateField('user', user);
+	}
+
+	/** advertise whether this side is suggesting rather than editing */
+	setSuggesting(on: boolean): void {
+		if (this.awareness.getLocalState()?.suggesting !== on) this.awareness.setLocalStateField('suggesting', on);
+	}
+
+	/** advertise the name this side signs comments with, so its suggestions are recorded under it too */
+	setAuthor(name: string): void {
+		const author = name.trim();
+		if (author && this.awareness.getLocalState()?.author !== author) this.awareness.setLocalStateField('author', author);
+	}
+
+	/** the peer a change came from, when `origin` is a transaction this session applied off the wire */
+	senderOf(origin: unknown): number | null {
+		return origin === this ? this.applyingFrom : null;
+	}
+
+	/** who a peer's changes are recorded as while they apply: its name, and suggesting only when it says so */
+	authorOf(id: number): { by: string; mode: 'editing' | 'suggesting' } {
+		const peer = this.peers.get(id) ?? this.lastSeen.get(id);
+		// nothing in a catch-up says who deleted what, so its deletions are all kept, if under one name
+		const suggesting = peer?.suggesting || (this.applyingCatchUp && this.applyingFrom === id);
+		return { by: peer?.author ?? peer?.name ?? (id === this.authHostId ? 'Host' : 'Guest'), mode: suggesting ? 'suggesting' : 'editing' };
+	}
+
+	/** the host's Y clientID, learned from a relay-authenticated host frame. */
+	get hostId(): number | null {
+		return this.authHostId;
+	}
+
+	// roster is derived from awareness (the reliable presence signal), so departed peers prune
+	// automatically via awareness removals; host role is authoritative (authHostId), never
+	// self-reported, so a guest can't paint itself as the host
+	private rebuildPeers = ({ removed }: { removed: number[] }) => {
+		for (const id of removed) this.admitted.delete(id);
+		this.peers.clear();
+		for (const [id, state] of this.awareness.getStates()) {
+			if (id === this.clientId) continue;
+			const { user, suggesting, author } = state as { user?: { name: string; color: string }; suggesting?: unknown; author?: unknown };
+			if (!user) continue;
+			const peer: PeerInfo = { name: user.name, color: user.color, role: id === this.authHostId ? 'host' : 'guest' };
+			if (typeof suggesting === 'boolean') peer.suggesting = suggesting;
+			if (typeof author === 'string' && author.trim()) peer.author = author.trim();
+			this.peers.set(id, peer);
+			this.lastSeen.set(id, peer);
+		}
+		this.events.onPeersChange?.(this.peers);
+	};
+
+	// outbound
+
+	private post(frame: Frame): void {
+		if (this.destroyed) return;
+		const framed = encodeFrame(frame);
+		this.sendChain = this.sendChain
+			.then(async () => {
+				const sealed = await seal(this.key, await pack(framed));
+				if (sealed.byteLength > MAX_FRAME_BYTES) {
+					console.warn(`[collab] dropping a ${sealed.byteLength}-byte frame over the relay's ${MAX_FRAME_BYTES}-byte cap`);
+					return;
+				}
+				this.transport.send(sealed);
+			})
+			.catch(() => {});
+	}
+
+	private onDocUpdate = (update: Uint8Array, origin: unknown) => {
+		if (origin === this) return; // arrived from the wire, don't echo
+		const enc = encoding.createEncoder();
+		syncProtocol.writeUpdate(enc, update);
+		this.post({ type: FrameType.SYNC, from: this.clientId, to: BROADCAST, payload: encoding.toUint8Array(enc) });
+	};
+
+	private onAwarenessUpdate = ({ added, updated, removed }: { added: number[]; updated: number[]; removed: number[] }, origin: unknown) => {
+		if (origin === 'remote') return;
+		const changed = added.concat(updated, removed);
+		this.post({
+			type: FrameType.AWARENESS,
+			from: this.clientId,
+			to: BROADCAST,
+			payload: encodeAwarenessUpdate(this.awareness, changed)
+		});
+	};
+
+	private hello(to: number): void {
+		const own = this.role === 'host' ? { hostVersion: this.version.version } : {};
+		this.post({ type: FrameType.HELLO, from: this.clientId, to, payload: { ...this.user, ...this.sessionVersion(to), ...own } });
+	}
+
+	// what `peer` must fit: a host speaks for every guest it let in, so one that cannot share with them is turned away
+	private sessionVersion(peer: number): SessionVersion {
+		return commonVersion(
+			this.version,
+			[...this.admitted].filter(([id]) => id !== peer).map(([, v]) => v)
+		);
+	}
+
+	/** hello + sync step1 + full awareness; runs on every (re)connect. */
+	private handshake(): void {
+		this.handshakes++;
+		this.caughtUp.clear();
+		this.hello(BROADCAST);
+		const enc = encoding.createEncoder();
+		syncProtocol.writeSyncStep1(enc, this.doc);
+		this.post({ type: FrameType.SYNC, from: this.clientId, to: BROADCAST, payload: encoding.toUint8Array(enc) });
+		this.post({
+			type: FrameType.AWARENESS,
+			from: this.clientId,
+			to: BROADCAST,
+			payload: encodeAwarenessUpdate(this.awareness, [...this.awareness.getStates().keys()])
+		});
+	}
+
+	sendControl(payload: ControlPayload, to: number = BROADCAST): void {
+		this.post({ type: FrameType.CONTROL, from: this.clientId, to, payload });
+	}
+
+	requestBlob(name: string): void {
+		this.post({ type: FrameType.BLOB_REQUEST, from: this.clientId, to: this.hostId ?? BROADCAST, name });
+	}
+
+	sendBlob(name: string, rev: number, bytes: Uint8Array, to: number): void {
+		for (const chunk of chunkBlob(name, rev, bytes)) {
+			this.post({ type: FrameType.BLOB_CHUNK, from: this.clientId, to, payload: chunk });
+		}
+	}
+
+	/** one hop of the preview relay: the host addresses a guest, a guest defaults to the host. */
+	sendPreview(payload: PreviewPayload, to: number = this.hostId ?? BROADCAST): void {
+		this.post({ type: FrameType.PREVIEW, from: this.clientId, to, payload });
+	}
+
+	/** guest -> host: upload a file for the host to write to disk (path is manifest-relative). */
+	sendUpload(path: string, bytes: Uint8Array): void {
+		for (const chunk of chunkBlob(path, 0, bytes)) {
+			this.post({ type: FrameType.UPLOAD, from: this.clientId, to: this.hostId ?? BROADCAST, payload: chunk });
+		}
+	}
+
+	// inbound
+
+	private async receive(sealed: Uint8Array, fromHost: boolean): Promise<void> {
+		if (this.destroyed) return;
+		let frame: Frame;
+		try {
+			frame = decodeFrame(await unpack(await unseal(this.key, sealed)));
+		} catch {
+			return; // tampered or foreign frame: drop silently
+		}
+		if (frame.to !== BROADCAST && frame.to !== this.clientId) return;
+		// any relay-authenticated host frame nails down the host's identity for the whole session
+		if (fromHost) this.authHostId = frame.from;
+		if (this.outdated.has(frame.from)) return;
+		switch (frame.type) {
+			case FrameType.SYNC: {
+				const dec = decoding.createDecoder(frame.payload);
+				const enc = encoding.createEncoder();
+				this.applyingFrom = frame.from;
+				const step2 = decoding.peekVarUint(dec) === syncProtocol.messageYjsSyncStep2;
+				this.applyingCatchUp = this.handshakes > 1 && step2 && !this.caughtUp.has(frame.from);
+				if (step2) this.caughtUp.add(frame.from);
+				try {
+					syncProtocol.readSyncMessage(dec, enc, this.doc, this);
+				} finally {
+					this.applyingFrom = null;
+					this.applyingCatchUp = false;
+				}
+				// a step1 wants an answer; address it to the asker only
+				if (encoding.length(enc) > 0) {
+					this.post({ type: FrameType.SYNC, from: this.clientId, to: frame.from, payload: encoding.toUint8Array(enc) });
+				}
+				break;
+			}
+			case FrameType.AWARENESS:
+				applyAwarenessUpdate(this.awareness, frame.payload, 'remote');
+				break;
+			case FrameType.HELLO: {
+				// introduce ourselves to a peer that announced itself (answering its answer would greet back and
+				// forth for good), and always re-offer our state, so a reconnecting peer catches up on edits
+				// made while it was gone (its step2 reply carries what we missed too)
+				if (frame.to === BROADCAST) this.hello(frame.from);
+				const mismatch = sessionMismatch(this.sessionVersion(frame.from), frame.payload);
+				if (mismatch) {
+					this.outdated.add(frame.from);
+					// builds from before the version check still understand a host ending the session
+					if (this.role === 'host') this.sendControl({ kind: 'session-end' }, frame.from);
+					else if (fromHost) this.end(OUTDATED_REASON[mismatch.outdated], mismatch.version);
+					break;
+				}
+				if (this.role === 'host') this.admitted.set(frame.from, { version: frame.payload.version, oldest: frame.payload.oldest });
+				const enc = encoding.createEncoder();
+				syncProtocol.writeSyncStep1(enc, this.doc);
+				this.post({ type: FrameType.SYNC, from: this.clientId, to: frame.from, payload: encoding.toUint8Array(enc) });
+				// our presence went out at our own handshake; a peer joining later otherwise waits for the 15 s renewal
+				if (frame.to === BROADCAST) {
+					this.post({
+						type: FrameType.AWARENESS,
+						from: this.clientId,
+						to: frame.from,
+						payload: encodeAwarenessUpdate(this.awareness, [this.clientId])
+					});
+				}
+				break;
+			}
+			case FrameType.BLOB_REQUEST:
+				if (this.role === 'host') this.events.onBlobRequest?.(frame.name, frame.from);
+				break;
+			case FrameType.BLOB_CHUNK:
+				// only the host serves blobs (PDF, file previews); a guest-origin blob is a poisoning attempt
+				if (fromHost) {
+					const done = this.assembler.add(frame.payload);
+					if (done) this.events.onBlob?.(frame.payload.name, frame.payload.rev, done);
+				}
+				break;
+			case FrameType.UPLOAD:
+				// only the host writes to disk; it reassembles a guest's uploaded file
+				if (this.role === 'host') {
+					const done = this.uploadAssembler.add(frame.payload);
+					if (done) this.events.onUpload?.(frame.payload.name, done);
+				}
+				break;
+			case FrameType.PREVIEW:
+				// same authenticity rule as blobs: a guest only ever acts on the real host's stream,
+				// so another guest cannot feed it forged render frames
+				if (this.role === 'host' || fromHost) this.events.onPreview?.(frame.payload, frame.from);
+				break;
+			case FrameType.CONTROL:
+				// session-end is host-authoritative; ignore a guest forging it
+				if (frame.payload.kind === 'session-end') {
+					if (fromHost) this.end('host-ended');
+				} else this.events.onControl?.(frame.payload, frame.from);
+				break;
+		}
+	}
+
+	private onNotice = (n: RelayNotice) => {
+		// the relay's session-end notice is authoritative (it only fires when the real host drops or
+		// the room is torn down), unlike a forgeable in-band control frame
+		if (n.t === 'session-end') this.end('host-ended');
+		else if (n.t === 'host-gone') this.events.onStatus?.('host-gone');
+		else if (n.t === 'host-back') this.events.onStatus?.('host-back');
+		// a 'peer-left' has no id; the departing peer's awareness removal (or the 30s timeout) prunes
+		// the roster via rebuildPeers, so nothing to do here
+	};
+
+	/** host only: tell everyone the session is over, then tear down. */
+	endForEveryone(): void {
+		this.sendControl({ kind: 'session-end' });
+		// give the sealed frame a beat to leave before the socket drops
+		setTimeout(() => this.destroy(), 150);
+	}
+
+	private end(reason: SessionEndReason, detail?: string): void {
+		if (this.destroyed) return;
+		this.events.onSessionEnd?.(reason, detail);
+		this.destroy();
+	}
+
+	destroy(): void {
+		if (this.destroyed) return;
+		// announce our departure BEFORE detaching handlers, so peers drop our cursor at once instead
+		// of waiting out awareness's 30s timeout. removeAwarenessStates fires 'update' synchronously,
+		// which posts the removal frame onto sendChain while onAwarenessUpdate is still attached.
+		try {
+			removeAwarenessStates(this.awareness, [this.clientId], 'local');
+		} catch {
+			/* awareness already torn down */
+		}
+		this.destroyed = true;
+		this.doc.off('update', this.onDocUpdate);
+		this.awareness.off('update', this.onAwarenessUpdate);
+		this.awareness.off('change', this.rebuildPeers);
+		if (this.borrowedAwareness) {
+			// the peers go, this side's state stays for the editors still bound to it
+			const others = [...this.awareness.getStates().keys()].filter((id) => id !== this.clientId);
+			removeAwarenessStates(this.awareness, others, 'session-end');
+			this.awareness.setLocalState({});
+		} else this.awareness.destroy();
+		this.transport.onMessage = null;
+		this.transport.onNotice = null;
+		this.transport.onStatus = null;
+		// close only after the departure frame has been sealed and sent
+		const tp = this.transport;
+		this.sendChain.finally(() => tp.close());
+	}
+}

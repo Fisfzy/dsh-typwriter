@@ -1,0 +1,257 @@
+// Cases that used to go wrong quietly, against real repositories (gitLiveFixture.ts): a restore that
+// replaced a file no version had, or deleted one it could not write, a name git printed in quotes,
+// a save that reached past the project folder or saved nothing and said it had, a hook reported as
+// git missing, a clone whose files never arrived, a file name git took for an option, and a branch
+// name that waited twenty seconds to be refused.
+import { describe, it, expect, afterEach } from 'vitest';
+import { execFileSync } from 'node:child_process';
+import { mkdirSync, readFileSync, writeFileSync, existsSync, chmodSync, renameSync } from 'node:fs';
+import { join } from 'node:path';
+import { gitStage, gitUnstage, gitStatus, isLocked } from '../../../../../../../electron/src/git/gitService';
+import { gitChangesSince, gitCommit, gitFileLog, gitRestore } from '../../../../../../../electron/src/git/history/gitHistory';
+import { gitClone } from '../../../../../../../electron/src/git/remote/gitClone';
+import { localGitReason } from '$lib/workspace/scm/gitLocalReason';
+import { m } from '$lib/paraglide/messages';
+import { AVAILABLE, run, out, identify, commit, tempDir, removeTempDirs } from '../gitLiveFixture';
+
+afterEach(removeTempDirs);
+
+function makeRepo(): string {
+	const root = tempDir('texpile-awkward-');
+	run(root, 'init', '-q');
+	identify(root);
+	return root;
+}
+
+describe.skipIf(!AVAILABLE)('restoring a version', () => {
+	it('will not replace a new file that is in no version, and names it', async () => {
+		const root = makeRepo();
+		commit(root, 'abstract.tex', 'Old abstract.\n', 'With an abstract');
+		const withAbstract = out(root, 'rev-parse', 'HEAD');
+		run(root, 'rm', '-q', 'abstract.tex');
+		run(root, 'commit', '-q', '-m', 'Drop the abstract');
+		writeFileSync(join(root, 'abstract.tex'), 'A new abstract, never saved in a version.\n');
+
+		const res = await gitRestore(root, withAbstract, 'Back to the abstract');
+		expect(res).toMatchObject({ ok: false, untracked: [join(root, 'abstract.tex')] });
+		expect(readFileSync(join(root, 'abstract.tex'), 'utf8')).toBe('A new abstract, never saved in a version.\n');
+	});
+
+	it('will not replace a file .gitignore leaves out, and names it', async () => {
+		const root = makeRepo();
+		commit(root, 'notes.txt', 'Notes, once in a version.\n', 'With notes');
+		const withNotes = out(root, 'rev-parse', 'HEAD');
+		run(root, 'rm', '-q', '--cached', 'notes.txt');
+		commit(root, '.gitignore', 'notes.txt\n', 'Keep the notes to myself');
+		writeFileSync(join(root, 'notes.txt'), 'Notes kept only here since.\n');
+
+		const res = await gitRestore(root, withNotes, 'Back to the notes');
+		expect(res).toMatchObject({ ok: false, untracked: [join(root, 'notes.txt')] });
+		expect(readFileSync(join(root, 'notes.txt'), 'utf8')).toBe('Notes kept only here since.\n');
+	});
+
+	it.skipIf(process.platform === 'win32')('fails when the version could not be saved', async () => {
+		const root = makeRepo();
+		commit(root, 'a.tex', 'A.\n', 'A');
+		const first = out(root, 'rev-parse', 'HEAD');
+		commit(root, 'a.tex', 'A, changed.\n', 'Change');
+		const hook = join(root, '.git', 'hooks', 'pre-commit');
+		writeFileSync(hook, '#!/bin/sh\nexit 1\n');
+		chmodSync(hook, 0o755);
+
+		expect((await gitRestore(root, first, 'Back to A')).ok).toBe(false);
+	});
+
+	it('refuses a revision that is not a version id', async () => {
+		const root = makeRepo();
+		commit(root, 'a.tex', 'A.\n', 'A');
+		expect(await gitChangesSince(root, '--output=/tmp/x')).toMatchObject({ ok: false });
+		expect(await gitRestore(root, '--output=/tmp/x', 'x')).toMatchObject({ ok: false });
+	});
+});
+
+describe.skipIf(!AVAILABLE)('a project that is one folder of a larger repository', () => {
+	it('saves a version without touching what was staged outside the folder', async () => {
+		const root = makeRepo();
+		mkdirSync(join(root, 'thesis'));
+		mkdirSync(join(root, 'code'));
+		commit(root, 'code/analysis.py', 'print(1)\n', 'Code');
+		commit(root, 'thesis/main.tex', 'Thesis.\n', 'Thesis');
+		// half of a change staged by hand in a terminal, the rest left out
+		writeFileSync(join(root, 'code/analysis.py'), 'print(2)\n');
+		run(root, 'add', 'code/analysis.py');
+		writeFileSync(join(root, 'code/analysis.py'), 'print(3)\n');
+		writeFileSync(join(root, 'thesis/main.tex'), 'Thesis, revised.\n');
+
+		const project = join(root, 'thesis');
+		await gitUnstage(project, []);
+		await gitStage(project, []);
+		expect(out(root, 'status', '--porcelain', '--', 'code')).toBe('MM code/analysis.py');
+		expect(out(root, 'diff', '--cached', '--name-only')).toBe('code/analysis.py\nthesis/main.tex');
+
+		// the version has what the panel listed, and what was staged outside is still staged
+		expect(await gitCommit(project, 'Revise')).toEqual({ ok: true });
+		expect(out(root, 'show', '--name-only', '--format=', 'HEAD')).toBe('thesis/main.tex');
+		expect(out(root, 'status', '--porcelain', '--', 'code')).toBe('MM code/analysis.py');
+		expect(out(root, 'show', ':code/analysis.py')).toBe('print(2)');
+	});
+
+	it('saves new, deleted and renamed files in the folder while something outside it is staged', async () => {
+		const root = makeRepo();
+		mkdirSync(join(root, 'thesis'));
+		mkdirSync(join(root, 'code'));
+		writeFileSync(join(root, 'thesis/intro.tex'), 'An introduction long enough to be recognised after a rename.\n');
+		writeFileSync(join(root, 'thesis/old.tex'), 'Old.\n');
+		commit(root, 'code/analysis.py', 'print(1)\n', 'First');
+		writeFileSync(join(root, 'code/analysis.py'), 'print(2)\n');
+		run(root, 'add', 'code/analysis.py');
+		renameSync(join(root, 'thesis/intro.tex'), join(root, 'thesis/introduction.tex'));
+		execFileSync('rm', [join(root, 'thesis/old.tex')]);
+		writeFileSync(join(root, 'thesis/new.tex'), 'New.\n');
+
+		const project = join(root, 'thesis');
+		const rows = (await gitStatus(project)).entries ?? [];
+		await gitUnstage(project, []);
+		await gitStage(project, [...rows.map((r) => r.path), join(project, 'intro.tex')]);
+		expect(await gitCommit(project, 'Rework the thesis')).toEqual({ ok: true });
+		expect(out(root, 'show', '--name-status', '--format=', 'HEAD').split('\n')).toEqual([
+			'R100\tthesis/intro.tex\tthesis/introduction.tex',
+			'A\tthesis/new.tex',
+			'D\tthesis/old.tex'
+		]);
+		expect(out(root, 'status', '--porcelain')).toBe('M  code/analysis.py');
+	});
+
+	it('saves nothing, and says so, when only something outside the folder is staged', async () => {
+		const root = makeRepo();
+		mkdirSync(join(root, 'thesis'));
+		mkdirSync(join(root, 'code'));
+		commit(root, 'code/analysis.py', 'print(1)\n', 'Code');
+		commit(root, 'thesis/main.tex', 'Thesis.\n', 'Thesis');
+		writeFileSync(join(root, 'code/analysis.py'), 'print(2)\n');
+		run(root, 'add', 'code/analysis.py');
+		const head = out(root, 'rev-parse', 'HEAD');
+
+		const res = await gitCommit(join(root, 'thesis'), 'Nothing here');
+		expect(res.ok).toBe(false);
+		expect(localGitReason(res.error)).toBe(m.vcs_error_nothing());
+		expect(out(root, 'rev-parse', 'HEAD')).toBe(head);
+	});
+
+	it('lists only its own changes, a rename inside it among them', async () => {
+		const root = makeRepo();
+		mkdirSync(join(root, 'thesis'));
+		mkdirSync(join(root, 'code'));
+		writeFileSync(join(root, 'thesis/intro.tex'), 'An introduction long enough to be recognised after a rename.\n');
+		commit(root, 'code/analysis.py', 'print(1)\n', 'First');
+		writeFileSync(join(root, 'code/analysis.py'), 'print(2)\n');
+		writeFileSync(join(root, 'code/new.py'), 'print(3)\n');
+		run(root, 'mv', 'thesis/intro.tex', 'thesis/introduction.tex');
+		writeFileSync(join(root, 'thesis/notes.tex'), 'Notes.\n');
+
+		const project = join(root, 'thesis');
+		expect((await gitStatus(project)).entries).toEqual([
+			{ path: join(project, 'introduction.tex'), x: 'R', y: ' ', from: join(project, 'intro.tex') },
+			{ path: join(project, 'notes.tex'), x: '?', y: '?' }
+		]);
+	});
+});
+
+describe.skipIf(!AVAILABLE)('saving a version', () => {
+	it('fails, in the words for it, when there is nothing to save', async () => {
+		const root = makeRepo();
+		commit(root, 'a.tex', 'A.\n', 'A');
+		const res = await gitCommit(root, 'Nothing new');
+		expect(res.ok).toBe(false);
+		expect(localGitReason(res.error)).toBe(m.vcs_error_nothing());
+	});
+
+	it.skipIf(process.platform === 'win32')('fails when a hook refuses it without a word', async () => {
+		const root = makeRepo();
+		commit(root, 'a.tex', 'A.\n', 'A');
+		const hook = join(root, '.git', 'hooks', 'pre-commit');
+		writeFileSync(hook, '#!/bin/sh\nexit 1\n');
+		chmodSync(hook, 0o755);
+		writeFileSync(join(root, 'a.tex'), 'A, changed.\n');
+		await gitStage(root, [join(root, 'a.tex')]);
+		expect((await gitCommit(root, 'Change')).ok).toBe(false);
+	});
+
+	it('stages files whose names git would read as options', async () => {
+		const root = makeRepo();
+		commit(root, 'main.tex', 'Main.\n', 'First');
+		writeFileSync(join(root, '-draft.tex'), 'A draft.\n');
+		writeFileSync(join(root, '-n'), 'Not a dry run.\n');
+		expect(await gitStage(root, [join(root, '-draft.tex'), join(root, '-n')])).toEqual({ ok: true });
+		expect(out(root, 'diff', '--cached', '--name-only').split('\n')).toEqual(['-draft.tex', '-n']);
+	});
+});
+
+describe.skipIf(!AVAILABLE)('a file whose name starts with two dots', () => {
+	it('is inside the folder: listed, and its history read', async () => {
+		const root = makeRepo();
+		mkdirSync(join(root, 'thesis'));
+		commit(root, 'thesis/..notes.tex', 'Notes.\n', 'Notes');
+		const first = out(root, 'rev-parse', 'HEAD');
+		writeFileSync(join(root, 'thesis/..notes.tex'), 'Notes, more.\n');
+
+		const project = join(root, 'thesis');
+		const file = join(project, '..notes.tex');
+		expect((await gitStatus(project)).entries?.map((e) => e.path)).toEqual([file]);
+		expect((await gitFileLog(project, file)).entries?.map((e) => e.subject)).toEqual(['Notes']);
+		expect((await gitChangesSince(project, first)).entries).toEqual([{ path: file, status: 'M' }]);
+	});
+});
+
+describe.skipIf(!AVAILABLE || process.platform === 'win32')('a hook that fails', () => {
+	it("is reported in its own words, not as git missing, when it runs a tool that isn't there", async () => {
+		const root = makeRepo();
+		commit(root, 'a.tex', 'A.\n', 'A');
+		const hook = join(root, '.git', 'hooks', 'pre-commit');
+		writeFileSync(hook, '#!/bin/bash\nlint-staged-that-is-not-installed\n');
+		chmodSync(hook, 0o755);
+		writeFileSync(join(root, 'a.tex'), 'A, changed.\n');
+		run(root, 'add', 'a.tex');
+		const res = await gitCommit(root, 'Change');
+		expect(res.ok).toBe(false);
+		expect(res.reason).toBeUndefined();
+		expect(res.error).toMatch(/command not found/);
+	});
+});
+
+describe.skipIf(!AVAILABLE)('a clone whose files could not be written', () => {
+	it('fails as such, and leaves no half-made folder behind', async () => {
+		const source = makeRepo();
+		commit(source, '.gitattributes', 'fig.png filter=broken\n', 'Attributes');
+		commit(source, 'fig.png', 'not really a picture\n', 'Figure');
+		const parent = tempDir('texpile-clone-');
+		// a filter that must run and fails, as a Git LFS download that fails does
+		const saved = { ...process.env };
+		Object.assign(process.env, {
+			GIT_CONFIG_COUNT: '2',
+			GIT_CONFIG_KEY_0: 'filter.broken.smudge',
+			GIT_CONFIG_VALUE_0: 'false',
+			GIT_CONFIG_KEY_1: 'filter.broken.required',
+			GIT_CONFIG_VALUE_1: 'true'
+		});
+		try {
+			const res = await gitClone(source, parent, 'paper');
+			expect(res).toMatchObject({ ok: false, failure: 'checkout' });
+			expect(existsSync(join(parent, 'paper'))).toBe(false);
+		} finally {
+			for (const k of ['GIT_CONFIG_COUNT', 'GIT_CONFIG_KEY_0', 'GIT_CONFIG_VALUE_0', 'GIT_CONFIG_KEY_1', 'GIT_CONFIG_VALUE_1']) {
+				if (saved[k] === undefined) delete process.env[k];
+				else process.env[k] = saved[k];
+			}
+		}
+	});
+});
+
+describe('a ref name another one is in the way of', () => {
+	// a fetch can meet it too: "draft/v2" on the remote beside a "draft" this copy still has
+	it('is not taken for a lock, so it is not retried for 19 seconds', () => {
+		expect(isLocked(new Error("error: cannot lock ref 'refs/remotes/origin/draft/v2': 'refs/remotes/origin/draft' exists"))).toBe(false);
+		expect(isLocked(new Error("fatal: Unable to create '/p/.git/index.lock': File exists."))).toBe(true);
+		expect(isLocked(new Error("error: cannot lock ref 'refs/heads/main': is at 1a2b but expected 3c4d"))).toBe(true);
+	});
+});

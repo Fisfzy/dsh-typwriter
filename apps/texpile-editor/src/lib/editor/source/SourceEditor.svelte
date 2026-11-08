@@ -1,0 +1,446 @@
+<script lang="ts" module>
+	// a jump runs once: every switch into source mode mounts a new editor, which must not replay the last one
+	let lastGotoToken: number | null = null;
+</script>
+
+<script lang="ts">
+	import { spellingFor } from '$lib/editor/spellcheck/languages/spellingLanguage.svelte';
+	import { onMount, onDestroy, untrack } from 'svelte';
+	import { EditorView, type ViewUpdate } from '@codemirror/view';
+	import { EditorState, Compartment } from '@codemirror/state';
+	import { setCommentRanges, focusCommentThread, type CommentRange } from '$lib/editor/visual/extensions/comments';
+	import { setSuggestionRanges, focusSuggestion, fitsSuggestion } from '$lib/editor/source/cmSuggestions';
+	import { setChangeBaseline } from '$lib/editor/source/cmChangeMarkers';
+	import { activeSuggestions } from '$lib/comments/activeSuggestions.svelte';
+	import { flashLineEffect } from '$lib/languages/latex/source/synctexFlash';
+	import { jumpRevealEffect } from './cmJumpReveal';
+	import { bindModalKeymap, modalKeymapCompartment } from '$lib/editor/source/extensions/keybindings/modalKeymap';
+	import { typstServerGen } from '$lib/languages/typst/intellisense/lspClient';
+	import { addPackageElsewhere, sourceCmView } from '$lib/stores/editorStore';
+	import { showSourceEditor } from '$lib/editor/editorsOnScreen.svelte';
+	import { docText } from '$lib/editor/source/docText';
+	import { countedByEditor, setSourceDocCount, setSourceSelectionCount, sourceCounting } from '$lib/stores/countStore.svelte';
+	import { trailingDebounce } from '$lib/trailingDebounce';
+	import { settings } from '$lib/settings';
+	import * as Y from 'yjs';
+	import type { SourceDiagnostic, CollabBinding } from './sourceEditorTypes';
+	import { buildSourceExtensions, applySourceLanguage, sourceLineWrap } from './sourceEditorSetup';
+	import { SourcePositionMemory, restorePoint, reapplyScrollOffset, applyModeSwitchAnchor } from './sourcePositionMemory';
+	import { SourceValueSync } from './sourceValueSync';
+	import { SourceDiagnosticsFeed } from './sourceDiagnosticsFeed';
+	import { turnOffLatexCheck } from '$lib/workspace/document/turnOffCheck';
+	import { resolveGotoTarget } from './sourceGotoTarget';
+	import { TypstLspBinding } from './typstLspBinding';
+	import { openSourceContextMenu } from '$lib/editor/source/sourceContextMenu';
+	import { samePath } from '$lib/workspace/fileSystem';
+
+	// gotoLine: token makes repeat jumps to the same line re-fire; selectText anchors against line drift.
+	// initialScrollPos: one-shot mode-switch sync applied at mount.
+	let {
+		value = '',
+		onInput,
+		filename = '',
+		docPath = null,
+		gotoLine,
+		onSyncToPdf,
+		initialScrollPos = null,
+		diagnostics = [],
+		onJumpToFile,
+		onOpenFileAt,
+		collab = null,
+		onCaretMove,
+		commentRanges = [],
+		selectedComment = null,
+		onAddComment,
+		onInsertCitation,
+		onCiteByDoi,
+		onSelectComment,
+		readOnly = false,
+		changeBaseline = null,
+		live = true
+	}: {
+		value?: string;
+		onInput?: (v: string) => void;
+		filename?: string;
+		/** absolute path, for remembering this file's caret across tab switches */
+		docPath?: string | null;
+		gotoLine?: { line: number; token: number; selectText?: string; column?: number; path?: string };
+		onSyncToPdf?: (line: number) => void;
+		initialScrollPos?: { scroll: number | null; cursor: number | null } | null;
+		diagnostics?: SourceDiagnostic[];
+		/** go-to-definition hooks: \input targets and cross-file definition jumps */
+		onJumpToFile?: (names: string[]) => void;
+		onOpenFileAt?: (file: string, line: number) => void;
+		collab?: CollabBinding | null;
+		/** ZERO-based line and column; fires on column moves too, because tinymist's jump_from_cursor
+		 *  reads the leaf BEFORE the cursor and never resolves at column 0. consumers debounce. */
+		onCaretMove?: (line: number, character: number) => void;
+		/** review-comment ranges already resolved against this text; see lib/comments */
+		commentRanges?: CommentRange[];
+		/** the thread the reader is looking at; its highlight is picked out from the rest */
+		selectedComment?: string | null;
+		/** the reader selected text and pressed Comment; offsets are into this document */
+		onAddComment?: (from: number, to: number) => void;
+		/** pick citations from Zotero and insert them at the caret (host + desktop only) */
+		onInsertCitation?: () => void;
+		/** look a work up by DOI or arXiv ID and cite it at the caret (host + desktop only) */
+		onCiteByDoi?: () => void;
+		onSelectComment?: (id: string) => void;
+		/** this file's threads, read by the hover card over commented text and its line number */
+		readOnly?: boolean;
+		/** the file as it was in the last saved version, for the change bars in the margin; null for none */
+		changeBaseline?: string | null;
+		/** false in a parked editor group: read only, and not the app's source editor */
+		live?: boolean;
+	} = $props();
+
+	/** last position reported to onCaretMove, so redundant selection updates do not spray requests */
+	const NO_MARKS: typeof activeSuggestions.current = [];
+	let lastCaretLine = -1;
+	let lastCaretChar = -1;
+
+	// language/extension gating: EditorPane only passes docPath, so `filename` alone was always
+	// '' and EVERY file (md, bib) silently fell into the "no name -> assume LaTeX" branch —
+	// latex intellisense shortcuts and highlighting in markdown source mode included
+	const fileFor = $derived(filename || docPath || '');
+	const isTypFile = $derived(/\.typ$/i.test(fileFor));
+
+	let host = $state<HTMLDivElement>();
+	let view: EditorView | null = null;
+	let unlistView: (() => void) | null = null;
+	const langConf = new Compartment();
+	const roConf = new Compartment();
+	// soft wrap is a compartment, not a mounted-once extension: toggling it in Preferences has to
+	// take effect in the editor already on screen, and remounting would lose the caret and scroll
+	const wrapConf = new Compartment();
+	// a compartment, so the editor mounts and is typeable before the server answers, or never does
+	const lspConf = new Compartment();
+	// vim / emacs bindings, filled in after mount because the packages are dynamically imported
+	const keymapConf = modalKeymapCompartment();
+	let unbindKeymap: (() => void) | null = null;
+
+	const sync = new SourceValueSync();
+	const positions = new SourcePositionMemory();
+	const diagFeed = new SourceDiagnosticsFeed({ turnOffRule: turnOffLatexCheck, addPackageTo: () => addPackageElsewhere.current });
+	const lsp = new TypstLspBinding(() => view, lspConf);
+
+	const counting = $derived(sourceCounting(fileFor));
+	// a LaTeX or Typst file's whole count comes from the workspace, in either view (countOpenFile)
+	const deferredDocCount = trailingDebounce(300, (text: string) => {
+		if (countedByEditor(counting)) setSourceDocCount(text, counting);
+	});
+	// throttle-ish: scrolling and arrow keys fire constantly, and only the resting place matters
+	const deferredRememberPosition = trailingDebounce<void>(400, () => positions.remember(view, docPath));
+	const unfollowMoves = positions.followMoves(
+		() => view,
+		() => docPath
+	);
+	// reads the selection at fire time (not capture), so a huge selection isn't sliced per keystroke
+	const deferredSelectionCount = trailingDebounce<void>(150, () => {
+		if (!view) return;
+		const s = view.state.selection.main;
+		setSourceSelectionCount(s.empty ? null : view.state.sliceDoc(s.from, s.to), counting);
+	});
+	// held at component scope so onDestroy can tear it down (else its doc observer leaks across
+	// every file switch / mode toggle that remounts this editor)
+	let undoManager: Y.UndoManager | null = null;
+
+	function onViewUpdate(u: ViewUpdate): void {
+		// a parked editor takes its file's changes from elsewhere: the counts and the caret are the focused one's
+		if (!live) return;
+		if (u.docChanged) {
+			const text = docText(u.state.doc);
+			if (!sync.syncing) {
+				sync.lastEmitted = text;
+				onInput?.(text);
+			}
+			deferredDocCount(text); // word/char count is display-only, off the keystroke path
+		}
+		if (u.docChanged || u.selectionSet) deferredSelectionCount();
+		if (u.selectionSet && onCaretMove) {
+			const head = u.state.selection.main.head;
+			const docLine = u.state.doc.lineAt(head);
+			const line = docLine.number - 1;
+			// UTF-16 code units from the line start, which is what LSP positions want
+			// and what CodeMirror's offsets already are
+			const character = head - docLine.from;
+			if (line !== lastCaretLine || character !== lastCaretChar) {
+				lastCaretLine = line;
+				lastCaretChar = character;
+				onCaretMove(line, character);
+			}
+		}
+		if (u.selectionSet || u.docChanged || u.geometryChanged) deferredRememberPosition();
+	}
+
+	onMount(() => {
+		// the file's own history, not CM's: CM undo would revert other people's edits
+		undoManager = collab ? collab.undo : null;
+		const initialDoc = collab ? collab.ytext.toString() : value;
+		// folded into EditorState.create, not dispatched after mount, so the first paint is already
+		// in the right place
+		const { restored, offset } = restorePoint(docPath, initialScrollPos != null, initialDoc);
+		view = new EditorView({
+			parent: host,
+			...(restored ? { scrollTo: EditorView.scrollIntoView(restored.scroll, { y: 'start', yMargin: 0 }) } : {}),
+			state: EditorState.create({
+				doc: initialDoc,
+				...(restored ? { selection: { anchor: restored.cursor } } : {}),
+				extensions: buildSourceExtensions({
+					fileFor,
+					foldsOf: docPath,
+					collab,
+					undoManager,
+					langConf,
+					roConf,
+					wrapConf,
+					lspConf,
+					keymapConf,
+					readOnly: readOnly || !live,
+					lineWrap: settings.current.sourceLineWrap !== false,
+					onAddComment,
+					onSelectComment,
+					onJumpToFile,
+					onOpenFileAt,
+					onScroll: () => deferredRememberPosition(),
+					spellLanguage: (source) => spellingFor(fileFor, source).language,
+					updateListener: onViewUpdate
+				})
+			})
+		});
+		window.texpile.debug.codemirror = view;
+		unlistView = showSourceEditor(view);
+		if (live) view.focus();
+		if (restored && offset) reapplyScrollOffset(() => view, restored.scroll, offset);
+		unbindKeymap = bindModalKeymap(view, keymapConf);
+		// collab mount: the Y.Text may be ahead of the caller's value (guest edits landed while
+		// the file was closed) — hand the truth back so the save pipeline starts aligned
+		if (collab && onInput && collab.ytext.toString() !== value) onInput(collab.ytext.toString());
+		// seed the counts now; the updateListener only fires on later changes
+		if (live && countedByEditor(counting)) setSourceDocCount(docText(view.state.doc), counting);
+		if (live) setSourceSelectionCount(null);
+		if (live && initialScrollPos != null) applyModeSwitchAnchor(view, initialScrollPos);
+		// publish this CM as the source-mode editor so menuBarCommands can route Insert/Format to it
+		if (live) sourceCmView.current = view;
+		applySourceLanguage(() => view, fileFor, langConf);
+		// never awaited: a missing or slow tinymist must not delay the editor appearing. started by
+		// the FILE, not the compile command, so a Makefile-driven Typst project still gets intellisense
+		lsp.arm(fileFor);
+	});
+
+	$effect(() => {
+		lsp.onServerGen(typstServerGen.current, fileFor);
+	});
+
+	// the editor of the group that takes focus becomes the app's source editor
+	const isLive = $derived(live);
+	$effect(() => {
+		const claims = isLive;
+		const own = view;
+		if (!own) return;
+		untrack(() => {
+			if (claims) sourceCmView.current = own;
+			else if (sourceCmView.current === own) sourceCmView.current = null;
+		});
+	});
+
+	// follow the Preferences toggle in the open editor rather than only at mount
+	$effect(() => {
+		const wrap = settings.current.sourceLineWrap !== false;
+		view?.dispatch({ effects: wrapConf.reconfigure(wrap ? sourceLineWrap(fileFor) : []) });
+	});
+
+	// collab mode: the Y.Text is the document, external value pushes would fight the CRDT
+	$effect(() => {
+		const v = value;
+		if (!collab && view) sync.pushExternal(view, v);
+	});
+
+	// live read-only flips: the host opened/closed this file in its visual editor, or it is not UTF-8
+	$effect(() => {
+		const ro = readOnly || !live || (collab?.readOnly ?? false);
+		if (view) {
+			view.dispatch({ effects: roConf.reconfigure(ro ? [EditorState.readOnly.of(true), EditorView.editable.of(false)] : []) });
+		}
+	});
+
+	// declared after the value-sync effect, so a same-flush file switch replaces the document first.
+	// dispatched on identity change only: CM maps the ranges itself, and re-dispatching discards that
+	let lastRanges: CommentRange[] | null = null;
+	$effect(() => {
+		const list = commentRanges;
+		const v = view;
+		if (!v || !onAddComment || list === lastRanges) return;
+		lastRanges = list;
+		// a list that does not fit was resolved against some other text and stays wrong for this doc
+		// forever; consumed but not dispatched, so the field keeps what CM has been mapping
+		if (list.some((r) => r.from < 0 || r.to > v.state.doc.length)) return;
+		v.dispatch({ effects: setCommentRanges.of(list) });
+	});
+
+	// the last saved version arrives after the file does (git is asked separately), and again when a
+	// new version is saved; the field then diffs every keystroke against it incrementally
+	let lastBaseline: string | null | undefined;
+	$effect(() => {
+		const base = changeBaseline;
+		const v = view;
+		void value;
+		if (!v || base === lastBaseline) return;
+		lastBaseline = base;
+		v.dispatch({ effects: setChangeBaseline.of(base) });
+	});
+
+	let lastSuggestions: typeof activeSuggestions.current | null = null;
+	// the marks are the focused editor's: a parked one draws the file's plain comments only
+	const marksHere = $derived(live ? activeSuggestions.current : NO_MARKS);
+	$effect(() => {
+		const marks = marksHere;
+		const v = view;
+		void value;
+		if (!v || !onAddComment || marks === lastSuggestions) return;
+		if (!marks.every((r) => fitsSuggestion(v.state, r))) return;
+		lastSuggestions = marks;
+		v.dispatch({ effects: setSuggestionRanges.of(marks.map(({ id, from, to, restore, mine }) => ({ id, from, to, restore, mine }))) });
+	});
+
+	// kept apart from the ranges: selecting happens far more often and must not rebuild the whole set
+	let lastFocus: string | null = null;
+	$effect(() => {
+		const id = selectedComment ?? null;
+		const v = view;
+		if (!v || !onAddComment || id === lastFocus) return;
+		lastFocus = id;
+		v.dispatch({ effects: [focusCommentThread.of(id), focusSuggestion.of(id)] });
+	});
+
+	// the effect still runs per keystroke (value is a dependency), but the feed skips dispatches
+	// that cannot change anything
+	$effect(() => {
+		const list = diagnostics;
+		const v = view;
+		void value; // re-anchor when the document is externally replaced
+		if (!v) return;
+		// setDiagnostics REPLACES the whole lint state, so with a server attached the two writers
+		// would overwrite each other. the server owns the squiggles; the compile log keeps Problems
+		if (lsp.ownsDiagnostics) return;
+		diagFeed.apply(v, list);
+	});
+
+	// the token has to be CHECKED, not just carried: the prop arrives inside an inline object
+	// literal, so a save or a compile re-runs this effect and would re-apply the last jump
+	$effect(() => {
+		const req = gotoLine;
+		if (!req || !view) return;
+		if (req.token === lastGotoToken) return;
+		// a jump into another file is for that file's editor, which mounts once it has opened
+		if (req.path && docPath && !samePath(req.path, docPath)) return;
+		lastGotoToken = req.token;
+		const { from, to } = resolveGotoTarget(view.state.doc, req);
+		view.dispatch({ selection: { anchor: from, head: to }, effects: [jumpRevealEffect(view, from), flashLineEffect.of(from)] });
+		view.focus();
+	});
+
+	onDestroy(() => {
+		// this teardown IS the tab switch: last chance to record where the user was, and the
+		// debounce below is about to be cancelled, so take the snapshot synchronously first
+		positions.remember(view, docPath);
+		if (sourceCmView.current === view) sourceCmView.current = null;
+		unfollowMoves();
+		unlistView?.();
+		lsp.release();
+		unbindKeymap?.();
+		unbindKeymap = null;
+		// drop our cursor from awareness so peers don't see a ghost; a parked editor never published one, and the
+		// cursor it would drop is the focused editor's
+		if (collab && live) collab.awareness.setLocalStateField('cursor', null);
+		undoManager = null;
+		view?.destroy();
+		view = null;
+		// stale timers must not write the NEXT file's counts into the shared store
+		deferredDocCount.cancel();
+		deferredSelectionCount.cancel();
+		deferredRememberPosition.cancel();
+	});
+</script>
+
+<div
+	bind:this={host}
+	class="source-editor h-full"
+	oncontextmenu={(e) =>
+		view &&
+		openSourceContextMenu(e, view, { onSyncToPdf, onAddComment, onInsertCitation, onCiteByDoi, syncTarget: isTypFile ? 'preview' : 'pdf' })}
+	role="presentation"
+></div>
+
+<style>
+	.source-editor :global(.cm-editor) {
+		height: 100%;
+		font-size: 0.875rem;
+		position: relative; /* anchor the floating top-right search panel */
+	}
+	/* position only: FindBar brings the card, and .cm-panels paints one behind it. !important on top:
+	   CodeMirror writes top: 0 inline on the container it creates, which beat this rule and left the
+	   panel hugging the editor edge */
+	.source-editor :global(.cm-panels.cm-panels-top) {
+		position: absolute;
+		top: var(--find-top, calc(var(--spacing) * 3)) !important;
+		right: var(--find-right);
+		left: auto;
+		width: max-content;
+		max-width: calc(100% - var(--find-right) - var(--spacing) * 3);
+		background: none;
+		border: none;
+		z-index: 20;
+		animation: find-slide 180ms ease-out; /* the visual editor's bar slides for 180ms too */
+	}
+	.source-editor :global(.cm-panels.cm-panels-top.closing) {
+		animation: find-slide 180ms ease-in reverse forwards;
+		pointer-events: none;
+	}
+	@keyframes -global-find-slide {
+		from {
+			clip-path: inset(0 0 100% 0);
+		}
+		to {
+			clip-path: inset(0);
+		}
+	}
+	/* same amber scale the ProseMirror search uses (SearchBar.svelte) */
+	.source-editor :global(.cm-searchMatch) {
+		background-color: var(--find-match-bg);
+	}
+	.source-editor :global(.cm-searchMatch-selected) {
+		background-color: var(--find-match-active-bg);
+	}
+	.source-editor :global(.cm-scroller) {
+		font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+		line-height: 1.6;
+	}
+	.source-editor :global(.cm-content) {
+		padding: calc(var(--spacing) * 4) 0;
+	}
+	/* CodeMirror indents every line 6px off the gutter, which reads as a stray space in front of the
+	   first character. Not to zero though: the caret is drawn centred on its position, so column 0
+	   needs half a caret of room or the sticky gutter paints over it on a blank line */
+	.source-editor :global(.cm-line) {
+		padding-left: 2px;
+	}
+	.source-editor :global(.cm-focused) {
+		outline: none;
+	}
+	/* vim / emacs mode line. Unlike the search widget above this is a BOTTOM panel, so it keeps
+	   CodeMirror's normal in-flow layout (the scroller shrinks for it) and only needs skinning. */
+	.source-editor :global(.cm-panels.cm-panels-bottom) {
+		border-top: var(--default-border-width) solid var(--color-surface-200);
+		background: var(--color-surface-100);
+	}
+	:global([data-mode='dark'] .source-editor .cm-panels.cm-panels-bottom) {
+		border-top-color: var(--color-surface-800);
+		background: var(--color-surface-900);
+	}
+	.source-editor :global(.cm-vim-panel) {
+		font-size: 0.75rem;
+		align-items: center;
+		min-height: 1.6em;
+	}
+</style>

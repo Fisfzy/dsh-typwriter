@@ -1,0 +1,55 @@
+{
+	"version": 1,
+	"deps": [
+		{"id":"classes/book"}
+	],
+	"macros": [
+		{"name":"act","args":[{"kind":"s"}]},
+		{"name":"actname"},
+		{"name":"directionfont"},
+		{"name":"longdirection","args":[{"kind":"m","placeholder":"direction"}]},
+		{"name":"phantomline","args":[{"kind":"m","placeholder":"text of the line"}]},
+		{"name":"scene","args":[{"kind":"s"}]},
+		{"name":"scenename"},
+		{"name":"setting","args":[{"kind":"m","placeholder":"setting"}]},
+		{"name":"shortdirection","args":[{"kind":"m","placeholder":"direction"}]},
+		{"name":"shortdirectionclose"},
+		{"name":"shortdirectionopen"},
+		{"name":"speaker","args":[{"kind":"m","placeholder":"character"}]},
+		{"name":"speakerdelim"},
+		{"name":"speakerfont"},
+		{"name":"theact","hidden":true},
+		{"name":"theline","hidden":true},
+		{"name":"thescene","hidden":true},
+		{"name":"typeline"}
+	],
+	"envs": [
+		{"name":"play","item":["item"]},
+		{"name":"thesetting"},
+		{"name":"verseplay","args":[{"kind":"o","placeholder":"name box width"}],"item":["item"]}
+	],
+	"keys": {
+		"classes/play#options": [{"key":"lineno","bare":true}]
+	},
+	"provides": {
+		"counterForms": [
+			{"name":"part","form":"[Roman]"},
+			{"name":"chapter","form":"[arabic]","appendix":"[Alph]"},
+			{"name":"section","form":"{chapter}.[arabic]"},
+			{"name":"subsection","form":"{section}.[arabic]"},
+			{"name":"subsubsection","form":"{subsection}.[arabic]","numbered":false},
+			{"name":"paragraph","form":"{subsubsection}.[arabic]","numbered":false},
+			{"name":"subparagraph","form":"{paragraph}.[arabic]","numbered":false},
+			{"name":"equation","form":"{chapter}.[arabic]"},
+			{"name":"figure","form":"{chapter}.[arabic]"},
+			{"name":"table","form":"{chapter}.[arabic]"},
+			{"name":"footnote","form":"[arabic]"},
+			{"name":"mpfootnote","form":"[alph]"}
+		],
+		"counters": [
+			{"name":"equation","within":"chapter"},
+			{"name":"footnote","within":"chapter"}
+		]
+	},
+	"passOptions": ["classes/book"]
+}

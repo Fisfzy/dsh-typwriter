@@ -1,0 +1,32 @@
+{
+	"version": 1,
+	"deps": [
+		{"id":"packages/tikz"},
+		{"id":"packages/pgf"},
+		{"id":"packages/pgfrcs"},
+		{"id":"packages/pgfcore"},
+		{"id":"packages/graphicx"},
+		{"id":"packages/keyval"},
+		{"id":"packages/graphics"},
+		{"id":"packages/trig"},
+		{"id":"packages/pgfsys"},
+		{"id":"packages/xcolor"},
+		{"id":"packages/pgfcomp-version-0-65"},
+		{"id":"packages/pgfcomp-version-1-18"},
+		{"id":"packages/pgffor"},
+		{"id":"packages/pgfkeys"},
+		{"id":"packages/pgfmath"},
+		{"id":"packages/pgfopts"},
+		{"id":"packages/elements"},
+		{"id":"packages/etoolbox"},
+		{"id":"packages/translations"},
+		{"id":"packages/iftex"}
+	],
+	"macros": [
+		{"name":"bohr","args":[{"kind":"o","placeholder":"num of shells"},{"kind":"m","placeholder":"num of electrons"},{"kind":"m","placeholder":"atom name"}]},
+		{"name":"setbohr","args":[{"kind":"m","placeholder":"options","keys":["packages/bohr#bohr"]}]}
+	],
+	"keys": {
+		"packages/bohr#bohr": [{"key":"insert-number","bare":true,"default":"true"},{"key":"name-options-set","bare":true,"placeholder":""},{"key":"ngerman","bare":true},{"key":"insert-symbol","bare":true,"default":"true"},{"key":"nucleus-radius","bare":true,"placeholder":""},{"key":"atom-style","bare":true,"placeholder":""},{"key":"electron-options-add","bare":true,"placeholder":""},{"key":"nucleus-options-add","bare":true,"placeholder":""},{"key":"electron-options-set","bare":true,"placeholder":""},{"key":"nucleus-options-set","bare":true,"placeholder":""},{"key":"distribution-method","values":["periodic","quantum"]},{"key":"insert-missing","values":["false","true"],"bare":true},{"key":"german","bare":true},{"key":"shell-options-add","bare":true,"placeholder":""},{"key":"french","bare":true},{"key":"name-options-add","bare":true,"placeholder":""},{"key":"language","bare":true,"placeholder":""},{"key":"frenchb","bare":true},{"key":"shell-options-set","bare":true,"placeholder":""},{"key":"shell-dist","bare":true,"placeholder":""},{"key":"electron-radius","bare":true,"placeholder":""}]
+	}
+}

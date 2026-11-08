@@ -1,0 +1,76 @@
+{
+	"name": "texpile-desktop",
+	"version": "1.6.2",
+	"private": true,
+	"description": "Texpile",
+	"author": {
+		"name": "Texpile",
+		"email": "support@texpile.com"
+	},
+	"homepage": "https://texpile.com",
+	"main": "electron/dist/main.js",
+	"scripts": {
+		"build": "pnpm -r --if-present run build",
+		"set-version": "node scripts/set-version.mjs",
+		"preinstall": "npx only-allow pnpm",
+		"postinstall": "pnpm -r --if-present sync",
+		"app:build": "pnpm --filter=texpile-editor run build && pnpm electron:build:prod",
+		"electron": "pnpm electron:build && electron .",
+		"electron:build": "tsc -p electron --noEmit && node scripts/build-electron.mjs --dev",
+		"_comment:electron:dev": "--host/--strictPort keep vite on the IPv4 address wait-on polls; without them it binds ::1 or drifts to 5174 and this hangs for ever.",
+		"electron:dev": "concurrently -k -n vite,electron \"pnpm --filter=texpile-editor dev --host 127.0.0.1 --strictPort\" \"pnpm electron:build && wait-on -t 180000 http-get://127.0.0.1:5173 && cross-env ELECTRON_START_URL=http://127.0.0.1:5173 electron .\"",
+		"dist": "pnpm app:build && electron-builder --publish never",
+		"dist:portable": "pnpm app:build && electron-builder --win zip --publish never -c.extraMetadata.portable=true",
+		"dist:linux": "pnpm app:build && electron-builder --linux --publish never",
+		"dist:dir": "pnpm app:build && electron-builder --dir",
+		"format": "prettier --write .",
+		"lint": "prettier --check . && pnpm --filter texpile-editor exec eslint . && eslint electron",
+		"lint:electron": "eslint electron",
+		"electron:build:prod": "tsc -p electron --noEmit && node scripts/build-electron.mjs",
+		"patch:check": "node scripts/patches.mjs --check .",
+		"patch:apply": "node scripts/patches.mjs --apply .",
+		"check:svelte": "node scripts/check-svelte.mjs apps/texpile-editor/src",
+		"preflight": "pnpm run patch:check && pnpm run check:svelte"
+	},
+	"devDependencies": {
+		"@agentclientprotocol/claude-agent-acp": "^0.95.0",
+		"@agentclientprotocol/codex-acp": "^2.2.2",
+		"@agentclientprotocol/sdk": "^1.9.0",
+		"@eslint/js": "^10.0.1",
+		"@modelcontextprotocol/sdk": "^1.32.2",
+		"@types/node": "^24.13.3",
+		"chokidar": "^5.0.0",
+		"concurrently": "^9.2.4",
+		"cross-env": "^10.1.0",
+		"electron": "^44.9.3",
+		"electron-builder": "^26.18.0",
+		"electron-updater": "^6.8.11",
+		"esbuild": "^0.28.2",
+		"eslint": "^10.13.0",
+		"eslint-config-prettier": "^10.1.8",
+		"globals": "^17.12.0",
+		"prettier": "^3.9.10",
+		"prettier-plugin-svelte": "^4.1.1",
+		"prettier-plugin-tailwindcss": "^0.8.1",
+		"simple-git": "^3.36.0",
+		"typescript": "^6.0.3",
+		"typescript-eslint": "^8.72.0",
+		"wait-on": "^9.1.0",
+		"zod": "3.25.76"
+	},
+	"engines": {
+		"node": ">=24",
+		"pnpm": ">=9.2.0"
+	},
+	"pnpm": {
+		"onlyBuiltDependencies": [
+			"electron",
+			"esbuild",
+			"node-pty"
+		]
+	},
+	"dependencies": {
+		"node-pty": "1.2.0-beta.18"
+	},
+	"packageManager": "pnpm@10.14.0"
+}

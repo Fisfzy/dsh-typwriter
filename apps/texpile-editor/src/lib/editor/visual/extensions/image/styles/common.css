@@ -1,0 +1,35 @@
+.imagePluginRoot {
+	display: flex;
+	flex-direction: column;
+	position: relative;
+	border-radius: var(--radius-base);
+}
+
+.imagePluginRoot img {
+	align-self: center;
+	width: 100%;
+}
+
+.imagePluginRoot:hover .imagePluginOverlay {
+	opacity: 1;
+}
+
+.imagePluginOverlay {
+	position: absolute;
+	transition: all 0.3s ease;
+	justify-content: center;
+	opacity: 0;
+	z-index: 2;
+
+	left: 50%;
+	transform: translateX(-50%);
+}
+.imagePluginRoot .text {
+	text-align: center;
+}
+
+.imagePluginRoot.image-cropping > img,
+.imagePluginRoot.image-cropping > .image-overlay-container,
+.imagePluginRoot.image-cropping > .imageResizeBoxWrapper {
+	display: none;
+}

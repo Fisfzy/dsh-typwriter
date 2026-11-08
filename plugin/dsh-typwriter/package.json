@@ -1,0 +1,42 @@
+{
+  "name": "dsh-typwriter",
+  "version": "0.1.0",
+  "description": "Typst 论文写作工作台：在 DSH 里编辑、编译、预览 Typst 文档（界面基于 Texpile，AGPL-3.0）",
+  "type": "module",
+  "main": "src/host/index.js",
+  "exports": {
+    ".": "./src/host/index.js",
+    "./client": "./dist/client.js",
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-runtime"
+      ]
+    }
+  },
+  "engines": {
+    "node": ">=20",
+    "dsh": ">=0.2.1-rc.5 <0.3.0"
+  },
+  "license": "AGPL-3.0-or-later",
+  "scripts": {
+    "build": "node scripts/build.mjs"
+  },
+  "files": [
+    "src",
+    "dist",
+    "app",
+    "bin",
+    "cordis.patch.yml"
+  ],
+  "devDependencies": {
+    "esbuild": "^0.25.10"
+  }
+}

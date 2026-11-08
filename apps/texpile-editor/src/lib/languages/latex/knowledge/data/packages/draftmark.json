@@ -1,0 +1,33 @@
+{
+	"version": 1,
+	"deps": [
+		{"id":"packages/graphicx"},
+		{"id":"packages/keyval"},
+		{"id":"packages/graphics"},
+		{"id":"packages/trig"},
+		{"id":"packages/xkeyval"},
+		{"id":"packages/etextools"},
+		{"id":"packages/etex"},
+		{"id":"packages/etoolbox"},
+		{"id":"packages/letltxmacro"},
+		{"id":"packages/atbegshi-ltx"},
+		{"id":"packages/picture"},
+		{"id":"packages/xcolor"},
+		{"id":"packages/xifthen"},
+		{"id":"packages/calc"},
+		{"id":"packages/ifthen"},
+		{"id":"packages/ltxnew"},
+		{"id":"packages/pagerange"}
+	],
+	"macros": [
+		{"name":"draftmarksetup","args":[{"kind":"m","placeholder":"key=value list","keys":["packages/draftmark#draftmark"]}]},
+		{"name":"fileauthor","hidden":true},
+		{"name":"filedate"},
+		{"name":"filedesc","hidden":true},
+		{"name":"filetime","hidden":true},
+		{"name":"fileversion"}
+	],
+	"keys": {
+		"packages/draftmark#draftmark": [{"key":"allpages","bare":true,"placeholder":""},{"key":"oddpages","bare":true,"placeholder":""},{"key":"grayness","bare":true,"placeholder":""},{"key":"fontsize","bare":true,"placeholder":""},{"key":"coordunit","bare":true,"placeholder":""},{"key":"firstpage","bare":true,"placeholder":""},{"key":"evenpages","bare":true,"placeholder":""},{"key":"pagerange","bare":true,"placeholder":""},{"key":"fontfamily","bare":true,"placeholder":""},{"key":"scale","bare":true,"placeholder":""},{"key":"page","bare":true,"placeholder":""},{"key":"mark","bare":true,"placeholder":""},{"key":"showcenter","bare":true,"placeholder":""},{"key":"acceptrange","bare":true,"placeholder":""},{"key":"angle","bare":true,"placeholder":""},{"key":"final","bare":true,"placeholder":""},{"key":"draft","bare":true,"placeholder":""},{"key":"color","bare":true,"placeholder":""},{"key":"pages","bare":true,"placeholder":""},{"key":"particularpage","bare":true,"placeholder":""},{"key":"xcoord","bare":true,"placeholder":"number"},{"key":"ycoord","bare":true,"placeholder":"number"}]
+	}
+}

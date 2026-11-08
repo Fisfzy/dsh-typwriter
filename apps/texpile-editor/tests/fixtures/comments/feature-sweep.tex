@@ -1,0 +1,140 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{graphicx}
+\usepackage[colorlinks]{hyperref}
+\newtheorem{theorem}{Theorem}
+\newtheorem{definition}{Definition}
+\newcommand{\normvec}[1]{\lVert #1 \rVert}
+
+\title{A Test Document for Texpile}
+\author{Texpile QA \and A Second Author}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+	This document exists to be compiled, folded, searched, spell-checked, and jumped around
+	in. It covers sectioning, cross-references, citations, floats, tables, theorem
+	environments, and listings. If any of it renders wrongly, that is the bug.
+\end{abstract}
+
+\section{Sectioning and cross-references}
+\label{sec:intro}
+
+This is the first section, and the next one is about mathematics. Sectioning commands should
+colour as commands, and the titles should stay plain text. Here is a footnote.\footnote{The
+footnote text should be spell-checked like any other prose.} Here is a
+\href{https://texpile.com}{link with text}, and a bare one: \url{https://typst.app}.
+
+\subsection{A subsection}
+\label{sec:sub}
+
+Deep nesting exists so the outline and the fold column have something to work with.
+
+\paragraph{A paragraph heading} runs into its text, which is a different shape again.
+
+\section{Mathematics}
+\label{sec:math}
+
+Inline math like $E = mc^2$ and $\alpha \neq \beta$ sits in the middle of a sentence, as does
+the alternative form \( \sum_{k=1}^{n} k = \tfrac{n(n+1)}{2} \). The math preview should render
+either on hover.
+
+Display math, unnumbered:
+\[
+	\int_{0}^{\infty} e^{-x^2} \, dx = \frac{\sqrt{\pi}}{2}
+\]
+
+A numbered equation, which the text refers back to:
+\begin{equation}
+	\label{eq:euler}
+	e^{i\pi} + 1 = 0
+\end{equation}
+
+Aligned equations, each numbered, using the custom macros from the preamble:
+
+\begin{align}
+\normvec{x}^2 & =\sum_{i=1}^{n}x_{i}^2 \label{eq:norm} \\
+\operatorname*{\mathrm{arg\,min}}_{\theta\in\mathbb{R}^{d}}f(\theta) & \in\mathbb{R}^{d} \label{eq:argmin}
+\end{align}
+
+Both equations are reachable by reference; the middle line is deliberately unnumbered.
+
+\begin{theorem}[Pythagoras]
+	\label{thm:pythagoras}
+	In a right triangle, $a^2 + b^2 = c^2$.
+\end{theorem}
+
+\begin{proof}
+	Left to the reader, as is traditional.
+\end{proof}
+
+\begin{definition}
+	\label{def:cauchy}
+	A sequence $(x_n)$ is Cauchy if for every $\epsilon > 0$ there is $N \in \mathbb{N}$ such that
+	$|x_n - x_m| < \epsilon$ for all $n, m > N$.
+\end{definition}
+
+\section{Lists}
+\label{sec:lists}
+
+\begin{itemize}
+	\item A bullet.
+	\item Another, with \emph{emphasis}, \textbf{bold}, \texttt{monospace}, and
+	      \underline{underline}.
+	\begin{itemize}
+		\item A nested bullet.
+	\end{itemize}
+\end{itemize}
+
+\begin{enumerate}
+	\item First.
+	\item Second.
+	\begin{enumerate}
+		\item Nested and renumbered.
+	\end{enumerate}
+\end{enumerate}
+
+\begin{description}
+	\item[Term] its definition.
+	\item[Another term] a second definition.
+\end{description}
+
+\section{Verbatim}
+\label{sec:code}
+
+Inline verbatim: \verb|\newcommand{\foo}{bar}|. A verbatim block, where nothing should be
+interpreted or spell-checked:
+
+\begin{verbatim}
+for i in range(10):
+    print(f"{i}: {i ** 2}")   % this % is not a comment
+\end{verbatim}
+
+\section{Citations}
+\label{sec:cites}
+
+A single citation \cite{knuth1984}, a page-qualified one \cite[p.~42]{lamport1994}, and
+several at once \cite{mittelbach2004, typst2023, curry1930}. A citation to an online source
+sits here too \cite{unicode2024}. The picker should offer all of them, and each should
+resolve to the author and year rather than the raw key.
+
+\section{Things that commonly break}
+\label{sec:edge}
+
+Special characters: 100\% of \$5, a\_b, \{braces\}, \#hash, \&ampersand, and a tilde\textasciitilde{}.
+
+Accents and non-ASCII, which the spell checker should not choke on: naïve, café, Gödel,
+Erdős, Straße, ¿por qué?, 日本語, العربية, עברית.
+
+An em-dash --- like this --- and an en-dash 1--10, plus ``smart quotes'' and `single' ones.
+
+A line break forced with a double backslash: \\
+this text is on the next line.
+
+\bibliographystyle{plain}
+\bibliography{refs}
+
+\end{document}

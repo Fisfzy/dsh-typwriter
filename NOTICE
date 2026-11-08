@@ -1,0 +1,67 @@
+NOTICE
+======
+
+Typwriter is a modified version of Texpile.
+
+Upstream
+--------
+Texpile — https://github.com/texpile/texpile
+Copyright the Texpile project contributors.
+Licensed under the GNU Affero General Public License, version 3 (AGPL-3.0).
+The full licence text is in LICENSE.
+
+This repository is a fork. It contains Texpile's source code, modified as described below.
+
+Modifications
+-------------
+The complete, machine-readable list of changes to upstream source is
+`scripts/patches.mjs` (each entry carries its anchor and reason). In summary:
+
+1. Host bridge
+   Electron's preload globals (window.texpileNative, texpileTypst, texpileTerminal,
+   texpileAcp, texpileAgent, texpileUpdates, texpileSnippets) are provided by
+   `plugin/dsh-typwriter/src/browser/shim.js` over HTTP + SSE, so the renderer runs in an
+   ordinary web page instead of Electron.
+
+2. File scheme
+   The `texfile://` custom protocol is replaced by the same-origin route
+   `/typwriter/api/file?path=…`, served by `plugin/dsh-typwriter/src/host/static.js`.
+
+3. Agent integration
+   DeepSeek Harness is available as an Agent Client Protocol (ACP) agent
+   (`plugin/dsh-typwriter/src/host/acp.js`); the agent conversation is shown in a
+   right-hand pane (`lib/ai/agentPanel/ui/AgentPane.svelte`), and Refine runs a
+   one-shot ACP session (`plugin/dsh-typwriter/src/host/rpc.js`).
+
+4. Editor layout
+   A three-column layout (`columns3`) was added to `lib/workspace/groups/layouts.ts`,
+   with generalized track sizing; an empty editor pane can be closed from its corner.
+
+5. Localisation and branding
+   The default UI locale is zh-Hans; several hardcoded English UI strings were translated.
+   The product name, wordmark (branding/Logo-*.svg), favicon and app icon were replaced
+   with original artwork carrying the name Typwriter.
+
+Trademarks
+----------
+The name "Texpile" and the Texpile logo (the files formerly in `branding/` and the
+application icons derived from them) are trademarks of the Texpile project, governed by
+`TRADEMARK.md`. That policy permits forks under the AGPL provided they take their own
+name and icon and note that they are derived from Texpile — which is what this file and
+the replacement artwork do.
+
+This fork is not affiliated with, endorsed by, or published by the Texpile project, and it
+does not use the Texpile name or logo as its own branding. It also does not use the
+hosted collaboration relay at collab.texpile.com; the upstream request in `TRADEMARK.md`
+is respected.
+
+Our changes
+-----------
+The modifications listed above, and the DSH plugin under `plugin/dsh-typwriter/`, are
+also licensed AGPL-3.0, so the combined work stays under a single licence.
+
+Third-party components
+----------------------
+See ACKNOWLEDGEMENTS.md for the upstream project's third-party notices. Note that some
+spell-check dictionaries shipped by upstream (it, pt-BR: GPL-3.0-or-later; de, es, pt-PT,
+pl: LGPL-3.0) have their own terms; this fork does not redistribute them separately.

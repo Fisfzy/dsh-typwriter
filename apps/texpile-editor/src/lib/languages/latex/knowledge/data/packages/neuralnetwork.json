@@ -1,0 +1,50 @@
+{
+	"version": 1,
+	"deps": [
+		{"id":"packages/environ"},
+		{"id":"packages/etoolbox"},
+		{"id":"packages/xkeyval"},
+		{"id":"packages/tikz"},
+		{"id":"packages/pgf"},
+		{"id":"packages/pgfrcs"},
+		{"id":"packages/pgfcore"},
+		{"id":"packages/graphicx"},
+		{"id":"packages/graphics"},
+		{"id":"packages/trig"},
+		{"id":"packages/pgfsys"},
+		{"id":"packages/xcolor"},
+		{"id":"packages/pgfcomp-version-0-65"},
+		{"id":"packages/pgfcomp-version-1-18"},
+		{"id":"packages/pgffor"},
+		{"id":"packages/pgfkeys"},
+		{"id":"packages/pgfmath"},
+		{"id":"packages/algorithmicx"},
+		{"id":"packages/ifthen"},
+		{"id":"packages/mathtools"},
+		{"id":"packages/calc"},
+		{"id":"packages/mhsetup"},
+		{"id":"packages/amsmath"},
+		{"id":"packages/amstext"},
+		{"id":"packages/amsbsy"},
+		{"id":"packages/amsopn"}
+	],
+	"macros": [
+		{"name":"hiddenlayer","args":[{"kind":"o","keys":["packages/neuralnetwork#layer"]}]},
+		{"name":"inputlayer","args":[{"kind":"o","keys":["packages/neuralnetwork#layer"]}]},
+		{"name":"layer","args":[{"kind":"o","keys":["packages/neuralnetwork#layer"]}]},
+		{"name":"link","args":[{"kind":"o","keys":["packages/neuralnetwork#link"]}]},
+		{"name":"linklayers","args":[{"kind":"o","keys":["packages/neuralnetwork#links"]}]},
+		{"name":"outputlayer","args":[{"kind":"o","keys":["packages/neuralnetwork#layer"]}]},
+		{"name":"setdefaultlinklabel","args":[{"kind":"m"}]},
+		{"name":"setdefaultnodetext","args":[{"kind":"m"}]}
+	],
+	"envs": [
+		{"name":"neuralnetwork","args":[{"kind":"o","placeholder":"options","keys":["packages/neuralnetwork#network"]}]}
+	],
+	"keys": {
+		"packages/neuralnetwork#layer": [{"key":"titlestyle","placeholder":""},{"key":"biaspos","placeholder":""},{"key":"exclude","placeholder":""},{"key":"widetitlefalse","placeholder":""},{"key":"toptrue","placeholder":""},{"key":"biasfalse","placeholder":""},{"key":"nodeclass","placeholder":""},{"key":"count","placeholder":""},{"key":"title","placeholder":""},{"key":"widetitle","placeholder":""},{"key":"widetitletrue","placeholder":""},{"key":"biastrue","placeholder":""},{"key":"bias","placeholder":""},{"key":"text","placeholder":""},{"key":"topfalse","placeholder":""},{"key":"top","placeholder":""}],
+		"packages/neuralnetwork#link": [{"key":"to node","placeholder":""},{"key":"to layer","placeholder":""},{"key":"labelpos","placeholder":""},{"key":"from layer","placeholder":""},{"key":"from node","placeholder":""},{"key":"label","placeholder":""},{"key":"style","placeholder":""}],
+		"packages/neuralnetwork#links": [{"key":"not from","placeholder":""},{"key":"labels","placeholder":""},{"key":"not to","placeholder":""},{"key":"title","placeholder":""},{"key":"style","placeholder":""}],
+		"packages/neuralnetwork#network": [{"key":"layertitleheight","placeholder":""},{"key":"maintitleheight","placeholder":""},{"key":"nodespacing","placeholder":""},{"key":"height","placeholder":""},{"key":"toprow","placeholder":""},{"key":"nodesize","placeholder":""},{"key":"toprowfalse","placeholder":""},{"key":"titlestyle","placeholder":""},{"key":"title","placeholder":""},{"key":"style","placeholder":""},{"key":"toprowtrue","placeholder":""},{"key":"layerspacing","placeholder":""}]
+	}
+}

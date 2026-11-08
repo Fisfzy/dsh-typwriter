@@ -1,0 +1,131 @@
+// The workspace's mount sequence: folder claim, per-folder state binds, layout restores, the
+// window listeners and the before-close guard. Returns the teardown for onMount.
+import { fileMode } from '$lib/workspace/fileMode.svelte';
+import { navigate } from '$lib/router.svelte';
+import { tabs } from '$lib/workspace/tabs.svelte';
+import { docPositions } from '$lib/workspace/docPositions';
+import { initSpellcheckConfig } from '$lib/editor/spellcheck/config/spellcheckConfig';
+import { attachWindowListeners, attachCloseGuard } from '$lib/workspace/workspaceMount';
+import { projectConfigSync as projectConfig } from '$lib/workspace/projectConfigSync.svelte';
+import { activeFilePath, workspaceRoot } from '$lib/workspace/workspaceStore';
+import { reloadSnippets } from '$lib/editor/snippets/file/snippetLoader';
+import { setSnippetEnvironment } from '$lib/editor/snippets/expand/body/bodyVariables';
+import { collabHost } from '$lib/collab/hostStore.svelte';
+import { basename, claimWorkspace, purgeUndoBackups } from '$lib/workspace/fileSystem';
+import { askBeforeDiskUndo } from '$lib/buffers/fileUndo';
+import { confirmAsk } from '$lib/modals/confirm.svelte';
+import { m } from '$lib/paraglide/messages';
+import type { PaneLayout } from '$lib/workspace/paneLayout.svelte';
+import type { TerminalDockState } from '$lib/workspace/terminalDockState.svelte';
+import type { CommentsController } from '$lib/workspace/commentsController.svelte';
+import type { CompilePipeline } from '$lib/workspace/compilePipeline.svelte';
+import type { DraftController } from '$lib/draft/draftController.svelte';
+import type { WorkspaceDoc } from './workspaceDoc.svelte';
+import type { WorkspaceEditFlow } from './workspaceEditFlow.svelte';
+import type { WorkspaceFiles } from './workspaceFiles.svelte';
+import type { WorkspaceCompileState } from './workspaceCompileState.svelte';
+
+type StartupDeps = {
+	guest: boolean;
+	hostMode: boolean;
+	wsdoc: WorkspaceDoc;
+	editFlow: WorkspaceEditFlow;
+	files: WorkspaceFiles;
+	cc: WorkspaceCompileState;
+	compiler: CompilePipeline;
+	draftCtl: DraftController;
+	commentsCtl: CommentsController;
+	layout: PaneLayout;
+	termDock: TerminalDockState;
+};
+
+/** no folder open (e.g. hard navigation): sends the user back to the start screen */
+export function startWorkspace(d: StartupDeps): (() => void) | undefined {
+	const { wsdoc, editFlow, files, layout, termDock, hostMode, guest } = d;
+	const { modes, diff } = wsdoc;
+	const { saver } = editFlow;
+	const root = workspaceRoot.current;
+	if (!root) {
+		navigate('/');
+		return;
+	}
+	// register as this folder's window (covers reloads); a lost claim means another window
+	// already owns the folder - that window was focused, this one goes back to Start.
+	// A guest owns no folder and single-file mode is only visiting one: neither claims it, sets up
+	// its project, nor writes to its remembered state.
+	const projectMode = hostMode && !fileMode.current;
+	if (projectMode) {
+		void claimWorkspace(root).then((c) => {
+			if (!c.ok && workspaceRoot.current === root) {
+				workspaceRoot.current = null;
+				fileMode.current = false;
+				navigate('/');
+			}
+		});
+		files.mainPrompt.resolve(root); // storage first, before anything can want a compile
+		// Nothing can reach the last session's undo backups: the stack is memory-only, so they
+		// became unreachable when the window closed. Purging on open (rather than on close) also
+		// means they outlive a crash, and the files themselves are in the recycle bin regardless.
+		void purgeUndoBackups(root).catch(() => {});
+		void files.folder.initProject(root);
+	}
+	tabs.bind(root, projectMode); // restore this folder's open tabs (guests and single files start fresh)
+	docPositions.bind(root, projectMode); // and where the caret was in each of them
+	if (guest) layout.pdfPaneOpen = true; // guests land with the host's PDF visible
+	files.loadRefs(root);
+	void files.refreshTree();
+	initSpellcheckConfig(); // seed editorConfigStore so the spell-check toggle works
+	setSnippetEnvironment(() => ({ filePath: activeFilePath.current, folder: workspaceRoot.current }));
+
+	layout.restore(); // loadExistingPdf refills the preview if it was open last
+	termDock.restore();
+	modes.restore();
+	diff.restoreLayout();
+
+	function reloadReferences() {
+		const r = workspaceRoot.current;
+		if (r) void files.loadRefs(r);
+		wsdoc.regatherProjectMacros();
+	}
+	askBeforeDiskUndo((file) =>
+		confirmAsk(m.filesync_undo_disk_title(), {
+			detail: m.filesync_undo_disk_body({ name: basename(file) }),
+			confirmLabel: m.filesync_undo_disk_confirm()
+		})
+	);
+	const detachListeners = attachWindowListeners({
+		refreshTree: () => void files.refreshTree(),
+		refreshScm: () => files.refreshScm(),
+		reloadReferences,
+		isHost: () => hostMode,
+		syncBuffers: (changed) => void editFlow.saver.syncFromDisk(changed),
+		runCompile: () => d.compiler.runCompile(),
+		loadExternalPdf: () => void d.compiler.loadExternalPdf(),
+		onWindowResize: () => {
+			layout.reclampPdf();
+			termDock.reclamp();
+		},
+		reloadProjectState: () => {
+			// all live in .texpile/ and all are committed, so all arrive by pull
+			void d.commentsCtl.refresh();
+			void reloadSnippets(guest || fileMode.current ? null : workspaceRoot.current);
+			void projectConfig.refresh(guest ? null : workspaceRoot.current).then(() => {
+				d.cc.resolveNow();
+			});
+		}
+	});
+	const offBeforeClose = attachCloseGuard({
+		flushSaves: () => saver.flushAndWait(),
+		hasStranded: () => saver.stranded().length > 0,
+		confirmLeaveUnsaved: () => editFlow.confirmLeaveUnsaved()
+	});
+	return () => {
+		offBeforeClose?.();
+		askBeforeDiskUndo(null);
+		detachListeners();
+		d.compiler.dispose();
+		// the folder's buffers go with the view, everything unwritten written first
+		void collabHost.close();
+		d.draftCtl.dispose();
+	};
+}

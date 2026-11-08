@@ -1,0 +1,69 @@
+{
+	"version": 1,
+	"deps": [
+		{"id":"classes/report"},
+		{"id":"packages/graphicx"},
+		{"id":"packages/keyval"},
+		{"id":"packages/graphics"},
+		{"id":"packages/trig"},
+		{"id":"packages/prelim2e","if":"brudnopis"}
+	],
+	"macros": [
+		{"name":"email","args":[{"kind":"m"}]},
+		{"name":"introduction"},
+		{"name":"IntroName","hidden":true},
+		{"name":"keywords","args":[{"kind":"m"}]},
+		{"name":"kierunek","args":[{"kind":"m"}]},
+		{"name":"klasyfikacja","args":[{"kind":"m"}],"hidden":true},
+		{"name":"miejsce","args":[{"kind":"m"}]},
+		{"name":"nralbumu","args":[{"kind":"m"}]},
+		{"name":"nrwersji","args":[{"kind":"m"}]},
+		{"name":"opiekun","args":[{"kind":"m"}]},
+		{"name":"oswiadczenie"},
+		{"name":"oswiadczenieText","hidden":true},
+		{"name":"source","args":[{"kind":"m"}]},
+		{"name":"SourceName","hidden":true},
+		{"name":"summary"},
+		{"name":"SummaryName","hidden":true},
+		{"name":"ThisClassVersionId","hidden":true},
+		{"name":"ThisDocVersion","hidden":true},
+		{"name":"UniversityName","args":[{"kind":"m"}]},
+		{"name":"indexspace"},
+		{"name":"maketitle"},
+		{"name":"paragraph","args":[{"kind":"s"},{"kind":"o","placeholder":"short title"},{"kind":"m","placeholder":"title"}]},
+		{"name":"section","args":[{"kind":"s"},{"kind":"o","placeholder":"short title"},{"kind":"m","placeholder":"title"}]},
+		{"name":"subitem"},
+		{"name":"subsection","args":[{"kind":"s"},{"kind":"o","placeholder":"short title"},{"kind":"m","placeholder":"title"}]},
+		{"name":"subsubitem"},
+		{"name":"subsubsection","args":[{"kind":"s"},{"kind":"o","placeholder":"short title"},{"kind":"m","placeholder":"title"}]}
+	],
+	"envs": [
+		{"name":"abstract"},
+		{"name":"theindex"}
+	],
+	"keys": {
+		"classes/wkmgr#options": [{"key":"brudnopis","bare":true},{"key":"licencjacka","bare":true},{"key":"xodstep","bare":true}]
+	},
+	"provides": {
+		"counterForms": [
+			{"name":"part","form":"[Roman]"},
+			{"name":"chapter","form":"[arabic]","appendix":"[Alph]"},
+			{"name":"section","form":"{chapter}.[arabic]"},
+			{"name":"subsection","form":"{section}.[arabic]"},
+			{"name":"subsubsection","form":"{subsection}.[arabic]","numbered":false},
+			{"name":"paragraph","form":"{subsubsection}.[arabic]","numbered":false},
+			{"name":"subparagraph","form":"{paragraph}.[arabic]","numbered":false},
+			{"name":"equation","form":"{chapter}.[arabic]"},
+			{"name":"figure","form":"{chapter}.[arabic]"},
+			{"name":"table","form":"{chapter}.[arabic]"},
+			{"name":"footnote","form":"[arabic]"},
+			{"name":"mpfootnote","form":"[alph]"}
+		],
+		"counters": [
+			{"name":"equation","within":"chapter"},
+			{"name":"footnote","within":"chapter"}
+		]
+	},
+	"ctan": "przechlewski-book",
+	"passOptions": ["classes/report"]
+}

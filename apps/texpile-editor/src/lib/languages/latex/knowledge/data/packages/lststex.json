@@ -1,0 +1,18 @@
+{
+	"version": 1,
+	"deps": [
+		{"id":"packages/xcolor"},
+		{"id":"packages/listings"},
+		{"id":"packages/keyval"}
+	],
+	"macros": [
+		{"name":"stexcodeinline","args":[{"kind":"o","placeholder":"keys","keys":["packages/lststex#lststex","packages/listings#keyval:lst"],"role":"color"},{"kind":"m","placeholder":"code"}]}
+	],
+	"envs": [
+		{"name":"stexcode","args":[{"kind":"o","placeholder":"keys","keys":["packages/lststex#lststex","packages/listings#keyval:lst"],"role":"color"}],"body":"verbatim"}
+	],
+	"keys": {
+		"packages/lststex#lststex": [{"key":"variables","placeholder":""},{"key":"symbols","placeholder":""}]
+	},
+	"ctan": "stex"
+}

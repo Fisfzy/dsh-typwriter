@@ -1,0 +1,257 @@
+<script lang="ts">
+	// Ctrl+K / Cmd+K palette: run a command or jump to a file.
+	//
+	// Shell follows the app's other modals (fixed overlay, z-1300 card) rather than Skeleton's
+	// Dialog, because every other dialog here is built that way and they have to stack predictably.
+	// The input and list are Skeleton's Combobox so arrow keys, Enter and the aria wiring come from
+	// the same library as the rest of the UI; the filtering, ranking and highlighting are ours.
+	//
+	// No props: the commands come from the palette action registry, which WorkspaceView fills in.
+	import { inChildWindows } from '$lib/childWindows/childWindowRegistry.svelte';
+	import { untrack } from 'svelte';
+	import { Combobox, useListCollection } from '@skeletonlabs/skeleton-svelte';
+	import { Search } from '@lucide/svelte';
+	import Kbd from '$lib/components/Kbd.svelte';
+	import { isMac } from '$lib/platform';
+	import { commandPalette, type PaletteMode } from '$lib/workspace/commandPalette.svelte';
+	import FileIcon from '$lib/filetree/FileIcon.svelte';
+	import { buildCommands, type PaletteItem } from './paletteCommands';
+	import { goToFileItems, MAX_FILE_RESULTS } from './paletteGoItems';
+	import { branchItems } from './paletteBranchItems';
+	import { fuzzyScore, highlightRuns } from './paletteFilter';
+	import { m } from '$lib/paraglide/messages';
+
+	let query = $state('');
+
+	// Cmd on macOS, Ctrl elsewhere - not "either". Ctrl+K on macOS is emacs kill-line, which
+	// CodeMirror's standard keymap binds there, and stealing it would break editing for the people
+	// most likely to notice.
+	function paletteChord(e: KeyboardEvent): PaletteMode | null {
+		const mod = isMac ? e.metaKey && !e.ctrlKey : e.ctrlKey && !e.metaKey;
+		if (!mod || e.altKey) return null;
+		if (!e.shiftKey && e.key.toLowerCase() === 'k') return 'all';
+		// VS Code's chord, for the muscle memory it comes with
+		if (e.shiftKey && e.key.toLowerCase() === 'p') return 'all';
+		// the file picker, on the key that opens a tab everywhere else
+		if (!e.shiftKey && e.key.toLowerCase() === 't') return 'files';
+		return null;
+	}
+
+	function onWindowKeydown(e: KeyboardEvent) {
+		const mode = paletteChord(e);
+		if (!mode) return;
+		e.preventDefault();
+		query = '';
+		commandPalette.toggle(mode);
+	}
+	// from an editor in its own window, the palette opens here, and this window comes forward with it
+	inChildWindows('keydown', (e) => {
+		if (!paletteChord(e)) return;
+		window.focus();
+		onWindowKeydown(e);
+	});
+
+	/**
+	 * Escape, in the CAPTURE phase.
+	 *
+	 * It used to sit in the bubble handler above and did nothing: while the palette is open the focus
+	 * is in the Combobox input, and zag handles Escape there to dismiss its own listbox and stops the
+	 * event - so it never reached the window and the dialog stayed up. Capture runs on the way down,
+	 * before the input ever sees the key, so the palette closes whatever the widget decides to do
+	 * with it afterwards.
+	 */
+	function onWindowKeydownCapture(e: KeyboardEvent) {
+		if (!commandPalette.open || e.key !== 'Escape') return;
+		e.preventDefault();
+		e.stopPropagation();
+		commandPalette.hide();
+	}
+
+	// Rebuilt every time the palette opens, never while it is open: the labels read live state
+	// ("Hide terminal"), and a list that reshuffled under the highlighted row mid-keystroke would
+	// run the wrong command.
+	let commands = $state<PaletteItem[]>([]);
+	let files = $state<PaletteItem[]>([]);
+	// Switch branch's list is read from git, so it arrives a moment after the palette opens
+	let branches = $state<PaletteItem[]>([]);
+	let branchesLoading = $state(false);
+	$effect(() => {
+		if (!commandPalette.open) return;
+		const a = commandPalette.actions;
+		if (!a) return;
+		const mode = commandPalette.mode;
+		// untracked: a file tree read again (a compile, the watcher) or any state a label reads would
+		// otherwise rebuild the lists, empty what the author was typing and load the branches again
+		untrack(() => {
+			commands = buildCommands(a);
+			files = goToFileItems(a);
+			// a command that opens another list (Switch branch) starts it empty, not with its own name typed
+			query = '';
+			if (mode !== 'branches') return;
+			branches = [];
+			branchesLoading = true;
+			void branchItems().then((items) => {
+				branches = items;
+				branchesLoading = false;
+			});
+		});
+	});
+
+	type Scored = {
+		item: PaletteItem;
+		hits: number[];
+	};
+
+	function rank(items: PaletteItem[], q: string, limit: number): Scored[] {
+		// searchOnly items (diagnostics) exist to be typed for, never browsed to
+		if (!q)
+			return items
+				.filter((i) => !i.searchOnly)
+				.slice(0, limit)
+				.map((item) => ({ item, hits: [] }));
+		const out: { item: PaletteItem; hits: number[]; score: number }[] = [];
+		for (const item of items) {
+			const onLabel = fuzzyScore(item.label, q);
+			// keywords (and, for a file, its folder) match but do not highlight, so a hit there scores
+			// lower than the same hit in the visible label
+			const onKeywords = item.keywords ? fuzzyScore(item.keywords, q) : null;
+			if (!onLabel && !onKeywords) continue;
+			const useLabel = onLabel && (!onKeywords || onLabel.score >= onKeywords.score - 6);
+			out.push({
+				item,
+				hits: useLabel ? onLabel.hits : [],
+				score: useLabel ? onLabel.score : (onKeywords?.score ?? 0) - 6
+			});
+		}
+		out.sort((x, y) => y.score - x.score);
+		return out.slice(0, limit).map(({ item, hits }) => ({ item, hits }));
+	}
+
+	// Commands always come first: they are a short fixed list the user is choosing from, whereas the
+	// file list is long and would otherwise bury them. With an empty query the files are left out
+	// entirely - "everything in the project" is not a useful first screen.
+	const results = $derived.by<Scored[]>(() => {
+		const q = query.trim();
+		// the picker is the one screen where "everything in the project" IS the point
+		if (commandPalette.mode === 'files') return rank(files, q, MAX_FILE_RESULTS);
+		if (commandPalette.mode === 'branches') return rank(branches, q, 200);
+		const cmds = rank(commands, q, 50);
+		if (!q) return cmds;
+		return [...cmds, ...rank(files, q, MAX_FILE_RESULTS)];
+	});
+
+	const collection = $derived(
+		useListCollection<Scored>({
+			items: results,
+			itemToString: (s) => s.item.label,
+			itemToValue: (s) => s.item.id
+		})
+	);
+
+	function runValue(id: string | undefined) {
+		if (!id) return;
+		const hit = results.find((s) => s.item.id === id);
+		if (!hit) return;
+		// close first: several commands raise their own modal, and two overlays appearing in the same
+		// frame flicker in the wrong order
+		commandPalette.hide();
+		hit.item.run();
+	}
+
+	// group headers, emitted when the group changes as the list is rendered
+	function groupOf(i: number): string | null {
+		const g = results[i]?.item.group;
+		return i === 0 || results[i - 1]?.item.group !== g ? (g ?? null) : null;
+	}
+
+	const rowClass =
+		'grid w-full grid-cols-[auto_1fr_auto] items-center gap-3 rounded-base px-2.5 py-1.5 text-sm data-[highlighted]:preset-tonal';
+</script>
+
+<svelte:window onkeydown={onWindowKeydown} onkeydowncapture={onWindowKeydownCapture} />
+
+{#if commandPalette.open}
+	<div
+		class="app-scrim fixed inset-0 z-1300 flex items-start justify-center bg-black/40 p-4 [--scrim-top:8vh]"
+		role="presentation"
+		onmousedown={(e) => e.target === e.currentTarget && commandPalette.hide()}
+	>
+		<div class="card bg-surface-50-950 border-surface-300-700 flex max-h-[70vh] w-full max-w-xl flex-col overflow-clip border shadow-2xl">
+			<Combobox
+				class="flex min-h-0 w-full flex-col"
+				{collection}
+				inputValue={query}
+				onInputValueChange={(d) => (query = d.inputValue)}
+				onValueChange={(d) => runValue(d.value[0])}
+				inputBehavior="autohighlight"
+				selectionBehavior="preserve"
+				open={true}
+			>
+				<Combobox.Control class="border-surface-200-800 flex items-center gap-2 border-b px-3 py-2">
+					<Search class="text-muted size-4 shrink-0" />
+					<Combobox.Input
+						class="placeholder:text-muted w-full bg-transparent text-sm outline-none"
+						placeholder={commandPalette.mode === 'files'
+							? m.palette_placeholder_files()
+							: commandPalette.mode === 'branches'
+								? m.vcs_branch_filter()
+								: m.palette_placeholder()}
+						autocomplete="off"
+						spellcheck="false"
+					/>
+				</Combobox.Control>
+
+				{#if results.length === 0}
+					<div class="text-muted px-3 py-10 text-center text-sm">
+						{#if commandPalette.mode !== 'branches'}
+							{m.palette_empty()}
+						{:else if branchesLoading}
+							{m.vcs_branch_loading()}
+						{:else}
+							{query.trim() ? m.palette_empty() : m.vcs_branch_none()}
+						{/if}
+					</div>
+				{:else}
+					<Combobox.Content class="min-h-0 [scrollbar-gutter:stable_both-edges] overflow-y-auto border-none bg-transparent p-1.5">
+						{#each results as scored, i (scored.item.id)}
+							{@const header = groupOf(i)}
+							{#if header}
+								<div class="text-muted px-2.5 pt-2 pb-1 text-xs font-semibold tracking-wider uppercase">{header}</div>
+							{/if}
+							<Combobox.Item class={rowClass} item={scored}>
+								{#if scored.item.fileName}
+									<FileIcon name={scored.item.fileName} class="size-4 shrink-0" />
+								{:else if scored.item.icon}
+									{@const Icon = scored.item.icon}
+									<Icon class="text-muted size-4 shrink-0" />
+								{:else}
+									<span class="size-4 shrink-0"></span>
+								{/if}
+								<Combobox.ItemText class="truncate">
+									{#each highlightRuns(scored.item.label, scored.hits) as run, ri (ri)}{#if run.hit}<span
+												class="text-primary-ink font-semibold">{run.text}</span
+											>{:else}{run.text}{/if}{/each}
+								</Combobox.ItemText>
+								{#if scored.item.hint}
+									<span class="text-muted max-w-56 truncate text-xs">{scored.item.hint}</span>
+								{/if}
+							</Combobox.Item>
+						{/each}
+					</Combobox.Content>
+				{/if}
+
+				<!-- Skeleton has no .kbd class; Kbd is ours, and using it here means these caps and the
+				     ones in the Help shortcut sheet cannot drift apart again -->
+				<div class="border-surface-200-800 text-muted flex gap-3 border-t px-3 py-1.5 text-xs">
+					<span class="flex items-center gap-1"
+						><Kbd cap keys="up" /> <Kbd cap keys="down" /> <span class="cap-center">{m.palette_hint_navigate()}</span></span
+					>
+					<span class="ml-auto flex items-center gap-1"
+						><Kbd cap keys="enter" /> <span class="cap-center">{m.palette_hint_select()}</span></span
+					>
+					<span class="flex items-center gap-1"><Kbd cap keys="esc" /> <span class="cap-center">{m.palette_hint_close()}</span></span>
+				</div>
+			</Combobox>
+		</div>
+	</div>
+{/if}

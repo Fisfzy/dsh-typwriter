@@ -1,0 +1,33 @@
+{
+	"version": 1,
+	"deps": [
+		{"id":"packages/xparse"},
+		{"id":"packages/xcolor"},
+		{"id":"packages/tikz"},
+		{"id":"packages/pgf"},
+		{"id":"packages/pgfrcs"},
+		{"id":"packages/pgfcore"},
+		{"id":"packages/graphicx"},
+		{"id":"packages/keyval"},
+		{"id":"packages/graphics"},
+		{"id":"packages/trig"},
+		{"id":"packages/pgfsys"},
+		{"id":"packages/pgfcomp-version-0-65"},
+		{"id":"packages/pgfcomp-version-1-18"},
+		{"id":"packages/pgffor"},
+		{"id":"packages/pgfkeys"},
+		{"id":"packages/pgfmath"},
+		{"id":"packages/tcolorbox"},
+		{"id":"packages/verbatim"},
+		{"id":"packages/environ"},
+		{"id":"packages/etoolbox"},
+		{"id":"packages/pdfcol"},
+		{"id":"packages/iftex"}
+	],
+	"macros": [
+		{"name":"callout","args":[{"kind":"s"},{"kind":"o","placeholder":"options","keys":["packages/callout-itembox#pgfkeys:/callout"]},{"kind":"m","placeholder":"heading"},{"kind":"m","placeholder":"body"}]}
+	],
+	"keys": {
+		"packages/callout-itembox#pgfkeys:/callout": [{"key":"arc","bare":true,"placeholder":""},{"key":"barcolor","bare":true,"placeholder":"","role":"color"},{"key":"barwidth","bare":true,"placeholder":""},{"key":"bgcolor","bare":true,"placeholder":"","role":"color"},{"key":"corners","values":["rounded","sharp"]},{"key":"family","placeholder":""},{"key":"familyactivefalse","placeholder":""},{"key":"familyactivetrue","placeholder":""},{"key":"gap","bare":true,"placeholder":""},{"key":"headcolor","bare":true,"placeholder":"","role":"color"},{"key":"number","bare":true,"placeholder":""},{"key":"shadow","values":["false","off","on","true"],"bare":true},{"key":"theme","values":["blue","green","orange","purple","red","slate","teal"]},{"key":"vertical","values":["false","off","on","true"],"bare":true}]
+	}
+}

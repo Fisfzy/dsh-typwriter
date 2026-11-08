@@ -1,0 +1,254 @@
+// replace across the folder and renames followed into other files, wired to the workspace
+import { toaster } from '$lib/modals/toaster-svelte';
+import { m } from '$lib/paraglide/messages';
+import { activeCompare, isDirty } from '$lib/workspace/workspaceStore';
+import { basename, fromLf, samePath, type SearchFileResult } from '$lib/workspace/fileSystem';
+import { documentAround, namesBibliography, type DocFile } from '$lib/workspace/document/documentFiles';
+import { sourceEncodingError } from '$lib/workspace/sourceEncoding';
+import { editOpenFile } from '$lib/workspace/edits/openEditorEdit';
+import { editVisualText } from '$lib/workspace/edits/visualSourcePatch';
+import { editorViewStore } from '$lib/stores/editorStore';
+import { renameSpec, useLanguageOf, wrapperReadingsIn, type UseKind } from '$lib/workspace/edits/renameUses';
+import type { CommandReadings } from '$lib/languages/latex/knowledge/calls/commandCalls';
+import { ChangedSinceError, replaceInFiles, type ReplaceDeps, type ReplaceOutcome, type ReplaceSpec } from '$lib/search/replaceInFiles';
+import { hasVisualMode, type DocumentBuffer, type FileKind } from '$lib/workspace/documentBuffer.svelte';
+import type { TextEdit } from '$lib/workspace/edits/textEdits';
+import type { ViewModeSwitch } from '$lib/workspace/viewModeSwitch.svelte';
+import type { ParsedLatexFile } from '$lib/workspace/latexRoundtrip';
+import type { FileWriter } from '$lib/buffers/fileWriter';
+import { fileService } from '$lib/files/service/fileService';
+import type { FileHistory, HistoryEntry } from '$lib/workspace/fileHistory.svelte';
+
+export type FolderReplaceDeps = {
+	doc: DocumentBuffer;
+	modes: ViewModeSwitch;
+	kind: () => FileKind;
+	parseVisual: (text: string) => Promise<ParsedLatexFile | null>;
+	saver: () => FileWriter;
+	/** the tree's undo history, or null where nothing can be undone (no trash, a guest) */
+	history: () => FileHistory | null;
+	reloadOpen: () => Promise<void>;
+	/** carry comments and suggestions through a change to a file that is not open */
+	editedClosed?: ReplaceDeps['edited'];
+	/** carry comments through a change to the open file in the visual editor */
+	editedOpenVisual?: (before: string, after: string, edits: readonly TextEdit[]) => Promise<void>;
+};
+
+export function replaceDeps(d: FolderReplaceDeps): ReplaceDeps {
+	return {
+		open: () => (d.doc.path ? { path: d.doc.path, text: d.doc.buffer, eol: d.doc.eol } : null),
+		async applyToOpen(before, next, edits) {
+			if (d.doc.encodingIssue || activeCompare.current || d.doc.buffer !== before) return false;
+			const editor = { doc: d.doc, mode: () => d.modes.mode, kind: d.kind, parseVisual: d.parseVisual };
+			const visual = d.modes.mode === 'visual' && hasVisualMode(d.kind());
+			// plain words go into the visual editor the way typing puts them, so its comments follow exactly
+			const view = visual ? editorViewStore.current : null;
+			if (view && editVisualText(view, d.doc, before, next, edits)) return true;
+			if (await editOpenFile(editor, before, next, edits)) {
+				// paragraphs rebuilt from the source leave their comments behind: carry them over
+				if (visual) await d.editedOpenVisual?.(before, next, edits);
+				return true;
+			}
+			// no editor shows it (a .bib in the reference manager): write the file and reload
+			if (isDirty.current || !d.doc.path) return false;
+			await fileService.writeText(d.doc.path, fromLf(next, d.doc.eol));
+			await d.reloadOpen();
+			return true;
+		},
+		flush: () => d.saver().flushAndWait(),
+		read: (path) => fileService.readSource(path),
+		write: (path, text) => fileService.writeText(path, text),
+		encodingError: (encoding) => sourceEncodingError(encoding as Parameters<typeof sourceEncodingError>[0]),
+		edited: d.editedClosed
+	};
+}
+
+export function makeFolderReplace(d: FolderReplaceDeps): (files: string[], spec: ReplaceSpec) => Promise<void> {
+	const deps = replaceDeps(d);
+	return async (files, spec) => {
+		const out = await attempt(() => replaceInFiles(files, spec, deps));
+		if (!out) return;
+		const results = count(out.matches, m.globalsearch_results_count_one, m.globalsearch_results_count_other);
+		report(out, d.history(), {
+			title: m.globalsearch_replaced({ results, files: filesText(out.files) }),
+			label: out.files === 1 ? m.filehistory_op_replace_one() : m.filehistory_op_replace_other({ count: out.files }),
+			nothing: m.globalsearch_replace_nothing()
+		});
+	};
+}
+
+export type RenameElsewhereDeps = FolderReplaceDeps & {
+	root: () => string | null;
+	main: () => string | null;
+	search: (root: string, query: string, opts: { regex: boolean; caseSensitive: boolean }) => Promise<{ results: SearchFileResult[] }>;
+};
+
+/** a label or glossary rename stays in its document, a .bib key rename in the documents using that .bib; `target` is the file
+ * whose names the rename is about (the open one by default) */
+export async function renameScope(kind: UseKind, d: RenameElsewhereDeps, root: string, target = d.doc.path): Promise<string[]> {
+	if (!target) return [];
+	const open: string = target;
+	const current = d.doc.path;
+	function read(p: string): Promise<string> {
+		return current && samePath(p, current) ? Promise.resolve(d.doc.buffer) : fileService.readText(p);
+	}
+	function paths(files: DocFile[]): string[] {
+		return files.flatMap((f) => (f.missing ? [] : [f.path]));
+	}
+	const main = d.main();
+	if (kind !== 'cite') {
+		const around = await documentAround(open, main, root, read).catch(() => null);
+		return around ? paths(around.files) : [];
+	}
+	const stem = basename(open).replace(/\.bib$/i, '');
+	const naming = await d.search(root, escapeRe(stem), { regex: true, caseSensitive: false });
+	const out = new Set<string>();
+	const seen = new Set<string>();
+	for (const r of naming.results) {
+		if (!useLanguageOf(r.file)) continue;
+		const around = await documentAround(r.file, main, root, read).catch(() => null);
+		if (!around || seen.has(around.main.toLowerCase())) continue;
+		seen.add(around.main.toLowerCase());
+		if (await namesBibliography(around.files, open)) for (const p of paths(around.files)) out.add(p);
+	}
+	return [...out];
+}
+
+/** the wrapper commands the LaTeX files of a rename define, so \figref{fig:a} is renamed with \ref{fig:a} */
+export async function wrappersIn(scope: string[], d: RenameElsewhereDeps): Promise<CommandReadings> {
+	const tex = scope.filter((p) => useLanguageOf(p) === 'latex');
+	const texts = await Promise.all(tex.map((p) => (samePath(p, d.doc.path ?? '') ? d.doc.buffer : fileService.readText(p).catch(() => ''))));
+	return wrapperReadingsIn(texts);
+}
+
+function escapeRe(s: string): string {
+	return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/** a settings panel renames per keystroke (fig:r, fig:re...), so a waiting chain runs once, first name to last */
+export function makeRenameElsewhere(d: RenameElsewhereDeps): (kind: UseKind, from: string, to: string) => void {
+	const deps = replaceDeps(d);
+	let pending: { kind: UseKind; from: string; to: string; timer?: ReturnType<typeof setTimeout> } | null = null;
+
+	async function run(kind: UseKind, from: string, to: string): Promise<void> {
+		const root = d.root();
+		if (!root || !from || !to || from === to) return;
+		const scope = await renameScope(kind, d, root);
+		const own = await wrappersIn(scope, d);
+		// the files holding the name at all; the rewrite itself reads each one's calls
+		const found = await d.search(root, escapeRe(from), { regex: true, caseSensitive: true });
+		const files = found.results.map((r) => r.file).filter((f) => useLanguageOf(f) && scope.some((s) => samePath(s, f)));
+		if (!files.length) return;
+		const out = await attempt(() =>
+			replaceInFiles(
+				files,
+				(path) => {
+					const lang = useLanguageOf(path);
+					return lang ? renameSpec(kind, from, to, lang, own) : null;
+				},
+				deps
+			)
+		);
+		if (!out) return;
+		const uses =
+			kind === 'label'
+				? count(out.matches, m.rename_refs_count_one, m.rename_refs_count_other)
+				: count(out.matches, m.rename_cites_count_one, m.rename_cites_count_other);
+		// quiet when nothing else moved; no undo, since undoing the rename in the editor brings these along
+		report(out, null, {
+			title: m.rename_elsewhere_done({ uses, files: filesText(out.files) }),
+			label: m.filehistory_op_rename_uses({ from, to }),
+			nothing: null
+		});
+	}
+
+	return (kind, from, to) => {
+		if (pending?.kind === kind && pending.to === from) {
+			pending.to = to;
+		} else if (pending) {
+			const earlier = pending;
+			clearTimeout(earlier.timer);
+			void run(earlier.kind, earlier.from, earlier.to);
+			pending = { kind, from, to };
+		} else {
+			pending = { kind, from, to };
+		}
+		const current = pending;
+		clearTimeout(current.timer);
+		current.timer = setTimeout(() => {
+			pending = null;
+			void run(current.kind, current.from, current.to);
+		}, 800);
+	};
+}
+
+export async function attempt(work: () => Promise<ReplaceOutcome>): Promise<ReplaceOutcome | null> {
+	try {
+		return await work();
+	} catch (e) {
+		toaster.error({ title: m.globalsearch_replace_failed(), description: e instanceof Error ? e.message : String(e) });
+		return null;
+	}
+}
+
+export function count(n: number, one: (a: { count: number }) => string, other: (a: { count: number }) => string): string {
+	return n === 1 ? one({ count: 1 }) : other({ count: n });
+}
+
+export function filesText(n: number): string {
+	return count(n, m.globalsearch_files_count_one, m.globalsearch_files_count_other);
+}
+
+export function report(
+	out: ReplaceOutcome,
+	history: FileHistory | null,
+	text: { title: string; label: string; nothing: string | null }
+): HistoryEntry | null {
+	if (out.skipped.length) {
+		toaster.warning({
+			title:
+				out.skipped.length === 1
+					? m.globalsearch_replace_skipped_one()
+					: m.globalsearch_replace_skipped_other({ count: out.skipped.length }),
+			description: out.skipped.map((s) => `${basename(s.path)} (${skipReason(s.reason)})`).join(', '),
+			duration: 10000
+		});
+	}
+	if (!out.files || !out.undo || !out.redo) {
+		if (!out.skipped.length && text.nothing) toaster.info({ title: text.nothing });
+		return null;
+	}
+
+	const entry = history ? { label: text.label, undo: explained(out.undo), redo: explained(out.redo) } : null;
+	if (history && entry) history.record(entry);
+	toaster.success({
+		title: text.title,
+		action:
+			history && entry
+				? {
+						label: m.menubar_undo(),
+						// the stack holds its entries as reactive proxies, so identity is the undo function's
+						onClick: () => history.undoStack.at(-1)?.undo === entry.undo && void history.undo()
+					}
+				: undefined
+	});
+	return entry;
+}
+
+/** a step that refuses because a file was edited since, saying which file */
+function explained(step: () => Promise<void>): () => Promise<void> {
+	return async () => {
+		try {
+			await step();
+		} catch (e) {
+			if (e instanceof ChangedSinceError) throw new Error(m.globalsearch_replace_changed_since({ name: basename(e.path) }), { cause: e });
+			throw e;
+		}
+	};
+}
+
+function skipReason(reason: ReplaceOutcome['skipped'][number]['reason']): string {
+	if (reason === 'encoding') return m.globalsearch_skip_encoding();
+	if (reason === 'editor') return m.globalsearch_skip_editor();
+	return m.globalsearch_skip_failed();
+}

@@ -1,0 +1,16 @@
+{
+	"version": 1,
+	"deps": [
+		{"id":"packages/shellesc"},
+		{"id":"packages/iftex"},
+		{"id":"packages/pgfopts"},
+		{"id":"packages/pgfkeys"}
+	],
+	"macros": [
+		{"name":"iexec","args":[{"kind":"o","placeholder":"options","keys":["packages/iexec#pgfkeys:/iexec"]},{"kind":"m","placeholder":"shell command"}],"doc":"The sole command supplied by this package is \\iexec [⟨options⟩] {⟨cmd⟩}. Its only mandatory argument, ⟨cmd⟩, denotes the command to be executed through the terminal shell (bash, or whichever shell is configured as the default in the host console)."}
+	],
+	"keys": {
+		"packages/iexec#pgfkeys:/iexec": [{"key":"append","bare":true,"placeholder":""},{"key":"family","placeholder":""},{"key":"familyactivefalse","placeholder":""},{"key":"familyactivetrue","placeholder":""},{"key":"ignore","bare":true,"placeholder":""},{"key":"log","bare":true,"placeholder":""},{"key":"maybe","bare":true,"placeholder":""},{"key":"null","bare":true,"placeholder":""},{"key":"quiet","bare":true,"placeholder":""},{"key":"stderr","bare":true,"placeholder":""},{"key":"trace","bare":true,"placeholder":""},{"key":"unskip","bare":true,"placeholder":""},{"key":"exit","bare":true,"default":"iexec.ret"},{"key":"stdout","bare":true,"default":"iexec.tmp"}],
+		"packages/iexec#options": [{"key":"trace","bare":true}]
+	}
+}

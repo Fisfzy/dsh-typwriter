@@ -1,0 +1,150 @@
+<script lang="ts">
+	import { tip } from '$lib/components/tooltip.svelte';
+	import { ZoomIn, ZoomOut, RotateCw, Search, ChevronUp, ChevronDown, Save, Presentation } from '@lucide/svelte';
+	import { getPdfViewerContext } from './pdf-viewer/context';
+	import PdfZoomMenu from './PdfZoomMenu.svelte';
+	import PreviewToolbar, { type PreviewToolbarPlace } from '$lib/preview/PreviewToolbar.svelte';
+	import PageField from '$lib/preview/zoom/PageField.svelte';
+	import ColorVisionMenu from '$lib/preview/colorVision/ColorVisionMenu.svelte';
+	import InvertColorsItem from '$lib/preview/invertColors/InvertColorsItem.svelte';
+
+	import type { Snippet } from 'svelte';
+
+	// the row itself (zones, dividers, the "...") is PreviewToolbar's; this file is the PDF's groups.
+	// `inPopout`: the fullscreen presentation mounts on the opener's body, so from the popped-out
+	// window it takes over the wrong window with nothing on it. Off there rather than hidden, so the
+	// bar keeps its shape.
+	let {
+		leading,
+		leadIsControls = false,
+		trailing,
+		asTabStrip = false,
+		inEditor = false,
+		inPopout = false,
+		findOpen = false,
+		onToggleFind,
+		invertable = false,
+		documentMenu = true
+	}: {
+		leading?: Snippet;
+		leadIsControls?: boolean;
+		trailing?: Snippet;
+		asTabStrip?: boolean;
+		inEditor?: boolean;
+		inPopout?: boolean;
+		/** the find bar (PdfSearchBar) is the viewer's; the bar only carries its switch */
+		findOpen?: boolean;
+		onToggleFind?: () => void;
+		invertable?: boolean;
+		/** the "..." with what applies to the whole document; a split's lower bar leaves it to the top one */
+		documentMenu?: boolean;
+	} = $props();
+
+	// read per use: inside a PdfViewScope these are one view's
+	const ctx = getPdfViewerContext();
+</script>
+
+{#snippet page()}
+	<PageField page={ctx.state.currentPage} total={ctx.state.totalPages} label="Current page" ongo={(n) => ctx.actions.goToPage(n)} />
+	<button
+		onclick={() => ctx.actions.goToPage(ctx.state.currentPage - 1)}
+		disabled={ctx.state.currentPage <= 1}
+		aria-label={'上一页'}
+		use:tip={'上一页'}
+	>
+		<ChevronUp size={16} />
+	</button>
+	<button
+		onclick={() => ctx.actions.goToPage(ctx.state.currentPage + 1)}
+		disabled={ctx.state.currentPage >= ctx.state.totalPages}
+		aria-label={'下一页'}
+		use:tip={'下一页'}
+	>
+		<ChevronDown size={16} />
+	</button>
+{/snippet}
+
+{#snippet zoom()}
+	<button onclick={() => ctx.actions.zoomOut()} aria-label={'缩小'} use:tip={'缩小'}>
+		<ZoomOut size={16} />
+	</button>
+	<PdfZoomMenu />
+	<button onclick={() => ctx.actions.zoomIn()} aria-label={'放大'} use:tip={'放大'}>
+		<ZoomIn size={16} />
+	</button>
+{/snippet}
+
+<!-- how the pages' colors are drawn, inverted and as a color-blind reader sees them; in the "..." with those below,
+     one row each -->
+{#snippet invert(place: PreviewToolbarPlace)}
+	<InvertColorsItem {place} />
+{/snippet}
+
+{#snippet vision(place: PreviewToolbarPlace)}
+	<ColorVisionMenu {place} />
+{/snippet}
+
+<!-- pinned: one switch for the find bar, on the bar at every width -->
+{#snippet search()}
+	<button aria-pressed={findOpen} onclick={() => onToggleFind?.()} aria-label={'查找'} use:tip={'查找'}>
+		<Search size={16} />
+	</button>
+{/snippet}
+
+<!-- these live in the "..." at every width, where they draw as named rows -->
+{#snippet rotate(place: PreviewToolbarPlace)}
+	<button
+		class:menu-item={place === 'menu'}
+		onclick={() => ctx.actions.rotateClockwise()}
+		aria-label={'顺时针旋转'}
+		use:tip={'顺时针旋转'}
+	>
+		<RotateCw size={16} />
+		{#if place === 'menu'}Rotate{/if}
+	</button>
+{/snippet}
+
+{#snippet present(place: PreviewToolbarPlace)}
+	<button
+		class:menu-item={place === 'menu'}
+		onclick={() => ctx.actions.enterPresentationMode()}
+		disabled={inPopout}
+		aria-label={'演示模式'}
+		use:tip={inPopout ? 'Presentation mode is not available in a separate window' : 'Presentation mode'}
+	>
+		<Presentation size={16} />
+		{#if place === 'menu'}Presentation{/if}
+	</button>
+{/snippet}
+
+<!-- "Save", not "Download": the PDF is already on this machine (or in memory for a guest), so this
+     writes a copy wherever the user picks. -->
+{#snippet save(place: PreviewToolbarPlace)}
+	<button class:menu-item={place === 'menu'} onclick={() => ctx.actions.savePdf()} aria-label={'保存 PDF'} use:tip={'保存 PDF'}>
+		<Save size={16} />
+		{#if place === 'menu'}Save PDF{/if}
+	</button>
+{/snippet}
+
+<PreviewToolbar
+	{leading}
+	{leadIsControls}
+	{trailing}
+	{asTabStrip}
+	{inEditor}
+	groups={[
+		{ id: 'page', render: page },
+		{ id: 'zoom', render: zoom },
+		{ id: 'search', pinned: true, alignEnd: true, render: search },
+		// rarely reached for, so they sit in the ... at every width and the bar stays short
+		...(documentMenu
+			? [
+					{ id: 'rotate', inMenu: true, render: rotate },
+					...(invertable ? [{ id: 'invert', inMenu: true, render: invert }] : []),
+					{ id: 'vision', inMenu: true, render: vision },
+					{ id: 'present', inMenu: true, render: present },
+					...(ctx.state.canSavePdf ? [{ id: 'save', inMenu: true, render: save }] : [])
+				]
+			: [])
+	]}
+/>

@@ -1,0 +1,51 @@
+/* remote collaborator presence in the visual editor; everything here is layout-inert */
+
+.pm-remote-caret {
+	position: relative;
+	display: inline;
+}
+.pm-remote-caret::before {
+	content: '';
+	position: absolute;
+	left: -1px;
+	top: 0;
+	bottom: 0;
+	width: calc(var(--spacing) * 0.5);
+	background-color: var(--peer-color);
+}
+
+.pm-remote-caret-label {
+	position: absolute;
+	top: -1.35em;
+	left: -1px;
+	padding: 0 calc(var(--spacing) * 1);
+	border-radius: calc(var(--radius-base) * 0.75);
+	font-size: 0.7em;
+	font-weight: 600;
+	line-height: 1.5;
+	color: white;
+	background-color: var(--peer-color);
+	white-space: nowrap;
+	user-select: none;
+	pointer-events: none;
+	z-index: 30;
+	opacity: 0;
+	transition: opacity 0.15s ease;
+	/* visible on arrival, then fades; hovering the caret brings it back */
+	animation: pm-remote-label-linger 3s ease;
+}
+.pm-remote-caret:hover > .pm-remote-caret-label {
+	opacity: 1;
+}
+@keyframes pm-remote-label-linger {
+	0%,
+	70% {
+		opacity: 1;
+	}
+	100% {
+		opacity: 0;
+	}
+}
+
+/* a peer's selection is drawn entirely by the range painter (highlight/paintRange.ts); only the
+   caret above is this file's own */

@@ -1,0 +1,54 @@
+{
+	"version": 1,
+	"deps": [
+		{"id":"classes/article"},
+		{"id":"packages/shortvrb"}
+	],
+	"macros": [
+		{"name":"AmS","hidden":true},
+		{"name":"AmSLaTeX"},
+		{"name":"arg","args":[{"kind":"m","placeholder":"text"}]},
+		{"name":"babel"},
+		{"name":"cfgguide"},
+		{"name":"clsguide"},
+		{"name":"ctan"},
+		{"name":"cyrguide"},
+		{"name":"eg"},
+		{"name":"fntguide"},
+		{"name":"ie"},
+		{"name":"LaTeXbook"},
+		{"name":"LaTeXcomp"},
+		{"name":"LaTeXGcomp"},
+		{"name":"LaTeXWcomp"},
+		{"name":"m","args":[{"kind":"m","placeholder":"text"}]},
+		{"name":"modguide"},
+		{"name":"NEWdescription","args":[{"kind":"m","placeholder":"date"}]},
+		{"name":"NEWfeature","args":[{"kind":"m","placeholder":"date"}]},
+		{"name":"NFSS"},
+		{"name":"oarg","args":[{"kind":"m","placeholder":"text"}],"doc":"\\oarg{text} prints [⟨text⟩], ‘optional argument’."},
+		{"name":"SLiTeX"},
+		{"name":"sourcecode"},
+		{"name":"URL","args":[{"kind":"m","placeholder":"url"}]},
+		{"name":"usrguide"}
+	],
+	"envs": [
+		{"name":"decl","args":[{"kind":"o","placeholder":"date of the new feature"}]}
+	],
+	"provides": {
+		"counterForms": [
+			{"name":"part","form":"[Roman]"},
+			{"name":"section","form":"[arabic]","appendix":"[Alph]"},
+			{"name":"subsection","form":"{section}.[arabic]"},
+			{"name":"subsubsection","form":"{subsection}.[arabic]"},
+			{"name":"paragraph","form":"{subsubsection}.[arabic]","numbered":false},
+			{"name":"subparagraph","form":"{paragraph}.[arabic]","numbered":false},
+			{"name":"equation","form":"[arabic]"},
+			{"name":"figure","form":"[arabic]"},
+			{"name":"table","form":"[arabic]"},
+			{"name":"footnote","form":"[arabic]"},
+			{"name":"mpfootnote","form":"[alph]"}
+		]
+	},
+	"passOptions": ["classes/article"],
+	"ctan": "latex"
+}

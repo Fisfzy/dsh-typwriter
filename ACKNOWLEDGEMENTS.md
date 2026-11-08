@@ -1,0 +1,13 @@
+# Acknowledgements
+
+Beyond its package dependencies, Texpile vendors or derives from the following projects:
+
+- [Mathlive](https://github.com/arnog/mathlive/) (MIT). Texpile uses a custom fork of Mathlive to edit math equations visually
+- [LaTeX Workshop](https://github.com/James-Yu/LaTeX-Workshop) (MIT). The completion forms such as `\left( … \right)`, the `@` snippets and the package captions come from its data; the license is in `apps/texpile-editor/src/lib/languages/latex/intellisense/data/VENDORED-LICENSES.md`.
+- [pdf.js](https://github.com/mozilla/pdf.js) (Apache-2.0). The live preview's Type1 font parsing is adapted from it.
+- [Typst](https://github.com/typst/typst) (Apache-2.0). The Typst symbol picker's table is generated from Typst's own symbol names.
+- [tinymist](https://github.com/Myriad-Dreamin/tinymist) (Apache-2.0). The Typst symbol picker's categories come from tinymist's symbol list.
+- [Visual Studio Code](https://github.com/microsoft/vscode) (MIT). The terminal's setup and its resize handling are ported from VS Code's; the license is in `apps/texpile-editor/src/lib/terminal/VSCODE-LICENSE.txt`.
+- The [Unicode Character Database](https://www.unicode.org/ucd/) (Unicode License V3). The Typst symbol picker searches Unicode's character names; the license is in `apps/texpile-editor/src/lib/languages/typst/symbols/UNICODE-LICENSE.txt`.
+- [Detexify](https://github.com/kirel/detexify) (MIT). The LaTeX symbol picker's table and its pictures of each symbol are generated from Detexify's; the license is in `apps/texpile-editor/src/lib/languages/latex/symbols/DETEXIFY-LICENSE.txt`.
+- The spelling dictionaries of [cspell-dicts](https://github.com/streetsidesoftware/cspell-dicts) (German, Spanish, European Portuguese and Polish LGPL-3.0; Italian and Brazilian Portuguese GPL-3.0 or later; French and Dutch MIT). They are converted to CSpell's binary format at build time, and each ships with its license as `spell/<language>.LICENSE.txt` in the app's files.

@@ -1,0 +1,123 @@
+// The Ctrl+K palette's open flag and the workspace callbacks it drives.
+//
+// A module singleton rather than props. The palette needs a slice of almost everything the
+// workspace can do - compile, save, switch view, open a file, raise Preferences - and threading
+// that through WorkspaceChrome -> WorkspaceMain -> a dialog would add a prop to four files for
+// every command anyone ever adds. WorkspaceView registers the callbacks once; the palette and its
+// command list import them directly.
+//
+// One window, one renderer, one palette, so a module-scoped value is exactly the right lifetime.
+
+/** what the palette is allowed to do. Everything here already exists as a workspace action; the
+ *  palette is a second way to reach it, never a second implementation. */
+export type PaletteActions = {
+	save(): void;
+	runCompile(): void;
+	stopCompile(): void;
+	isCompiling(): boolean;
+	compileAvailable(): boolean;
+	setViewMode(mode: 'visual' | 'source' | 'diff'): void;
+	getViewMode(): 'visual' | 'source' | 'diff';
+	/** true when a file is open; most commands are meaningless without one */
+	hasFile(): boolean;
+	/**
+	 * The provider's host-only capabilities. A guest edits through the shared CRDT and owns none of
+	 * the folder: no tree writes, no latexindent, no grep across the project, no git. Those commands
+	 * are left out entirely rather than shown disabled - the palette is a search box, and a row you
+	 * can find but not run is worse than one that was never there.
+	 */
+	canManageTree(): boolean;
+	isHostWorkspace(): boolean;
+	/** a folder open as a project, not a lone file */
+	isProject(): boolean;
+	canSearch(): boolean;
+	/** false in single-file mode, where there is no file explorer to show or hide */
+	hasSidebar(): boolean;
+	canFormat(): boolean;
+	/** which formatter Format runs for the open file; names the tool in the row's label */
+	formatTool(): 'latexindent' | 'typstyle';
+	canGit(): boolean;
+	openFile(abs: string): void;
+	toggleSidebar(): void;
+	sidebarOpen(): boolean;
+	toggleTerminal(): void;
+	terminalVisible(): boolean;
+	terminalAvailable(): boolean;
+	newTerminal(): void;
+	openCompileModal(): void;
+	openFormatModal(): void;
+	openGlobalSearch(): void;
+	/** the Source Control panel, keyboard in its message box */
+	openSourceControl(): void;
+	openPreferences(): void;
+	/** undefined when sharing is unavailable (a guest, or the browser build) */
+	openShareSession?: () => void;
+	newFile(ext?: string): void;
+	/** undefined where there is nowhere to keep templates (a guest, or the browser build) */
+	saveAsTemplate?: () => void;
+	openFolder(): void;
+	/** absent where git cannot be run: the web build, an older desktop preload */
+	cloneRepository?: () => void;
+	/** drop the git sign-ins kept in the keychain; absent without the desktop app */
+	forgetSignIns?: () => void;
+	refreshTree(): void;
+	/** open tinymist's incremental viewer for the current .typ, in its own window */
+	openTypstPreview(): void;
+	/** the compile target is Typst: New-file commands offer .typ instead of .tex */
+	isTypstProject(): boolean;
+	/** the Export dialog for a Typst main file: hosts in the desktop app, with tinymist's bridge */
+	canExportTypst?(): boolean;
+	exportTypst?(): void;
+	/** Zotero citation pick: available on hosts in the desktop app, for the matching dialect */
+	canZoteroCite?(): boolean;
+	insertZoteroCitation?(): void;
+	/** Cite by DOI or arXiv ID: the same gate without Zotero */
+	canCiteByDoi?(): boolean;
+	citeByDoi?(): void;
+	/** the symbol picker: a .typ or .tex file open in the visual or source editor */
+	canInsertSymbol?(): boolean;
+	insertSymbol?(): void;
+	/** rename the label, citation key or glossary entry under the source editor's cursor */
+	renameSymbol?(): void;
+};
+
+/** 'files' is the picker: files only, listed before anything is typed. 'branches' is Switch
+ *  branch's list of local branches. */
+export type PaletteMode = 'all' | 'files' | 'branches';
+
+class CommandPaletteState {
+	open = $state(false);
+	mode = $state<PaletteMode>('all');
+	/**
+	 * null until WorkspaceView mounts; the palette refuses to open without it.
+	 *
+	 * $state.raw, and it has to be state at all: the title bar derives its command-center button from
+	 * whether this is set, and TitleBar mounts BEFORE WorkspaceView's onMount registers them - so as a
+	 * plain field it read null once and the button could never appear. Raw rather than $state because
+	 * this is a bag of closures swapped wholesale; deep-proxying it buys nothing.
+	 */
+	actions = $state.raw<PaletteActions | null>(null);
+
+	show(mode: PaletteMode = 'all'): void {
+		if (!this.actions) return;
+		this.mode = mode;
+		this.open = true;
+	}
+	hide(): void {
+		this.open = false;
+	}
+	/** the other chord while open switches the mode rather than closing */
+	toggle(mode: PaletteMode = 'all'): void {
+		if (this.open && this.mode === mode) this.hide();
+		else this.show(mode);
+	}
+}
+
+export const commandPalette = new CommandPaletteState();
+
+/** WorkspaceView calls this on mount and clears it on destroy, so a palette opened from a stale
+ *  keystroke after the workspace closed cannot call into a torn-down component. */
+export function setPaletteActions(actions: PaletteActions | null): void {
+	commandPalette.actions = actions;
+	if (!actions) commandPalette.open = false;
+}

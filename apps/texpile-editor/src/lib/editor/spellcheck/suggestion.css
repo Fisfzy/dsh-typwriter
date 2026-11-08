@@ -1,0 +1,74 @@
+/* harper spell check styling */
+
+/* catch-all for any proofread type (lowest specificity) */
+[class^='proofread-'],
+[class*=' proofread-'] {
+	background-color: color-mix(in srgb, var(--proof-default) 8%, transparent);
+	border-bottom: 2px dotted var(--proof-default);
+	cursor: pointer;
+}
+
+[class^='proofread-']:hover,
+[class*=' proofread-']:hover {
+	background-color: color-mix(in srgb, var(--proof-default) 12%, transparent);
+}
+
+.proofread-spelling {
+	background-color: color-mix(in srgb, var(--proof-spelling) 8%, transparent);
+	border-bottom: 2px dotted var(--proof-spelling);
+	cursor: pointer;
+}
+
+.proofread-spelling:hover {
+	background-color: color-mix(in srgb, var(--proof-spelling) 12%, transparent);
+}
+
+.proofread-typo {
+	background-color: color-mix(in srgb, var(--proof-spelling) 8%, transparent);
+	border-bottom: 2px dotted var(--proof-typo);
+	cursor: pointer;
+}
+
+.proofread-typo:hover {
+	background-color: color-mix(in srgb, var(--proof-spelling) 12%, transparent);
+}
+
+.proofread-capitalization {
+	background-color: color-mix(in srgb, var(--proof-capitalization) 8%, transparent);
+	border-bottom: 2px dotted var(--proof-capitalization);
+	cursor: pointer;
+}
+
+.proofread-capitalization:hover {
+	background-color: color-mix(in srgb, var(--proof-capitalization) 12%, transparent);
+}
+
+.proofread-wordchoice {
+	background-color: color-mix(in srgb, var(--proof-wordchoice) 8%, transparent);
+	border-bottom: 2px dotted var(--proof-wordchoice);
+	cursor: pointer;
+}
+
+.proofread-wordchoice:hover {
+	background-color: color-mix(in srgb, var(--proof-wordchoice) 12%, transparent);
+}
+
+.proofread-style {
+	background-color: color-mix(in srgb, var(--proof-style) 8%, transparent);
+	border-bottom: 2px dotted var(--proof-style);
+	cursor: pointer;
+}
+
+.proofread-style:hover {
+	background-color: color-mix(in srgb, var(--proof-style) 12%, transparent);
+}
+
+.proofread-repetition {
+	background-color: color-mix(in srgb, var(--proof-repetition) 8%, transparent);
+	border-bottom: 2px dotted var(--proof-repetition);
+	cursor: pointer;
+}
+
+.proofread-repetition:hover {
+	background-color: color-mix(in srgb, var(--proof-repetition) 12%, transparent);
+}

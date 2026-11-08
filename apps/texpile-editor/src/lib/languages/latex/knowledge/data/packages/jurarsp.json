@@ -1,0 +1,39 @@
+{
+	"version": 1,
+	"deps": [
+		{"id":"packages/ifthen"},
+		{"id":"packages/keyval"},
+		{"id":"packages/xspace"},
+		{"id":"packages/calc"}
+	],
+	"macros": [
+		{"name":"ranglocite","args":[{"kind":"o","placeholder":"page"},{"kind":"m","placeholder":"key"}]},
+		{"name":"rcite","args":[{"kind":"o","placeholder":"page"},{"kind":"m","placeholder":"key"}]},
+		{"name":"rfullcite","args":[{"kind":"o","placeholder":"page"},{"kind":"m","placeholder":"key"}]},
+		{"name":"rleancite","args":[{"kind":"o","placeholder":"page"},{"kind":"m","placeholder":"key"}]},
+		{"name":"rnocite","args":[{"kind":"m","placeholder":"key"}]},
+		{"name":"rphantomcite","args":[{"kind":"m","placeholder":"key"}]},
+		{"name":"rrepeatcite","args":[{"kind":"o","placeholder":"page"},{"kind":"m","placeholder":"key"}]},
+		{"name":"rshortcite","args":[{"kind":"o","placeholder":"page"},{"kind":"m","placeholder":"key"}]},
+		{"name":"rspdata","args":[{"kind":"m","placeholder":"bib file"}]},
+		{"name":"rspitem","args":[{"kind":"o"},{"kind":"m"}],"hidden":true},
+		{"name":"rspsetup","args":[{"kind":"m","placeholder":"options","keys":["packages/jurarsp#keyval:rsp"]}]},
+		{"name":"rspsilent","hidden":true},
+		{"name":"rspstyle","args":[{"kind":"m","placeholder":"style"}]},
+		{"name":"rsptitledocuments","hidden":true},
+		{"name":"rsptitlejudgements","hidden":true},
+		{"name":"therspbeginpage","hidden":true},
+		{"name":"therspendpage","hidden":true}
+	],
+	"envs": [
+		{"name":"thersplist","hidden":true}
+	],
+	"keys": {
+		"packages/jurarsp#keyval:rsp": [{"key":"pagestring","placeholder":""},{"key":"citationmode","bare":true,"placeholder":""},{"key":"citationfont","bare":true,"placeholder":""},{"key":"preferofficial","bare":true,"placeholder":""},{"key":"conceptmode","bare":true,"placeholder":""},{"key":"fullcitecontent","bare":true,"placeholder":""},{"key":"leancitecontent","bare":true,"placeholder":""},{"key":"documentcitefull","bare":true,"placeholder":""},{"key":"judgementcitefull","bare":true,"placeholder":""},{"key":"makelists","bare":true,"placeholder":""},{"key":"listpages","bare":true,"placeholder":""},{"key":"rlookat","bare":true,"placeholder":""},{"key":"showname","bare":true,"placeholder":""},{"key":"showparties","bare":true,"placeholder":""},{"key":"showdate","bare":true,"placeholder":""},{"key":"showdecision","bare":true,"placeholder":""},{"key":"showsign","bare":true,"placeholder":""},{"key":"showcommented","bare":true,"placeholder":""},{"key":"showadditional","bare":true,"placeholder":""},{"key":"longofficial","bare":true,"placeholder":""},{"key":"groupbystate","bare":true,"placeholder":""},{"key":"groupbyjurisdiction","bare":true,"placeholder":""},{"key":"groupbylevel","bare":true,"placeholder":""},{"key":"groupbycourt","bare":true,"placeholder":""}]
+	},
+	"provides": {
+		"bibStyles": [
+			{"name":"jurarsp"}
+		]
+	}
+}

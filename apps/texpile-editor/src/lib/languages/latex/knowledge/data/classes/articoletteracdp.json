@@ -1,0 +1,54 @@
+{
+	"version": 1,
+	"deps": [
+		{"id":"classes/letteracdp"}
+	],
+	"macros": [
+		{"name":"abovecaptionskip"},
+		{"name":"belowcaptionskip"},
+		{"name":"bysame","hidden":true},
+		{"name":"contentsname"},
+		{"name":"epilogue"},
+		{"name":"figurename"},
+		{"name":"indexname"},
+		{"name":"listfigurename"},
+		{"name":"listoffigures"},
+		{"name":"listoftables"},
+		{"name":"listtablename"},
+		{"name":"maketitle"},
+		{"name":"newblock","hidden":true,"args":[],"prints":" "},
+		{"name":"nopunct"},
+		{"name":"paragraph","args":[{"kind":"s"},{"kind":"o","placeholder":"short title"},{"kind":"m","placeholder":"title"}]},
+		{"name":"refname"},
+		{"name":"section","args":[{"kind":"s"},{"kind":"o","placeholder":"short title"},{"kind":"m","placeholder":"title"}]},
+		{"name":"tablename"},
+		{"name":"tableofcontents"},
+		{"name":"thefigure","hidden":true},
+		{"name":"theHparagraph","hidden":true},
+		{"name":"theHsection","hidden":true},
+		{"name":"theparagraph","hidden":true},
+		{"name":"thesection","hidden":true},
+		{"name":"thetable","hidden":true}
+	],
+	"envs": [
+		{"name":"figure","star":{},"args":[{"kind":"o","placeholder":"placement","values":["h","t","b","p","!","htbp","!htbp","tbp","ht","!ht"]}]},
+		{"name":"table","star":{},"args":[{"kind":"o","placeholder":"placement","values":["h","t","b","p","!","htbp","!htbp","tbp","ht","!ht"]}]},
+		{"name":"thebibliography","args":[{"kind":"m"}],"item":["bibitem"]}
+	],
+	"keys": {
+		"classes/articoletteracdp#options": [{"key":"Hofstadter","bare":true},{"key":"letterbookmarks","bare":true},{"key":"loXintoc","bare":true},{"key":"noletterbookmarks","bare":true},{"key":"notitlepage","bare":true},{"key":"openletterbookmarks","bare":true},{"key":"plaintoc","bare":true},{"key":"titlepage","bare":true},{"key":"tocintoc","bare":true}]
+	},
+	"provides": {
+		"counterForms": [
+			{"name":"section","form":"[arabic]"},
+			{"name":"paragraph","form":"{section}.[arabic]","numbered":false},
+			{"name":"equation","form":"[arabic]"},
+			{"name":"figure","form":"[arabic]"},
+			{"name":"table","form":"[arabic]"},
+			{"name":"footnote","form":"[arabic]"},
+			{"name":"mpfootnote","form":"[alph]"}
+		]
+	},
+	"passOptions": ["classes/letteracdp"],
+	"ctan": "cdpbundl"
+}

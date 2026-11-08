@@ -1,0 +1,75 @@
+// the keys the folder's documents cite, for the bibliography editor's "not cited" note
+import { fileService } from '$lib/files/service/fileService';
+import { box } from '$lib/runes/box.svelte';
+import { workspaceRoot } from '../workspaceStore';
+import { indexedText } from '$lib/files/index/indexedTexts';
+import { keysIn } from '$lib/languages/latex/knowledge/calls/roleKeys';
+import type { ReferencesFs } from '../citations';
+import { typstCitationsIn } from '$lib/languages/typst/syntax/typstCitations';
+
+export type CitedKeys = {
+	keys: ReadonlySet<string>;
+	/** \nocite{*}, or Typst's bibliography(full: true): every entry is in the bibliography */
+	all: boolean;
+};
+
+/** the folder's citations, or null before they are read, or where there is no document to read */
+export const citedKeys = box<CitedKeys | null>(null);
+
+/** commented-out citations count too, so an entry is called unused only when that is certain */
+export async function citationsIn(text: string, lang: 'latex' | 'typst'): Promise<CitedKeys> {
+	if (lang === 'typst') return typstCitationsIn(text);
+	const keys = new Set<string>();
+	let all = false;
+	for (const k of keysIn(text, 'citekey', false)) {
+		if (k.wildcard) all = true;
+		else keys.add(k.key);
+	}
+	return { keys, all };
+}
+
+function languageOf(name: string): 'latex' | 'typst' | null {
+	const ext = /\.([^.]+)$/.exec(name)?.[1]?.toLowerCase();
+	if (ext === 'tex' || ext === 'ltx') return 'latex';
+	if (ext === 'typ') return 'typst';
+	return null;
+}
+
+let fs: ReferencesFs = { scan: (r, e) => fileService.scanFiles(r, e), read: (p) => indexedText(p) };
+
+/** a shared session's files live in the session, not on disk */
+export function readCitationsThrough(through: ReferencesFs): void {
+	fs = through;
+}
+
+let seq = 0;
+
+/** only when the bibliography editor asks, not on every save: it reads every document in the folder */
+export async function loadCitedKeys(root: string | null = workspaceRoot.current): Promise<void> {
+	const my = ++seq;
+	if (!root) {
+		citedKeys.current = null;
+		return;
+	}
+	try {
+		const files = (await fs.scan(root, ['tex', 'ltx', 'typ'])).filter((f) => languageOf(f.name));
+		const keys = new Set<string>();
+		let all = false;
+		for (const f of files) {
+			let text: string;
+			try {
+				text = await fs.read(f.path);
+			} catch {
+				continue; // unreadable: it cites nothing we can see
+			}
+			const found = await citationsIn(text, languageOf(f.name)!);
+			for (const k of found.keys) keys.add(k);
+			all ||= found.all;
+		}
+		if (my !== seq) return;
+		// with no document, every entry would read as not cited
+		citedKeys.current = files.length ? { keys, all } : null;
+	} catch {
+		if (my === seq) citedKeys.current = null;
+	}
+}

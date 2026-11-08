@@ -1,0 +1,438 @@
+<script lang="ts">
+	// The left sidebar: folder header + explorer / source-control / find-in-files, with the file
+	// tree and (in explorer) a resizable table-of-contents. Presentational — logic stays in the view.
+	import { parentRepoToConfirm } from '$lib/workspace/parentRepo.svelte';
+	import { untrack } from 'svelte';
+	import { tip } from '$lib/components/tooltip.svelte';
+	import FileTree from '$lib/filetree/FileTree.svelte';
+	import GlobalSearch from '$lib/search/GlobalSearch.svelte';
+	import type { ReplaceSpec } from '$lib/search/replaceInFiles';
+	import SourceControlPanel from '$lib/workspace/scm/ui/SourceControlPanel.svelte';
+	import TableOfContents from './TableOfContents.svelte';
+	import SidebarIconButton from './SidebarIconButton.svelte';
+	import { isBuildArtifact } from '$lib/workspace/buildArtifacts';
+	import { workspaceRoot, fileTree, activeFilePath, mainFile } from '$lib/workspace/workspaceStore';
+	import {
+		isGitRepo,
+		gitBranch,
+		gitTracking,
+		gitAhead,
+		gitBehind,
+		gitHasCommits,
+		gitDetached,
+		gitOperation,
+		gitRepoRoot,
+		gitMissing,
+		gitChanges,
+		gitStatusMap,
+		gitHistory,
+		gitHistoryError,
+		gitHistoryHasMore,
+		refreshGitHistory,
+		refreshGitStatus,
+		useParentRepoNow,
+		showMoreGitHistory
+	} from '$lib/workspace/scm/gitStore';
+	import { basename, type TreeEntry } from '$lib/workspace/fileSystem';
+	import type { FileHistory } from '$lib/workspace/fileHistory.svelte';
+	import type { TocList } from '$lib/editor/visual/extensions/tableofcontents/tocStore';
+	import type { GitStatusEntry, GitLogEntry, GitFileChange } from '$lib/workspace/scm/git';
+	import { m } from '$lib/paraglide/messages';
+	import { combo } from '$lib/chrome/shortcutText';
+	import { canKeepLocalHistory } from '$lib/workspace/localHistory/localHistory.svelte';
+	import { Popover, Portal } from '@skeletonlabs/skeleton-svelte';
+	import { FilePlus, FolderPlus, RefreshCw, GitBranch, Search, MoreHorizontal } from '@lucide/svelte';
+
+	type Props = {
+		width: number;
+		guest: boolean;
+		view: 'explorer' | 'scm' | 'search';
+		scmBusy: boolean;
+		/** what the Contents pane under the tree lists */
+		toc: TocList;
+		tocFraction: number;
+		/** the source control panel's own split: the timeline's share of it */
+		historyFraction: number;
+		scmSplitEl?: HTMLDivElement;
+		fileTreeRef?: { newAtRoot: (type: 'file' | 'dir' | 'include', defaultName?: string) => void; isEditing: () => boolean };
+		globalSearchRef?: GlobalSearch | null;
+		splitEl?: HTMLDivElement;
+		onRefreshTree: () => void;
+		onOpenGlobalSearch: () => void;
+		onCloseGlobalSearch: () => void;
+		onOpenFileAt: (file: string, line: number, selectText?: string) => void;
+		onReplaceInFolder?: (files: string[], spec: ReplaceSpec) => Promise<void>;
+		onOpenEntry: (entry: TreeEntry) => void;
+		onCreate: (parentDir: string, name: string, type: 'file' | 'dir' | 'include') => void;
+		/** the compile target is Typst: the tree's New Include creates a .typ fragment */
+		typstProject?: boolean;
+		onRename: (entry: TreeEntry, newName: string) => void;
+		onDelete: (entries: TreeEntry[]) => void;
+		/** does this path (or anything inside it) hold edits that exist only in the editor? */
+		hasUnsaved: (path: string) => boolean;
+		onMove: (entries: TreeEntry[], targetDir: string) => void;
+		onImport: (items: { relPath: string; file: globalThis.File }[], targetDir: string) => void;
+		onCopyIn: (paths: string[], targetDir: string) => void;
+		onSetMain: (entry: TreeEntry) => void;
+		onReveal: (entry: TreeEntry) => void;
+		/** the file tree's own undo/redo stack, kept separate from the editor's text history. */
+		fileHistory: FileHistory | null;
+		onStartTocResize: (e: MouseEvent) => void;
+		onResizeTocByKey: (e: KeyboardEvent) => void;
+		onStartHistoryResize: (e: MouseEvent) => void;
+		onResizeHistoryByKey: (e: KeyboardEvent) => void;
+		onRefreshGit: () => void;
+		scmInit: () => void;
+		scmDiscard: (changes: GitStatusEntry[]) => void;
+		scmCommit: (message: string, paths: string[]) => Promise<boolean>;
+		scmRestore: (entry: GitLogEntry) => void;
+		scmIgnoreArtifacts: () => void;
+		scmPublish: () => void;
+		scmSync: () => void;
+		scmRecheckGit: () => void;
+		scmOpenConflict?: (path: string) => void;
+		scmFinishCombine?: () => void;
+		scmCancelCombine?: () => void;
+		scmCompare: (entry: GitLogEntry, path: string, from?: string) => void;
+		scmChangesSince: (hash: string) => Promise<GitFileChange[]>;
+		scmOpenDiff: (path: string) => void;
+	};
+	let {
+		width,
+		guest,
+		view = $bindable(),
+		scmBusy,
+		toc,
+		tocFraction,
+		historyFraction,
+		scmSplitEl = $bindable(),
+		fileTreeRef = $bindable(),
+		globalSearchRef = $bindable(),
+		splitEl = $bindable(),
+		onRefreshTree,
+		onOpenGlobalSearch,
+		onCloseGlobalSearch,
+		onOpenFileAt,
+		onReplaceInFolder,
+		onOpenEntry,
+		onCreate,
+		typstProject = false,
+		onRename,
+		onDelete,
+		hasUnsaved,
+		onMove,
+		onImport,
+		onCopyIn,
+		onSetMain,
+		onReveal,
+		fileHistory,
+		onStartTocResize,
+		onResizeTocByKey,
+		onStartHistoryResize,
+		onResizeHistoryByKey,
+		onRefreshGit,
+		scmInit,
+		scmDiscard,
+		scmCommit,
+		scmRestore,
+		scmIgnoreArtifacts,
+		scmPublish,
+		scmSync,
+		scmRecheckGit,
+		scmOpenConflict,
+		scmFinishCombine,
+		scmCancelCombine,
+		scmCompare,
+		scmChangesSince,
+		scmOpenDiff
+	}: Props = $props();
+
+	// The timeline loads when the panel is opened rather than on every tree refresh: status is cheap
+	// and runs constantly, `git log` is not and only changes when a version is saved. Commits and
+	// restores refresh it themselves, so this covers opening the panel and commits made elsewhere.
+	$effect(() => {
+		if (view !== 'scm' || !isGitRepo.current) return;
+		void refreshGitHistory(workspaceRoot.current);
+	});
+
+	// the repo probe runs at open, so `git init` in a terminal afterwards left the panel saying the
+	// folder is not under source control until the next launch. Opening the panel asks again
+	$effect(() => {
+		if (view !== 'scm' || isGitRepo.current) return;
+		const root = untrack(() => workspaceRoot.current);
+		if (root) void refreshGitStatus(root);
+	});
+
+	// One list, rendered either as a header icon or as a menu row, so the two can never drift apart.
+	// `active` is the view-toggle state the icon shows as a tint.
+	// count: drawn on the icon, as VS Code badges Source Control's with its changed files
+	type SidebarAction = {
+		key: string;
+		icon: typeof FilePlus;
+		label: string;
+		title?: string;
+		active?: boolean;
+		count?: number;
+		run: () => void;
+	};
+
+	/**
+	 * The plain actions, in the order they give way to the "..." menu (last one goes first).
+	 *
+	 * Explorer only, because all three act on the file TREE: fileTreeRef is bound inside the
+	 * explorer branch, so in History or Find they were wired to undefined and did nothing at all,
+	 * while the tree refresh sat directly above the History panel's own refresh looking like a
+	 * duplicate of it. The view toggles below stay put, since those are navigation.
+	 */
+	const collapsible = $derived<SidebarAction[]>(
+		view !== 'explorer'
+			? []
+			: [
+					{ key: 'new-file', icon: FilePlus, label: m.wsview_new_file_title(), run: () => fileTreeRef?.newAtRoot('file') },
+					{ key: 'new-folder', icon: FolderPlus, label: m.wsview_new_folder_title(), run: () => fileTreeRef?.newAtRoot('dir') },
+					{ key: 'refresh', icon: RefreshCw, label: m.wsview_refresh_tree_title(), run: onRefreshTree }
+				]
+	);
+
+	// The view toggles hold their place at every width: each one carries state, and a tint inside a
+	// closed menu is a state you cannot see. A guest has neither.
+	const pinned = $derived<SidebarAction[]>(
+		guest
+			? []
+			: [
+					{
+						key: 'scm',
+						icon: GitBranch,
+						label: m.wsview_source_control(),
+						active: view === 'scm',
+						// not build output: it starts unticked, and every compile would leave a badge that never clears
+						count: gitChanges.current.filter((c) => !isBuildArtifact(c.path)).length,
+						run: () => (view = view === 'scm' ? 'explorer' : 'scm')
+					},
+					{
+						key: 'search',
+						icon: Search,
+						label: m.wsview_find_in_files(),
+						title: m.wsview_find_in_files_title({ combo: combo('F', { shift: true }) }),
+						active: view === 'search',
+						run: () => (view === 'search' ? (view = 'explorer') : onOpenGlobalSearch())
+					}
+				]
+	);
+
+	/** one btn-icon-xs plus its gap */
+	const ACTION_PX = 28;
+	/** the name truncates down to this stub before any icon is allowed to collapse */
+	const NAME_MIN_PX = 24;
+
+	// px-3 both sides, the gap-2 after the name, and the pinned toggles, which never yield their room
+	const collapsibleRoom = $derived(Math.max(0, width - 24 - 8 - NAME_MIN_PX - pinned.length * ACTION_PX));
+	/** how many stay as icons; the rest collapse into "...", which costs a slot of its own */
+	const inlineCount = $derived(
+		collapsible.length * ACTION_PX <= collapsibleRoom
+			? collapsible.length
+			: Math.max(0, Math.floor((collapsibleRoom - ACTION_PX) / ACTION_PX))
+	);
+	const inlineActions = $derived(collapsible.slice(0, inlineCount));
+	const menuActions = $derived(collapsible.slice(inlineCount));
+
+	let actionsOpen = $state(false);
+	function runAction(fn: () => void) {
+		actionsOpen = false;
+		fn();
+	}
+</script>
+
+<!-- Escape leaves the Source Control / Find-in-files views and returns to the file tree, the same way
+     it dismisses the tree's own context menu. Skipped while a text field has focus, so Escape in the
+     commit message or the search box is not a trapdoor out of the panel you are typing into. -->
+<svelte:window
+	onkeydown={(e) => {
+		if (e.key !== 'Escape' || view === 'explorer' || e.defaultPrevented) return;
+		// a row's menu, a popover, a dialog or a confirmation takes this Escape to close itself; the view stays.
+		// Visible ones only: a closed popover stays in the page, hidden
+		const open = [...document.querySelectorAll('.z-dropdown, [role="dialog"], [role="alertdialog"]')].some(
+			(el) => el.getClientRects().length > 0
+		);
+		if (open) return;
+		const el = document.activeElement;
+		if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement || (el as HTMLElement | null)?.isContentEditable) return;
+		e.preventDefault();
+		if (view === 'search') onCloseGlobalSearch();
+		view = 'explorer';
+	}}
+/>
+
+<!-- no border-r: the splitter beside it draws its own 1px, and a border as well read as two -->
+<aside class="bg-surface-50-950 flex shrink-0 flex-col" style="width: {width}px">
+	<!-- h-9, the tab strip's height, so the two rows read as one. shrink-0: h-9 sets a height, it does not defend one. A flex child shrinks below its height
+	     whenever the column overflows, so any view below that asks for more room than is left takes
+	     it out of this row - and a title bar that changes height as you switch views reads as the
+	     whole layout twitching. -->
+	<div class="border-surface-200-800 flex h-9 shrink-0 items-center justify-between gap-2 border-b px-3">
+		<!-- min-w-0: the name is what gives up room as the sidebar narrows, truncating to a stub before
+		     any action is allowed to collapse into the menu -->
+		<span class="min-w-0 truncate text-sm font-semibold" use:tip={workspaceRoot.current ?? ''}>
+			{workspaceRoot.current ? basename(workspaceRoot.current) : m.wsview_no_folder()}
+		</span>
+		<div class="flex shrink-0 items-center gap-1">
+			{#each inlineActions as action (action.key)}
+				{@const Icon = action.icon}
+				<button
+					class="btn-icon btn-icon-xs {action.active ? 'text-primary-ink' : 'hover:preset-tonal'}"
+					use:tip={action.title ?? action.label}
+					aria-label={action.label}
+					onclick={action.run}
+				>
+					<Icon class="size-4" />
+				</button>
+			{/each}
+
+			{#if menuActions.length > 0}
+				<Popover
+					open={actionsOpen}
+					onOpenChange={(e) => (actionsOpen = e.open)}
+					positioning={{ placement: 'bottom-end', offset: { mainAxis: 2 } }}
+					autoFocus={false}
+				>
+					<Popover.Trigger class="btn-icon btn-icon-xs hover:preset-tonal" aria-label={m.wsview_more_actions()}>
+						{#snippet element(attrs)}
+							<button {...attrs} use:tip={m.wsview_more_actions()}><MoreHorizontal class="size-4" /></button>
+						{/snippet}
+					</Popover.Trigger>
+					<Portal>
+						<Popover.Positioner class="z-floating-ui">
+							<Popover.Content class="card bg-surface-50-950 border-surface-300-700 min-w-[200px] border shadow-lg">
+								<div class="py-1">
+									{#each menuActions as action (action.key)}
+										{@const Icon = action.icon}
+										<button
+											type="button"
+											class="hover:preset-tonal flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm"
+											class:preset-tonal-primary={action.active}
+											use:tip={action.title ?? action.label}
+											onclick={() => runAction(action.run)}
+										>
+											<Icon class="size-4 shrink-0" />
+											{action.label}
+										</button>
+									{/each}
+								</div>
+							</Popover.Content>
+						</Popover.Positioner>
+					</Portal>
+				</Popover>
+			{/if}
+
+			<!-- after the menu, so the toggles keep the same two slots at the right edge whatever collapses -->
+			{#each pinned as action (action.key)}
+				<SidebarIconButton
+					icon={action.icon}
+					label={action.label}
+					title={action.title}
+					active={action.active}
+					count={action.count}
+					onclick={action.run}
+				/>
+			{/each}
+		</div>
+	</div>
+	{#if view === 'search'}
+		<GlobalSearch
+			bind:this={globalSearchRef}
+			root={workspaceRoot.current ?? ''}
+			onOpen={onOpenFileAt}
+			onClose={onCloseGlobalSearch}
+			onReplace={onReplaceInFolder}
+		/>
+	{:else if view === 'scm'}
+		<!-- the panel owns its own scrolling: it is two regions with a splitter between them, each
+		     scrolling on its own, and an outer scroller here would fight both -->
+		<div class="min-h-0 flex-1">
+			<SourceControlPanel
+				root={workspaceRoot.current ?? ''}
+				isRepo={isGitRepo.current}
+				parentRepo={parentRepoToConfirm(workspaceRoot.current, gitRepoRoot.current)}
+				onUseParentRepo={() => void useParentRepoNow(workspaceRoot.current)}
+				gitMissing={gitMissing.current}
+				onRecheckGit={scmRecheckGit}
+				operation={gitOperation.current}
+				branch={gitBranch.current}
+				tracking={gitTracking.current}
+				ahead={gitAhead.current}
+				behind={gitBehind.current}
+				hasCommits={gitHasCommits.current}
+				detached={gitDetached.current}
+				changes={gitChanges.current}
+				history={gitHistory.current}
+				historyError={gitHistoryError.current}
+				historyHasMore={gitHistoryHasMore.current}
+				onShowMoreHistory={() => void showMoreGitHistory(workspaceRoot.current)}
+				busy={scmBusy}
+				onInit={scmInit}
+				onDiscard={scmDiscard}
+				onCommit={scmCommit}
+				onRestore={scmRestore}
+				onIgnoreArtifacts={scmIgnoreArtifacts}
+				onCompare={scmCompare}
+				onLoadChanges={scmChangesSince}
+				onOpenDiff={scmOpenDiff}
+				onRefresh={onRefreshGit}
+				onPublish={scmPublish}
+				onSync={scmSync}
+				onOpenConflict={scmOpenConflict}
+				onFinishCombine={scmFinishCombine}
+				onCancelCombine={scmCancelCombine}
+				{historyFraction}
+				bind:splitEl={scmSplitEl}
+				{onStartHistoryResize}
+				{onResizeHistoryByKey}
+			/>
+		</div>
+	{:else}
+		<div class="flex min-h-0 flex-1 flex-col" bind:this={splitEl}>
+			<!-- overflow-x-auto pairs with the tree's min-w-max: long names scroll, they are never trimmed -->
+			<div class="scroll-inset-r min-h-0 overflow-x-auto overflow-y-auto p-1.5" style="flex: 1 1 0%">
+				<FileTree
+					bind:this={fileTreeRef}
+					tree={fileTree.current}
+					rootPath={guest ? '' : (workspaceRoot.current ?? '')}
+					activePath={activeFilePath.current}
+					mainPath={mainFile.current}
+					gitStatus={gitStatusMap.current}
+					onOpen={onOpenEntry}
+					{onCreate}
+					{typstProject}
+					{onRename}
+					{onDelete}
+					{hasUnsaved}
+					{onMove}
+					{onImport}
+					{onCopyIn}
+					onSetMain={guest ? undefined : onSetMain}
+					onReveal={guest ? undefined : onReveal}
+					localHistory={!guest && canKeepLocalHistory()}
+					history={guest ? null : fileHistory}
+				/>
+			</div>
+			<!-- arrow keys resize when focused: the WAI-ARIA window-splitter pattern (role=separator + tabindex) -->
+			<!-- eslint-disable-next-line svelte/valid-compile -->
+			<div
+				class="hover:bg-primary-wash active:bg-primary-flood relative z-20 -my-[3px] h-1.5 shrink-0 cursor-row-resize bg-transparent transition-colors"
+				onmousedown={onStartTocResize}
+				onkeydown={onResizeTocByKey}
+				role="separator"
+				aria-orientation="horizontal"
+				aria-label={m.wsview_resize_toc_aria()}
+				tabindex="0"
+			></div>
+			<!-- scroll-inset-r moves the scrollbar, not the box, so border-t reaches the divider; whole pixels keep rows on the grid -->
+			<div
+				class="border-surface-200-800 scroll-inset-r min-h-0 overflow-y-auto border-t p-2"
+				style="flex: 0 1 round({tocFraction * 100}%, 1px)"
+			>
+				<TableOfContents list={toc} onOpenFile={onOpenFileAt} />
+			</div>
+		</div>
+	{/if}
+</aside>

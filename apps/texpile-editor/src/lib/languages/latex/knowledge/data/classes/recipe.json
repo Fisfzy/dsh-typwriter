@@ -1,0 +1,34 @@
+{
+	"version": 1,
+	"deps": [
+		{"id":"classes/book"}
+	],
+	"macros": [
+		{"name":"inghead"},
+		{"name":"ingred","args":[{"kind":"m","placeholder":"ingredients"}]},
+		{"name":"rechead"},
+		{"name":"recipe","args":[{"kind":"m","placeholder":"recipe title"}]},
+		{"name":"subsubsection","args":[{"kind":"s"},{"kind":"o","placeholder":"short title"},{"kind":"m","placeholder":"title"}]}
+	],
+	"provides": {
+		"counterForms": [
+			{"name":"part","form":"[Roman]"},
+			{"name":"chapter","form":"[arabic]","appendix":"[Alph]"},
+			{"name":"section","form":"{chapter}.[arabic]"},
+			{"name":"subsection","form":"{section}.[arabic]"},
+			{"name":"subsubsection","form":"{subsection}.[arabic]","numbered":false},
+			{"name":"paragraph","form":"{subsubsection}.[arabic]","numbered":false},
+			{"name":"subparagraph","form":"{paragraph}.[arabic]","numbered":false},
+			{"name":"equation","form":"{chapter}.[arabic]"},
+			{"name":"figure","form":"{chapter}.[arabic]"},
+			{"name":"table","form":"{chapter}.[arabic]"},
+			{"name":"footnote","form":"[arabic]"},
+			{"name":"mpfootnote","form":"[alph]"}
+		],
+		"counters": [
+			{"name":"equation","within":"chapter"},
+			{"name":"footnote","within":"chapter"}
+		]
+	},
+	"passOptions": ["classes/book"]
+}

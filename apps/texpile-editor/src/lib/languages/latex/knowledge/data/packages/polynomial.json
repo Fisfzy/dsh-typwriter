@@ -1,0 +1,15 @@
+{
+	"version": 1,
+	"deps": [
+		{"id":"packages/keyval"}
+	],
+	"macros": [
+		{"name":"polynomial","args":[{"kind":"o","placeholder":"key=value list","keys":["packages/polynomial#keyval:shpol"]},{"kind":"m","placeholder":"coefficients"}],"doc":"\\polynomial, prints a polynomial with the coefficients in the comma separated list of the argument."},
+		{"name":"polynomialfrac","args":[{"kind":"o","placeholder":"key=value list","keys":["packages/polynomial#keyval:shpol"]},{"kind":"m","placeholder":"numerator coefficients"},{"kind":"m","placeholder":"denominator coefficients"}],"doc":"\\polynomialfrac, prints a fraction of two polynomials."},
+		{"name":"polynomialstyle","args":[{"kind":"m","placeholder":"key=value list","keys":["packages/polynomial#keyval:shpoldefault"]}],"doc":"The default values can be changed by the command \\polynomialstyle."}
+	],
+	"keys": {
+		"packages/polynomial#keyval:shpol": [{"key":"add","bare":true,"placeholder":""},{"key":"firstsub","bare":true,"placeholder":""},{"key":"start","bare":true,"placeholder":""},{"key":"step","bare":true,"placeholder":""},{"key":"sub","bare":true,"placeholder":""},{"key":"var","bare":true,"placeholder":""},{"key":"falling","bare":true,"placeholder":""},{"key":"reciprocal","bare":true,"placeholder":""}],
+		"packages/polynomial#keyval:shpoldefault": [{"key":"default","bare":true},{"key":"add","bare":true,"placeholder":""},{"key":"firstsub","bare":true,"placeholder":""},{"key":"start","bare":true,"placeholder":""},{"key":"step","bare":true,"placeholder":""},{"key":"sub","bare":true,"placeholder":""},{"key":"var","bare":true,"placeholder":""},{"key":"falling","bare":true,"placeholder":""},{"key":"reciprocal","bare":true,"placeholder":""}]
+	}
+}

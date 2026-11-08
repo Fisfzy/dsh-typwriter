@@ -1,0 +1,445 @@
+import prettier from 'eslint-config-prettier';
+import js from '@eslint/js';
+import { includeIgnoreFile } from '@eslint/compat';
+import svelte from 'eslint-plugin-svelte';
+import globals from 'globals';
+import { fileURLToPath } from 'node:url';
+import ts from 'typescript-eslint';
+import svelteConfig from './svelte.config.js';
+
+const gitignorePath = fileURLToPath(new URL('./.gitignore', import.meta.url));
+
+const restrictedImportPaths = [{ name: 'svelte/store', message: 'runes only; adapt a third-party store at the edge (styles.md)' }];
+
+const banPackageData = {
+	group: ['**/knowledge/data', '**/knowledge/data/**'],
+	message: 'the package data has one reader per language: import what you need from languages/latex/knowledge or languages/typst/knowledge'
+};
+
+// the disk client has one caller; everything else reads and writes through lib/files/service/fileService
+const banDiskAccess = {
+	group: ['**/fileSystem', '$lib/workspace/fileSystem'],
+	importNames: [
+		'scanTexFiles',
+		'scanFiles',
+		'scanTree',
+		'scanTreeAndFiles',
+		'createEntry',
+		'deleteEntry',
+		'renameEntry',
+		'copyEntry',
+		'trashEntry',
+		'restoreEntry',
+		'readTextFile',
+		'readSourceFile',
+		'resolveRealRelative',
+		'probeFile',
+		'writeTextFile',
+		'writeBinaryFile',
+		'statFile',
+		'searchInFolder',
+		'fileUrl',
+		'formatLatexDocument'
+	],
+	message: 'go through fileService (lib/files/service/fileService.ts); only diskProvider talks to the disk client'
+};
+
+const PROVIDER_IO =
+	'/^(readText|readSource|readBytes|probe|scanTree|scanTexFiles|scanTreeAndFiles|scanFiles|stat|fileUrl|writeText|writeBinary|create|remove|rename|copy|trash|restore|search|format|realRelative)$/';
+
+// package-private folders: internals are importable only through the package's entry file
+const packagePrivatePatterns = [
+	{
+		group: ['$lib/languages/latex/visual/plugins/**'],
+		message: 'a LaTeX plugin is reached through latexPlugins.ts and latexDocumentPlugins.ts, never directly'
+	},
+	{
+		group: ['$lib/languages/typst/visual/plugins/**'],
+		message: 'a Typst plugin is reached through typstPlugins.ts and typstDocumentPlugins.ts, never directly'
+	},
+	{
+		group: ['$lib/languages/markdown/visual/plugins/**'],
+		message: 'a Markdown plugin is reached through markdownPlugins.ts, never directly'
+	},
+	{
+		group: ['**/languages/latex/schema/*', '!**/languages/latex/schema/latexPMSchema'],
+		message: 'latexPMSchema internals are package-private; import through latexPMSchema.ts'
+	},
+	{
+		group: ['**/languages/bib/*', '!**/languages/bib/biblatex', '!**/languages/bib/bibtexLanguage'],
+		message: 'bib internals are package-private; import through biblatex.ts or bibtexLanguage.ts'
+	},
+	{
+		group: ['**/editor/visual/schema/*', '!**/editor/visual/schema/basePMSchema'],
+		message: 'base schema internals are package-private; import through basePMSchema.ts'
+	},
+	// one reading of LaTeX source: the Lezer tree in languages/latex/syntax
+	{ group: ['@unified-latex/*'], message: 'LaTeX is read off the Lezer tree (languages/latex/syntax)' },
+	banPackageData,
+	banDiskAccess
+];
+
+// a language never imports a sibling language; shared code lives in editor/, with no exceptions
+function languageBoundary(bans) {
+	return {
+		'no-restricted-imports': ['error', { paths: restrictedImportPaths, patterns: [...packagePrivatePatterns, ...bans, banDesktopOnly] }]
+	};
+}
+// a negation cannot re-include a file whose parent directory another pattern excluded (gitignore
+// semantics), so subfolders are listed one by one and root files by name - a new root file or
+// subfolder must be added here to stay fenced
+const banLatex = {
+	group: [
+		'**/languages/latex/log/**',
+		'**/languages/latex/parser/**',
+		'**/languages/latex/serializer/**',
+		'**/languages/latex/source/**',
+		'**/languages/latex/visual/**',
+		'**/languages/latex/intellisense/**',
+		'**/languages/latex/schema/**',
+		'**/languages/latex/symbols/**'
+	],
+	message: 'cross-language import; shared code belongs in editor/ (styles.md)'
+};
+const banTypst = {
+	group: [
+		'**/languages/typst/logParser',
+		'**/languages/typst/filerefs',
+		'**/languages/typst/projectFiles',
+		'**/languages/typst/intellisense/**',
+		'**/languages/typst/preview/**',
+		'**/languages/typst/source/**',
+		'**/languages/typst/symbols/**',
+		'**/languages/typst/export/**',
+		'**/languages/typst/visual/**'
+	],
+	message: 'cross-language import; shared code belongs in editor/ (styles.md)'
+};
+const banMarkdown = { group: ['**/languages/markdown/**'], message: 'cross-language import; shared code belongs in editor/ (styles.md)' };
+const banAll = [
+	// biblatex's data model and what TeX prints are package data, so bib reads latex/knowledge
+	{
+		group: [
+			'**/languages/latex/*',
+			'!**/languages/latex/knowledge',
+			'../latex/*',
+			'!../latex/knowledge',
+			'../../latex/*',
+			'!../../latex/knowledge'
+		],
+		message: 'bib is a dependency of the other languages, never the reverse'
+	},
+	{ group: ['**/languages/typst/**'], message: 'bib is a dependency of the other languages, never the reverse' },
+	{ group: ['**/languages/markdown/**'], message: 'bib is a dependency of the other languages, never the reverse' }
+];
+
+// The web guest client (planned, post-refactor): a browser guest mounts SessionRoute ->
+// WorkspaceView over a CRDT provider, so code on that path must not statically pull
+// desktop-only features. Violations are the burn-down list for the web build target.
+const banDesktopOnly = {
+	group: [
+		'**/draft/**',
+		'**/terminal/**',
+		'**/zotero/**',
+		'**/updates',
+		'**/workspace/git',
+		'**/workspace/gitStore',
+		'**/workspace/scmActions.svelte',
+		'**/workspace/treeOps',
+		'**/workspace/toolchainCatalog',
+		'**/workspace/mcpPublish',
+		'**/workspace/mcpCommands'
+	],
+	message: 'desktop-only feature; the web guest bundle must not import it statically (gate it behind isDesktop + a dynamic import)'
+};
+
+// a LaTeX plugin is one folder that imports the core's entry and nothing of another plugin (design/visual-plugins.md);
+// the package data's readers and the messages are the two other things it may import. Its import and save take the
+// entry's document half, which the parser's worker can load
+const LATEX_PLUGINS = 'src/lib/languages/latex/visual/plugins';
+const banOtherPlugins = (depth) => ({
+	regex: `^(\\$lib/languages/latex/visual/plugins/|(\\.\\./){${depth}})`,
+	message: 'a plugin imports its own folder and the core entry, never another plugin; what two share belongs in the core'
+});
+const pluginImportsCore = {
+	regex: '^\\$lib/(?!languages/latex/visual/core(/document)?$|languages/latex/knowledge/|paraglide/messages$)',
+	message: 'a plugin reaches the app through the core entry, $lib/languages/latex/visual/core or its document half'
+};
+// the same from inside languages/latex, where a relative path can reach a plugin folder
+const banPluginFolders = {
+	regex: '^\\.{1,2}/(\\.\\./)*(visual/)?plugins/',
+	message: 'a LaTeX plugin is reached through latexPlugins.ts and latexDocumentPlugins.ts, never directly'
+};
+const latexPluginBoundary = [1, 2, 3].map((depth) => ({
+	files: [`${LATEX_PLUGINS}/*/${'*/'.repeat(depth - 1)}*`],
+	rules: languageBoundary([banTypst, banMarkdown, banOtherPlugins(depth), pluginImportsCore])
+}));
+// the same for a Typst plugin, whose package data's readers are languages/typst/knowledge
+const TYPST_PLUGINS = 'src/lib/languages/typst/visual/plugins';
+const banOtherTypstPlugins = (depth) => ({
+	regex: `^(\\$lib/languages/typst/visual/plugins/|(\\.\\./){${depth}})`,
+	message: 'a plugin imports its own folder and the core entry, never another plugin; what two share belongs in the core'
+});
+const typstPluginImportsCore = {
+	regex: '^\\$lib/(?!languages/typst/visual/core(/document)?$|languages/typst/knowledge(/|$)|paraglide/messages$)',
+	message: 'a plugin reaches the app through the core entry, $lib/languages/typst/visual/core or its document half'
+};
+const banTypstPluginFolders = {
+	regex: '^\\.{1,2}/(\\.\\./)*(visual/)?plugins/',
+	message: 'a Typst plugin is reached through typstPlugins.ts and typstDocumentPlugins.ts, never directly'
+};
+const typstPluginBoundary = [1, 2, 3].map((depth) => ({
+	files: [`${TYPST_PLUGINS}/*/${'*/'.repeat(depth - 1)}*`],
+	rules: languageBoundary([banLatex, banMarkdown, banOtherTypstPlugins(depth), typstPluginImportsCore])
+}));
+
+// the same for a Markdown plugin, which reads no package data
+const MARKDOWN_PLUGINS = 'src/lib/languages/markdown/visual/plugins';
+const banOtherMarkdownPlugins = (depth) => ({
+	regex: `^(\\$lib/languages/markdown/visual/plugins/|(\\.\\./){${depth}})`,
+	message: 'a plugin imports its own folder and the core entry, never another plugin; what two share belongs in the core'
+});
+const markdownPluginImportsCore = {
+	regex: '^\\$lib/(?!languages/markdown/visual/core$|paraglide/messages$)',
+	message: 'a plugin reaches the app through the core entry, $lib/languages/markdown/visual/core'
+};
+const banMarkdownPluginFolders = {
+	regex: '^\\.{1,2}/(\\.\\./)*(visual/)?plugins/',
+	message: 'a Markdown plugin is reached through markdownPlugins.ts, never directly'
+};
+const markdownPluginBoundary = [1, 2, 3].map((depth) => ({
+	files: [`${MARKDOWN_PLUGINS}/*/${'*/'.repeat(depth - 1)}*`],
+	rules: languageBoundary([banLatex, banTypst, banOtherMarkdownPlugins(depth), markdownPluginImportsCore])
+}));
+
+export default ts.config(
+	includeIgnoreFile(gitignorePath),
+	// vendored pdf.js modules keep upstream style (see src/lib/draft/type1/README.md)
+	{ ignores: ['build/**', 'dist/**', 'dist-web/**', 'test-results/**', 'tests/integration/report/**', 'tests/integration/results/**'] },
+	{ ignores: ['src/lib/draft/type1/*.js'] },
+	// generated by lezer-generator from syntax/latex.grammar, never hand-edited
+	{ ignores: ['src/lib/languages/latex/syntax/parser*.ts'] },
+	// generated by the Paraglide compiler (paraglideVitePlugin in vite.config.ts), never hand-edited
+	{ ignores: ['src/lib/paraglide/**'] },
+	// generated by scripts/gen-typst-symbols.mjs, never hand-edited
+	{ ignores: ['src/lib/languages/typst/symbols/typstSymbolTable.ts'] },
+	// generated by scripts/gen-latex-symbols.mjs, never hand-edited
+	{ ignores: ['src/lib/languages/latex/symbols/latexSymbolTable.ts', 'src/lib/languages/latex/symbols/latexSymbolGroups.ts'] },
+	js.configs.recommended,
+	...ts.configs.recommended,
+	// eslint-plugin-svelte: flat-config presets live under 'flat/*'; 'recommended' is the
+	// legacy-eslintrc object and is not spreadable
+	...svelte.configs['flat/recommended'],
+	prettier,
+	...svelte.configs['flat/prettier'],
+	{
+		languageOptions: {
+			globals: { ...globals.browser, ...globals.node },
+			parserOptions: { tsconfigRootDir: import.meta.dirname }
+		},
+		rules: {
+			'no-undef': 'off',
+			// Off after a full audit of every hit (44 sites, runes migration): this codebase's
+			// discipline is copy-on-write - collections are built fresh and REASSIGNED to $state
+			// fields, never mutated under a tracked reader - plus private caches, function-local
+			// temps, and Dates read once for toISOString(). Under that discipline a plain Map/Set is
+			// the correct, cheaper choice everywhere, and the rule flags every construction anyway
+			// because it cannot see how the instance is used. What must stay out of the code is
+			// in-place mutation of a collection a template/$derived/$effect reads.
+			'svelte/prefer-svelte-reactivity': 'off',
+			// Arrived with eslint 10 / eslint-plugin-svelte 3 as warnings so the upgrade did not
+			// hide behind a mass rewrite; their cleanup passes have landed and they hold at zero.
+			'svelte/require-each-key': 'error',
+			'svelte/no-unused-props': 'error',
+			'svelte/no-useless-mustaches': 'error',
+			'svelte/no-dom-manipulating': 'error',
+			'no-useless-assignment': 'error',
+			'preserve-caught-error': 'error',
+			// underscore prefix = intentionally unused
+			'@typescript-eslint/no-unused-vars': [
+				'error',
+				{
+					argsIgnorePattern: '^_',
+					varsIgnorePattern: '^_',
+					caughtErrorsIgnorePattern: '^_',
+					destructuredArrayIgnorePattern: '^_'
+				}
+			]
+		}
+	},
+	{
+		files: ['**/*.svelte', '**/*.svelte.ts', '**/*.svelte.js'],
+		languageOptions: {
+			parserOptions: {
+				projectService: true,
+				// explicit since electron/ gained its own eslint config: with two configs in the
+				// workspace the editor's eslint server refuses to infer which tsconfig root applies
+				tsconfigRootDir: import.meta.dirname,
+				extraFileExtensions: ['.svelte'],
+				parser: ts.parser,
+				svelteConfig
+			}
+		}
+	},
+	// styles.md enforcement. Rules that the codebase already satisfies run as errors;
+	// rules with existing violations run as warnings until their cleanup pass lands
+	{
+		files: ['src/**'],
+		rules: {
+			'func-style': ['error', 'declaration'],
+			// `draft` is the sanctioned name for a parameter that EXISTS to be mutated (updateFolder's
+			// updater callbacks, projectIntel's accumulator); anything else must return a new value
+			'no-param-reassign': ['error', { props: true, ignorePropertyModificationsFor: ['draft'] }],
+			'max-lines': ['error', { max: 400, skipBlankLines: true, skipComments: true }],
+			'id-length': ['error', { min: 1, max: 50 }],
+			'id-denylist': [
+				'error',
+				'data',
+				'info',
+				'obj',
+				'tmp',
+				'temp',
+				'misc',
+				'thing',
+				'val',
+				'arr',
+				'foo',
+				'helper',
+				'helpers',
+				'util',
+				'utils'
+			],
+			'@typescript-eslint/consistent-type-definitions': ['error', 'type']
+		}
+	},
+	{
+		files: ['src/**/*.ts'],
+		rules: {
+			'no-restricted-exports': ['warn', { restrictDefaultExports: { direct: true, named: true } }]
+		}
+	},
+	// curated/vendored completion data: tables, not logic - line count is not a smell there
+	{
+		files: ['src/lib/languages/latex/intellisense/data/**'],
+		rules: { 'max-lines': 'off' }
+	},
+	// vendored-adapted files keep upstream's file shapes so diffs against upstream stay readable
+	// (the pdf.js viewer, prosemirror-tables' columnresizing); the two symbol/keyboard files are
+	// data tables like the completion data above
+	{
+		files: [
+			'src/lib/pdf-view/pdf-viewer/**',
+			'src/lib/editor/visual/extensions/table/columnResizing.ts',
+			'src/lib/editor/visual/toolbar/mathSymbols.ts',
+			'src/lib/editor/visual/extensions/mathlivebridge/virtualKeyboardConfig.ts'
+		],
+		rules: { 'max-lines': 'off' }
+	},
+	// package-private folders: internals are importable only within their own folder
+	{
+		files: ['src/**'],
+		ignores: ['src/lib/languages/latex/schema/**', 'src/lib/languages/bib/**', 'src/lib/editor/visual/schema/**'],
+		rules: {
+			'no-restricted-imports': ['error', { paths: restrictedImportPaths, patterns: packagePrivatePatterns }]
+		}
+	},
+	// the web-safe set: what a browser guest session mounts (see banDesktopOnly above)
+	{
+		files: [
+			'src/lib/collab/**',
+			'src/lib/editor/**',
+			'src/lib/comments/**',
+			'src/lib/pdf-view/**',
+			'src/lib/search/**',
+			'src/lib/palette/**',
+			'src/lib/modals/**',
+			'src/lib/components/**',
+			'src/views/SessionRoute.svelte'
+		],
+		rules: {
+			'no-restricted-imports': ['error', { paths: restrictedImportPaths, patterns: [...packagePrivatePatterns, banDesktopOnly] }]
+		}
+	},
+	{
+		files: ['src/lib/workspace/diskProvider.ts'],
+		rules: {
+			'no-restricted-imports': [
+				'error',
+				{ paths: restrictedImportPaths, patterns: packagePrivatePatterns.filter((p) => p !== banDiskAccess) }
+			]
+		}
+	},
+	{
+		files: ['src/**/*.ts', 'src/**/*.svelte'],
+		ignores: ['src/lib/workspace/fileSystem.ts', 'src/lib/workspace/diskProvider.ts', 'src/lib/files/service/fileService.ts'],
+		rules: {
+			'no-restricted-syntax': [
+				'error',
+				{
+					selector: 'CallExpression > MemberExpression.callee[property.name=/^fs[A-Z]/]',
+					message: 'the native fs bridge has one caller, lib/workspace/fileSystem.ts; go through fileService'
+				},
+				{
+					selector: `CallExpression > MemberExpression.callee[property.name=${PROVIDER_IO}]:matches([object.name='provider'], [object.property.name='provider'], [object.callee.property.name='provider'])`,
+					message: 'go through fileService, which picks the provider per path and reports what this window did'
+				}
+			]
+		}
+	},
+	// cross-language boundaries (see languageBoundary above)
+	{ files: ['src/lib/languages/latex/**'], rules: languageBoundary([banTypst, banMarkdown, banPluginFolders]) },
+	{
+		files: ['src/lib/languages/latex/visual/latexPlugins.ts', 'src/lib/languages/latex/visual/latexDocumentPlugins.ts'],
+		rules: languageBoundary([banTypst, banMarkdown])
+	},
+	...latexPluginBoundary,
+	{ files: ['src/lib/languages/typst/**'], rules: languageBoundary([banLatex, banMarkdown, banTypstPluginFolders]) },
+	{
+		files: ['src/lib/languages/typst/visual/typstPlugins.ts', 'src/lib/languages/typst/visual/typstDocumentPlugins.ts'],
+		rules: languageBoundary([banLatex, banMarkdown])
+	},
+	...typstPluginBoundary,
+	{ files: ['src/lib/languages/markdown/**'], rules: languageBoundary([banLatex, banTypst, banMarkdownPluginFolders]) },
+	{ files: ['src/lib/languages/markdown/visual/markdownPlugins.ts'], rules: languageBoundary([banLatex, banTypst]) },
+	...markdownPluginBoundary,
+	{
+		files: ['src/lib/languages/bib/**'],
+		rules: {
+			'no-restricted-imports': [
+				'error',
+				{ paths: restrictedImportPaths, patterns: [...banAll, banPackageData, banDiskAccess, banDesktopOnly] }
+			]
+		}
+	},
+	{
+		files: ['src/**/*.ts', 'src/**/*.svelte'],
+		rules: {
+			'@typescript-eslint/naming-convention': [
+				'error',
+				// imported names are library-controlled; the deliberate CMView/PMView aliases live here too
+				{ selector: 'import', format: null },
+				// object keys often mirror external shapes (HTTP headers, CSS props, wire formats)
+				{ selector: 'objectLiteralProperty', format: null },
+				{ selector: 'typeProperty', format: null },
+				{ selector: 'variable', modifiers: ['destructured'], format: null },
+				// StrictPascalCase: variables holding Svelte components (lazy routes) are capitalized
+				// by Svelte convention; allowDouble: build-injected globals like __APP_VERSION__; a single _ marks
+				// a variable unused, as no-unused-vars reads it
+				{
+					selector: 'variable',
+					format: ['strictCamelCase', 'StrictPascalCase', 'UPPER_CASE'],
+					leadingUnderscore: 'allowSingleOrDouble',
+					trailingUnderscore: 'allowDouble'
+				},
+				{ selector: 'function', format: ['strictCamelCase'] },
+				{ selector: 'parameter', format: ['strictCamelCase'], leadingUnderscore: 'allow' },
+				{ selector: 'classProperty', format: ['strictCamelCase', 'UPPER_CASE'], leadingUnderscore: 'allow' },
+				{ selector: 'classMethod', format: ['strictCamelCase'] },
+				{ selector: 'enumMember', format: ['UPPER_CASE'] },
+				{ selector: 'interface', format: ['StrictPascalCase'], custom: { regex: '^I[A-Z]', match: false } },
+				{ selector: 'class', format: ['StrictPascalCase'], custom: { regex: '^Abstract', match: false } },
+				{ selector: 'typeLike', format: ['StrictPascalCase'] }
+			]
+		}
+	}
+);

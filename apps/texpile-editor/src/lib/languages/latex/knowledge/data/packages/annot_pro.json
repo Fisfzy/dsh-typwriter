@@ -1,0 +1,58 @@
+{
+	"version": 1,
+	"deps": [
+		{"id":"packages/xkeyval"},
+		{"id":"packages/trig"},
+		{"id":"packages/hyperref"},
+		{"id":"packages/iftex"},
+		{"id":"packages/kvsetkeys"},
+		{"id":"packages/pdfescape"},
+		{"id":"packages/pdftexcmds"},
+		{"id":"packages/nameref"},
+		{"id":"packages/refcount"},
+		{"id":"packages/gettitlestring"},
+		{"id":"packages/kvoptions"},
+		{"id":"packages/etoolbox"},
+		{"id":"packages/stringenc"},
+		{"id":"packages/intcalc"},
+		{"id":"packages/url"},
+		{"id":"packages/bitset"},
+		{"id":"packages/bigintcalc"},
+		{"id":"packages/rerunfilecheck"},
+		{"id":"packages/uniquecounter"},
+		{"id":"packages/calc"},
+		{"id":"packages/aeb_mlink"},
+		{"id":"packages/ifpdf"},
+		{"id":"packages/ifxetex"},
+		{"id":"packages/eforms"},
+		{"id":"packages/ifluatex"},
+		{"id":"packages/insdljs"},
+		{"id":"packages/verbatim"},
+		{"id":"packages/conv-xkv"},
+		{"id":"packages/everyshi","engines":["pdflatex","lualatex"]},
+		{"id":"packages/taborder"}
+	],
+	"macros": [
+		{"name":"annotpro","args":[{"kind":"s"},{"kind":"o","placeholder":"KV-pairs","keys":["packages/annot_pro#annotpro"]},{"kind":"m","placeholder":"content"}]},
+		{"name":"apContText"},
+		{"name":"currentAnnotName","doc":"The macro \\currentAnnotName contains the internal name of the most recent annot created."},
+		{"name":"defaultStampHeight","hidden":true},
+		{"name":"defaultStampWidth","hidden":true},
+		{"name":"defineAPath","args":[{"kind":"m","placeholder":"path macro"}],"doc":"I’ve devised a helper command \\defineAPath that can be used to define the path to your file."},
+		{"name":"ifpreview"},
+		{"name":"ifuseAAXdim","hidden":true},
+		{"name":"makeStamp","args":[{"kind":"m","placeholder":"bounding box"},{"kind":"m","placeholder":"name"},{"kind":"m","placeholder":"operators"}]},
+		{"name":"margintextformat","args":[{"kind":"m","placeholder":"formatting"}]},
+		{"name":"previewfalse"},
+		{"name":"previewtrue"},
+		{"name":"setAnnotOptions","args":[{"kind":"m","placeholder":"KV-pairs"}],"doc":"You can use \\setAnnotOptions to globally set the title of each annotation, perhaps using your name."},
+		{"name":"useAAXdimfalse","hidden":true},
+		{"name":"useAAXdimtrue","hidden":true}
+	],
+	"envs": [
+		{"name":"textboxpara"}
+	],
+	"keys": {
+		"packages/annot_pro#annotpro": [{"key":"subject","bare":true,"placeholder":""},{"key":"opacity","bare":true,"placeholder":""},{"key":"heightTo","bare":true,"placeholder":""},{"key":"file","bare":true,"placeholder":""},{"key":"name","bare":true,"placeholder":""},{"key":"hyph","bare":true,"placeholder":""},{"key":"open","bare":true,"placeholder":""},{"key":"type","bare":true,"placeholder":""},{"key":"color","bare":true,"placeholder":""},{"key":"margprior","bare":true,"placeholder":""},{"key":"readonly","bare":true,"placeholder":""},{"key":"taborder","bare":true,"placeholder":""},{"key":"nohspace","bare":true},{"key":"novspace","bare":true},{"key":"scale","bare":true,"placeholder":""},{"key":"ap","bare":true,"placeholder":""},{"key":"title","bare":true,"placeholder":""},{"key":"width","bare":true,"placeholder":""},{"key":"copycontenttrue","placeholder":""},{"key":"crackinsat","placeholder":""},{"key":"hiddentrue","placeholder":""},{"key":"bcolor","bare":true,"placeholder":""},{"key":"margintext","bare":true,"placeholder":""},{"key":"height","bare":true,"placeholder":""},{"key":"hidden","bare":true,"placeholder":""},{"key":"objdef","bare":true,"placeholder":""},{"key":"margin","bare":true},{"key":"rotate","bare":true,"placeholder":""},{"key":"readonlytrue","placeholder":""},{"key":"internalID","bare":true,"placeholder":""},{"key":"copycontentfalse","placeholder":""},{"key":"presets","bare":true,"placeholder":""},{"key":"bgcolor","bare":true,"placeholder":""},{"key":"borderwidth","bare":true,"placeholder":""},{"key":"hiddenfalse","placeholder":""},{"key":"borderstyle","bare":true,"placeholder":""},{"key":"crackat","bare":true,"placeholder":""},{"key":"nospace","bare":true},{"key":"widthTo","bare":true,"placeholder":""},{"key":"copycontent","bare":true,"placeholder":""},{"key":"readonlyfalse","placeholder":""},{"key":"customStamp","bare":true,"placeholder":""}]
+	}
+}

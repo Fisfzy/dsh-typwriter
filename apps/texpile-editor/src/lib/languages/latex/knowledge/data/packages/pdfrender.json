@@ -1,0 +1,14 @@
+{
+	"version": 1,
+	"deps": [
+		{"id":"packages/iftex"},
+		{"id":"packages/kvsetkeys","engines":["pdflatex","lualatex"]}
+	],
+	"macros": [
+		{"name":"pdfrender","args":[{"kind":"m","keys":["packages/pdfrender#keyval:PDFRENDER"]}]},
+		{"name":"textpdfrender","args":[{"kind":"m","keys":["packages/pdfrender#keyval:PDFRENDER"]},{"kind":"m"}]}
+	],
+	"keys": {
+		"packages/pdfrender#keyval:PDFRENDER": [{"key":"FillColor","placeholder":""},{"key":"Flatness","placeholder":""},{"key":"LineCapStyle","placeholder":""},{"key":"LineDashPattern","placeholder":""},{"key":"LineJoinStyle","placeholder":""},{"key":"LineWidth","placeholder":"number"},{"key":"MiterLimit","placeholder":""},{"key":"RenderingIntent","placeholder":""},{"key":"StrokeColor","placeholder":""},{"key":"TextRenderingMode","placeholder":""}]
+	}
+}

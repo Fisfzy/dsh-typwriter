@@ -1,0 +1,33 @@
+{
+	"version": 1,
+	"deps": [
+		{"id":"packages/graphicx"},
+		{"id":"packages/keyval"},
+		{"id":"packages/graphics"},
+		{"id":"packages/trig"},
+		{"id":"packages/nxtlatexcolors"},
+		{"id":"packages/xcolor"},
+		{"id":"packages/fontspec"},
+		{"id":"packages/fontspec-luatex","engines":["lualatex"]},
+		{"id":"packages/accsupp"},
+		{"id":"packages/pdfescape"},
+		{"id":"packages/iftex"},
+		{"id":"packages/kvoptions"},
+		{"id":"packages/kvsetkeys"},
+		{"id":"packages/fontspec-xetex","engines":["xelatex"]}
+	],
+	"macros": [
+		{"name":"hsrtlogograu","args":[{"kind":"o"}]},
+		{"name":"hsrtskyline","args":[{"kind":"o"}]},
+		{"name":"nxthsrtlogo","args":[{"kind":"o","placeholder":"Optionen","keys":["packages/nxtlatexlogos#nxtlatexlogos"]}]},
+		{"name":"nxtlogo","args":[{"kind":"o","placeholder":"Optionen","keys":["packages/nxtlatexlogos#nxtlatexlogos"]}]},
+		{"name":"nxtlogofont"},
+		{"name":"nxtlogonut","args":[{"kind":"o","placeholder":"Optionen","keys":["packages/nxtlatexlogos#nxtlatexlogos"]}]},
+		{"name":"nxtlogostandard","args":[{"kind":"o","placeholder":"Optionen","keys":["packages/nxtlatexlogos#nxtlatexlogos"]}]},
+		{"name":"nxtzeichen","args":[{"kind":"o","placeholder":"Optionen","keys":["packages/nxtlatexlogos#nxtlatexlogos"]}]}
+	],
+	"keys": {
+		"packages/nxtlatexlogos#nxtlatexlogos": [{"key":"nxtfarbe","placeholder":"","role":"color"},{"key":"zeilenfarbe","placeholder":"","role":"color"},{"key":"zeichenfarbe","placeholder":"","role":"color"},{"key":"height","placeholder":"length"},{"key":"alt","placeholder":""},{"key":"farbe","placeholder":"","role":"color"},{"key":"width","placeholder":"length"},{"key":"keepaspectratio","bare":true},{"key":"schema","values":["farbig","schwarz","weiss","weisseTextmarke","weisseZeile"]}]
+	},
+	"ctan": "nxtlatex"
+}

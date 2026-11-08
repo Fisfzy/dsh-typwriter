@@ -1,0 +1,59 @@
+{
+	"version": 1,
+	"deps": [
+		{"id":"classes/report"},
+		{"id":"packages/arabtex"},
+		{"id":"packages/aconfig"},
+		{"id":"packages/arabaux"},
+		{"id":"packages/acmd"},
+		{"id":"packages/afonts"},
+		{"id":"packages/afonts2"},
+		{"id":"packages/aoutput"},
+		{"id":"packages/abidir"},
+		{"id":"packages/atrans"},
+		{"id":"packages/alatex"},
+		{"id":"packages/afoot"},
+		{"id":"packages/abjad"},
+		{"id":"packages/apatch"},
+		{"id":"packages/altxext"},
+		{"id":"packages/arabext"}
+	],
+	"macros": [
+		{"name":"refname","hidden":true},
+		{"name":"abstractname"},
+		{"name":"appendixname"},
+		{"name":"contentsname"},
+		{"name":"figurename"},
+		{"name":"indexname"},
+		{"name":"listfigurename"},
+		{"name":"listtablename"},
+		{"name":"partname"},
+		{"name":"tablename"},
+		{"name":"thepage"}
+	],
+	"keys": {
+		"classes/arabrep#options": [{"key":"article","bare":true},{"key":"book","bare":true}]
+	},
+	"provides": {
+		"counterForms": [
+			{"name":"part","form":"[arabic]"},
+			{"name":"chapter","form":"[arabic]","appendix":"[Alph]"},
+			{"name":"section","form":"{chapter}.[arabic]"},
+			{"name":"subsection","form":"{section}.[arabic]"},
+			{"name":"subsubsection","form":"{subsection}.[arabic]","numbered":false},
+			{"name":"paragraph","form":"{subsubsection}.[arabic]","numbered":false},
+			{"name":"subparagraph","form":"{paragraph}.[arabic]","numbered":false},
+			{"name":"equation","form":"{chapter}.[arabic]"},
+			{"name":"figure","form":"{chapter}.[arabic]"},
+			{"name":"table","form":"{chapter}.[arabic]"},
+			{"name":"footnote","form":"[arabic]"},
+			{"name":"mpfootnote","form":"[alph]"}
+		],
+		"counters": [
+			{"name":"equation","within":"chapter"},
+			{"name":"footnote","within":"chapter"}
+		]
+	},
+	"passOptions": ["classes/report"],
+	"ctan": "arabtex"
+}

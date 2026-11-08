@@ -1,0 +1,61 @@
+{
+	"version": 1,
+	"deps": [
+		{"id":"packages/numodel"},
+		{"id":"packages/xparse"},
+		{"id":"packages/l3keys2e"},
+		{"id":"packages/amsmath"},
+		{"id":"packages/amstext"},
+		{"id":"packages/amsbsy"},
+		{"id":"packages/amsopn"},
+		{"id":"packages/amssymb"},
+		{"id":"packages/amsfonts"},
+		{"id":"packages/xfrac"},
+		{"id":"packages/graphicx"},
+		{"id":"packages/keyval"},
+		{"id":"packages/graphics"},
+		{"id":"packages/trig"},
+		{"id":"packages/tikz"},
+		{"id":"packages/pgf"},
+		{"id":"packages/pgfrcs"},
+		{"id":"packages/pgfcore"},
+		{"id":"packages/pgfsys"},
+		{"id":"packages/xcolor"},
+		{"id":"packages/pgfcomp-version-0-65"},
+		{"id":"packages/pgfcomp-version-1-18"},
+		{"id":"packages/pgffor"},
+		{"id":"packages/pgfkeys"},
+		{"id":"packages/pgfmath"},
+		{"id":"packages/luacode"},
+		{"id":"packages/ifluatex"},
+		{"id":"packages/iftex"},
+		{"id":"packages/luatexbase"},
+		{"id":"packages/siunitx"},
+		{"id":"packages/translations"},
+		{"id":"packages/etoolbox"},
+		{"id":"packages/array"},
+		{"id":"packages/float"},
+		{"id":"packages/tabularray"},
+		{"id":"packages/ninecolors"},
+		{"id":"packages/numodel-plot"},
+		{"id":"packages/pgfplots"},
+		{"id":"packages/pdfrender"},
+		{"id":"packages/kvsetkeys"},
+		{"id":"packages/embedfile"},
+		{"id":"packages/pdfescape"}
+	],
+	"macros": [
+		{"name":"coachinstructiontext","args":[{"kind":"o","placeholder":"options","keys":["packages/numodel-coach#numodel-coach-instruction"]}]},
+		{"name":"coachmodel","args":[{"kind":"o","placeholder":"options","keys":["packages/numodel-coach#numodel-coach-model"]},{"kind":"m","placeholder":"name"}],"doc":"\\coachmodel[⟨options⟩]{⟨name⟩} writes the model with the current prefix to ⟨name⟩.cma7 (no extension is added when ⟨name⟩ has one)."},
+		{"name":"coachsetup","args":[{"kind":"m","placeholder":"options","keys":["packages/numodel-coach#numodel-coach-setup"]}]}
+	],
+	"envs": [
+		{"name":"coachinstruction","args":[{"kind":"o","placeholder":"options","keys":["packages/numodel-coach#numodel-coach-instruction"]}],"body":"comment"}
+	],
+	"keys": {
+		"packages/numodel-coach#numodel-coach-instruction": [{"key":"prefix","placeholder":""}],
+		"packages/numodel-coach#numodel-coach-model": [{"key":"attach","values":["false","true"],"bare":true},{"key":"switch","values":["false","true"],"bare":true},{"key":"dir","placeholder":""},{"key":"blanks","values":["filled","open"]},{"key":"prefix","placeholder":""}],
+		"packages/numodel-coach#numodel-coach-setup": [{"key":"attach","values":["false","true"],"bare":true},{"key":"switch","values":["false","true"],"bare":true},{"key":"dir","placeholder":""}]
+	},
+	"ctan": "numodel-bundle"
+}

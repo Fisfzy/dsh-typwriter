@@ -1,0 +1,22 @@
+.DS_Store
+node_modules
+/build
+/dist
+/dist-web
+/.svelte-kit
+/package
+.env
+.env.*
+vite.config.js.timestamp-*
+vite.config.ts.timestamp-*
+*-debug.log
+.VSCodeCounter
+
+# local dev harness, never part of the app (devtyp.html loads src/devtyp.ts against tmp-fixture)
+/devtyp.html
+/src/devtyp.ts
+/public/tmp-fixture/
+
+# Skeleton's preset themes, copied in by scripts/sync-themes.mjs on `pnpm sync`; prettier reads
+# this file too when lint runs from this package
+public/themes/

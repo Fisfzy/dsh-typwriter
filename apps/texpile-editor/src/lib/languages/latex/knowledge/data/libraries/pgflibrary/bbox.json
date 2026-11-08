@@ -1,0 +1,6 @@
+{
+	"version": 1,
+	"keys": {
+		"packages/pgfsys#pgf": [{"key":"bezier bounding box","bare":true,"default":"true"}]
+	}
+}

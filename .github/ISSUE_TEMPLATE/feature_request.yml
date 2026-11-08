@@ -1,0 +1,24 @@
+name: Feature request
+description: Request a new feature
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Feature requests are welcome. If you want a faster response, feel free to discuss them on Discord (https://discord.com/invite/7wanVzCBWf). However, we do require a GitHub issue so we can track requests better.
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: The feature you would like, and the problem it solves.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives
+      description: How you currently work around this, if at all.
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Anything else that helps, such as screenshots or examples from other editors.

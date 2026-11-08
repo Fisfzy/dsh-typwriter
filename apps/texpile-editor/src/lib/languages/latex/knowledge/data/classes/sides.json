@@ -1,0 +1,49 @@
+{
+	"version": 1,
+	"deps": [
+		{"id":"classes/report"}
+	],
+	"macros": [
+		{"name":"cast","args":[{"kind":"m"}]},
+		{"name":"castdef","hidden":true},
+		{"name":"castpage"},
+		{"name":"castpagelatin"},
+		{"name":"chara","args":[{"kind":"m"}]},
+		{"name":"filedate","hidden":true},
+		{"name":"fileversion","hidden":true},
+		{"name":"newact"},
+		{"name":"newactnamed","args":[{"kind":"m"}],"doc":"creates a new act with heading actname, does not increment counter this is useful for interludes, prologues, etc."},
+		{"name":"newscene"},
+		{"name":"newscenenamed","args":[{"kind":"m"}]},
+		{"name":"notes"},
+		{"name":"paren","args":[{"kind":"m"}]},
+		{"name":"pause"},
+		{"name":"repl","args":[{"kind":"m","placeholder":"character name"}]},
+		{"name":"repldef","hidden":true},
+		{"name":"scenedef","hidden":true},
+		{"name":"stagedir","args":[{"kind":"m"}]},
+		{"name":"theact","hidden":true},
+		{"name":"thescene","hidden":true}
+	],
+	"provides": {
+		"counterForms": [
+			{"name":"part","form":"[Roman]"},
+			{"name":"chapter","form":"[arabic]","appendix":"[Alph]"},
+			{"name":"section","form":"{chapter}.[arabic]"},
+			{"name":"subsection","form":"{section}.[arabic]"},
+			{"name":"subsubsection","form":"{subsection}.[arabic]","numbered":false},
+			{"name":"paragraph","form":"{subsubsection}.[arabic]","numbered":false},
+			{"name":"subparagraph","form":"{paragraph}.[arabic]","numbered":false},
+			{"name":"equation","form":"{chapter}.[arabic]"},
+			{"name":"figure","form":"{chapter}.[arabic]"},
+			{"name":"table","form":"{chapter}.[arabic]"},
+			{"name":"footnote","form":"[arabic]"},
+			{"name":"mpfootnote","form":"[alph]"}
+		],
+		"counters": [
+			{"name":"equation","within":"chapter"},
+			{"name":"footnote","within":"chapter"}
+		]
+	},
+	"passOptions": ["classes/report"]
+}

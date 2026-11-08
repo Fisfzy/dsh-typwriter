@@ -1,0 +1,245 @@
+<script lang="ts">
+	// The workspace's chrome: the menu bar (or the guest banner in its place) and the left sidebar
+	// with its drag handle. Like WorkspaceMain, this reads from the shared state objects rather
+	// than a long prop list.
+	import { tip } from '$lib/components/tooltip.svelte';
+	import { fileMode } from '$lib/workspace/fileMode.svelte';
+	import { userTemplatesAvailable } from '$lib/workspace/templates/templateBridge';
+	import TitleBar from '$lib/chrome/TitleBar.svelte';
+	import WorkspaceMenuBar from '$lib/chrome/WorkspaceMenuBar.svelte';
+	import { chooseFolderLanguage, openSpelling } from '$lib/editor/spellcheck/languages/folderLanguageMenu';
+	import SessionPresence from '$lib/chrome/SessionPresence.svelte';
+	import LayoutControls from './titlebar/LayoutControls.svelte';
+	import { documentControls } from '$lib/preview/documentControls.svelte';
+	import WorkspaceSidebar from './WorkspaceSidebar.svelte';
+	import SnippetPatternsBar from './SnippetPatternsBar.svelte';
+	import { workspaceRoot } from '$lib/workspace/workspaceStore';
+	import GuestPresence from '$lib/collab/presence/GuestPresence.svelte';
+	import WindowDialogs from '$lib/modals/window/WindowDialogs.svelte';
+	import PaneSplitter from '$lib/components/PaneSplitter.svelte';
+	import { ShieldQuestion } from '@lucide/svelte';
+	import type GlobalSearch from '$lib/search/GlobalSearch.svelte';
+	import type { PaneLayout } from '$lib/workspace/paneLayout.svelte';
+	import type { TerminalDockState } from '$lib/workspace/terminalDockState.svelte';
+	import type { TocList } from '$lib/editor/visual/extensions/tableofcontents/tocStore';
+	import { canCombine } from '$lib/workspace/scm/branches/gitCombine';
+	import { canClone } from '$lib/workspace/scm/remote/gitClone';
+	import { canKeepLocalHistory } from '$lib/workspace/localHistory/localHistory.svelte';
+	import { m } from '$lib/paraglide/messages';
+	import type { Snippet } from 'svelte';
+
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any -- the pipelines are structural here
+	type Any = any;
+
+	let {
+		children,
+		layout = $bindable(),
+		termDock = $bindable(),
+		compiler,
+		scm,
+		treeOps,
+		guest,
+		toc,
+		menu,
+		actions,
+		pendingCommand = null,
+		previewSplittable = false,
+		fileTreeRef = $bindable(),
+		globalSearchRef = $bindable()
+	}: {
+		/** the editor column, rendered as a sibling of the sidebar inside the row */
+		children: Snippet;
+		layout: PaneLayout;
+		termDock: TerminalDockState;
+		compiler: Any;
+		scm: Any;
+		treeOps: Any;
+		guest: boolean;
+		toc: TocList;
+		/** menu-bar inputs that are not workspace state */
+		menu: {
+			disabled: boolean;
+			/** kind of the open file; the menus adapt to what it supports (see WorkspaceMenuBar) */
+			fileKind: import('$lib/workspace/documentBuffer.svelte').FileKind;
+			imageDir: string | undefined;
+			shareable: boolean;
+			/** the disk-backed host rather than a guest: folder lifecycle, terminal, on-disk checks */
+			hostMode: boolean;
+			canManageTree: boolean;
+			canFormat: boolean;
+			uiZoomPercent: number;
+			/** the compile target is Typst; New-file menus offer .typ instead of .tex/.cls/.sty */
+			typstProject: boolean;
+			/** the open file's spelling language */
+			spelling: import('$lib/editor/spellcheck/languages/spellingLanguage.svelte').SpellingChoice;
+		};
+		actions: Any;
+		/** a compile command from .texpile/config.json awaiting acceptance; see projectConfig.ts.
+		 * Window-wide because it gates compiling, not just this file's editor. */
+		pendingCommand?: { command: string } | null;
+		/** the preview is a compiled PDF, the one kind that splits */
+		previewSplittable?: boolean;
+		fileTreeRef: Any;
+		globalSearchRef: GlobalSearch | null;
+	} = $props();
+
+	$effect(() => {
+		openSpelling.current = { choice: menu.spelling, fixed: !menu.hostMode };
+		return () => (openSpelling.current = null);
+	});
+</script>
+
+<!-- One title bar for both roles. A guest used to get a bare one, which meant no menus on Windows
+     and - worse - the stock Electron app menu plus Edit on macOS, since WorkspaceMenuBar is what
+     publishes menu state to main and it was never mounted. Most of the bar is legitimately a
+     guest's: it edits the document, so Edit, Insert, Format, Spelling, View and Help all apply.
+     What a guest cannot do is withheld by not passing the callback, the way Share session already
+     worked, so the in-app bar and the native one drop the same items from one decision.
+     On macOS the component mounts and draws no triggers; the system menu bar has them. -->
+<TitleBar>
+	{#snippet status()}
+		{#if guest}
+			<GuestPresence />
+		{:else}
+			<SessionPresence onShareSession={menu.shareable ? actions.openShare : undefined} />
+		{/if}
+		{#if documentControls.current && !documentControls.previewBars}
+			<!-- no preview bar to carry them: one place for the project's controls, however the editors are split -->
+			<div class="app-no-drag mr-2 flex items-center self-center">{@render documentControls.current(true)}</div>
+		{/if}
+		<LayoutControls panes={layout} {termDock} project={!fileMode.current} splittable={previewSplittable} />
+	{/snippet}
+	{#snippet menus()}
+		<WorkspaceMenuBar
+			disabled={menu.disabled}
+			fileKind={menu.fileKind}
+			imageDir={menu.imageDir}
+			onNewFile={menu.canManageTree ? actions.newFileOfType : undefined}
+			typstProject={menu.typstProject}
+			onOpenFolder={menu.hostMode ? actions.openFolder : undefined}
+			onSaveAsTemplate={menu.hostMode && userTemplatesAvailable() && !fileMode.current ? actions.saveAsTemplate : undefined}
+			onCloneRepository={menu.hostMode && canClone() ? actions.cloneRepository : undefined}
+			onLocalHistory={menu.hostMode && canKeepLocalHistory() ? actions.localHistory : undefined}
+			onRestoreDeleted={menu.hostMode && canKeepLocalHistory() ? actions.restoreDeleted : undefined}
+			onCloseWorkspace={menu.hostMode ? actions.closeWorkspace : undefined}
+			onSave={actions.save}
+			onShareSession={menu.shareable ? actions.openShare : undefined}
+			terminalAvailable={termDock.available}
+			terminalVisible={termDock.visible}
+			onCompile={compiler.runCompile}
+			onConfigureCompile={actions.openCompileModal}
+			onNewTerminal={actions.newTerminal}
+			onToggleTerminal={actions.toggleTerminal}
+			onFormatDocument={menu.canFormat ? actions.openFormatModal : undefined}
+			uiZoomPercent={menu.uiZoomPercent}
+			onZoomIn={actions.uiZoomIn}
+			onZoomOut={actions.uiZoomOut}
+			onZoomReset={actions.uiZoomReset}
+			spelling={menu.spelling}
+			onSpellLanguage={menu.hostMode ? chooseFolderLanguage : undefined}
+		/>
+	{/snippet}
+</TitleBar>
+
+<!-- outside the branch on purpose: a guest reaches Preferences through the palette and has no menu
+     bar to have mounted these -->
+<WindowDialogs />
+
+{#if pendingCommand}
+	<!-- The one setting in .texpile/config.json that Texpile EXECUTES, so it is the one that has to
+	     be accepted rather than applied.
+	     Across the whole window, under the title bar, rather than above the editor: it is a question
+	     about the PROJECT, not about the file you happen to have open, and compiling is blocked
+	     until it is answered (compilePipeline.runCompile) - so it must not sit in a column that a
+	     closed sidebar or a wide preview can push out of view.
+	     Still not a modal: you can keep reading and editing while you decide. -->
+	<div class="border-warning-wash bg-warning-tint flex shrink-0 flex-wrap items-center gap-x-2 gap-y-1 border-b px-3 py-2 text-xs">
+		<ShieldQuestion class="text-warning-ink size-4 shrink-0" />
+		<span>{m.project_command_prompt()}</span>
+		<code class="bg-surface-200-800 rounded-base min-w-0 truncate px-1.5 py-0.5 font-mono" use:tip={pendingCommand.command}>
+			{pendingCommand.command}
+		</code>
+		<span class="text-muted" use:tip={m.project_command_why()}>({m.project_command_why()})</span>
+		<!-- Two ways to ANSWER, not one answer and one dismissal. The other button used to be "Keep
+		     mine", which only cleared the bar: it recorded nothing, so the question came back on every
+		     reopen - and now that compiling is held until this is settled, that meant starting blocked
+		     every session. Configure opens the dialog, where saving writes your command to the file
+		     and settles the disagreement for everyone, not just for this window.
+		     The accepting one on the RIGHT, where a dialog's confirm sits. -->
+		<div class="ml-auto flex shrink-0 items-center gap-1">
+			<button class="btn btn-xs hover:preset-tonal" onclick={actions.openCompileModal}>{m.wsview_configure_compile_command()}</button>
+			<button class="btn btn-xs preset-filled-primary-500" onclick={actions.acceptProjectCommand}>{m.project_command_use()}</button>
+		</div>
+	</div>
+{/if}
+
+{#if guest || workspaceRoot.current}
+	<SnippetPatternsBar root={guest ? null : workspaceRoot.current} />
+{/if}
+
+<div class="flex min-h-0 flex-1 overflow-clip">
+	{#if layout.sidebarOpen && !fileMode.current}
+		<WorkspaceSidebar
+			width={layout.sidebarWidth}
+			{guest}
+			bind:view={layout.sidebarView}
+			scmBusy={scm.busy}
+			{toc}
+			tocFraction={layout.tocFraction}
+			historyFraction={layout.historyFraction}
+			bind:fileTreeRef
+			bind:globalSearchRef
+			bind:splitEl={layout.splitEl}
+			bind:scmSplitEl={layout.scmSplitEl}
+			onRefreshTree={actions.refreshTree}
+			onOpenGlobalSearch={actions.openGlobalSearch}
+			onCloseGlobalSearch={actions.closeGlobalSearch}
+			onOpenFileAt={actions.openFileAt}
+			onReplaceInFolder={menu.hostMode && menu.canManageTree ? actions.replaceInFolder : undefined}
+			onOpenEntry={actions.openEntry}
+			onCreate={treeOps.create}
+			typstProject={menu.typstProject}
+			onRename={treeOps.rename}
+			onDelete={treeOps.deleteMany}
+			hasUnsaved={actions.hasUnsaved}
+			onMove={treeOps.moveMany}
+			onImport={treeOps.import}
+			onCopyIn={treeOps.copyIn}
+			onSetMain={actions.setMain}
+			onReveal={actions.revealEntry}
+			fileHistory={treeOps.history}
+			onStartTocResize={layout.startTocResize}
+			onResizeTocByKey={layout.resizeTocByKey}
+			onStartHistoryResize={layout.startHistoryResize}
+			onResizeHistoryByKey={layout.resizeHistoryByKey}
+			onRefreshGit={actions.refreshGit}
+			scmInit={scm.init}
+			scmDiscard={scm.discard}
+			scmCommit={scm.commit}
+			scmRestore={scm.restore}
+			scmIgnoreArtifacts={scm.ignoreArtifacts}
+			scmPublish={scm.publish}
+			scmSync={scm.sync}
+			scmRecheckGit={scm.recheckGit}
+			scmOpenConflict={scm.combine.openConflict}
+			scmFinishCombine={canCombine() ? scm.combine.finish : undefined}
+			scmCancelCombine={canCombine() ? scm.combine.cancel : undefined}
+			scmCompare={scm.compare}
+			scmChangesSince={scm.changesSince}
+			scmOpenDiff={scm.openDiff}
+		/>
+	{/if}
+
+	<!-- outside the branch: with the sidebar shut this edge reopens it when dragged in -->
+	{#if !fileMode.current}
+		<PaneSplitter
+			resizable
+			resizeLabel={m.wsview_resize_sidebar_aria()}
+			onStartResize={layout.startSidebarResize}
+			onResizeByKey={layout.resizeSidebarByKey}
+			class="z-30"
+		/>
+	{/if}
+
+	{@render children()}
+</div>

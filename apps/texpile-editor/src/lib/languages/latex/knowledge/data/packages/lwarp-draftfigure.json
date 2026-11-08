@@ -1,0 +1,13 @@
+{
+	"version": 1,
+	"deps": [
+		{"id":"packages/xkeyval"}
+	],
+	"macros": [
+		{"name":"setdf","args":[{"kind":"m","keys":["packages/lwarp-draftfigure#keyval:draftfigure"]}]}
+	],
+	"keys": {
+		"packages/lwarp-draftfigure#keyval:draftfigure": [{"key":"content","bare":true},{"key":"filename","bare":true},{"key":"position","bare":true},{"key":"size","bare":true},{"key":"style","bare":true},{"key":"noframe","bare":true},{"key":"code","placeholder":""}]
+	},
+	"ctan": "lwarp"
+}

@@ -1,0 +1,21 @@
+{
+	"version": 1,
+	"deps": [
+		{"id":"packages/xcolor"},
+		{"id":"packages/xkeyval"}
+	],
+	"macros": [
+		{"name":"qrcode","args":[{"kind":"s"},{"kind":"o","placeholder":"options","keys":["packages/qrcode#keyval:qr"]},{"kind":"m","placeholder":"text to be encoded"}]},
+		{"name":"qrset","args":[{"kind":"m","keys":["packages/qrcode#keyval:qr"]}]},
+		{"name":"themaski","hidden":true},
+		{"name":"themaskj","hidden":true},
+		{"name":"thepenaltyi","hidden":true},
+		{"name":"thepenaltyii","hidden":true},
+		{"name":"thepenaltyiii","hidden":true},
+		{"name":"thepenaltyiv","hidden":true}
+	],
+	"keys": {
+		"packages/qrcode#keyval:qr": [{"key":"height","placeholder":"length"},{"key":"hyperlink","bare":true,"placeholder":""},{"key":"link","bare":true,"placeholder":""},{"key":"nolink","bare":true,"placeholder":""},{"key":"padding","bare":true,"placeholder":""},{"key":"tight","bare":true,"placeholder":""},{"key":"version","placeholder":"number"},{"key":"level","placeholder":""},{"key":"final","bare":true,"placeholder":""},{"key":"nolinks","bare":true,"placeholder":""},{"key":"draft","bare":true,"placeholder":""},{"key":"hyperlinks","bare":true,"placeholder":""},{"key":"links","bare":true,"placeholder":""},{"key":"forget","bare":true,"placeholder":""}],
+		"packages/qrcode#options": [{"key":"draft","bare":true},{"key":"final","bare":true},{"key":"forget","bare":true},{"key":"hyperlinks","bare":true},{"key":"nolinks","bare":true}]
+	}
+}

@@ -1,0 +1,336 @@
+[data-theme='theme'] {
+	--text-scaling: 1.067;
+	--typo-base--color-light: var(--color-surface-950);
+	--typo-base--color-dark: var(--color-surface-50);
+	--typo-base--font-family: system-ui;
+	--typo-base--font-size: inherit;
+	--typo-base--line-height: inherit;
+	--typo-base--font-weight: normal;
+	--typo-base--font-style: normal;
+	--typo-base--letter-spacing: 0em;
+	--typo-heading--color-light: inherit;
+	--typo-heading--color-dark: inherit;
+	--typo-heading--font-family: inherit;
+	--typo-heading--font-weight: bold;
+	--typo-heading--font-style: normal;
+	--typo-heading--letter-spacing: inherit;
+	--typo-anchor--color-light: var(--color-primary-500);
+	--typo-anchor--color-dark: var(--color-primary-400);
+	--typo-anchor--font-family: inherit;
+	--typo-anchor--font-size: inherit;
+	--typo-anchor--line-height: inherit;
+	--typo-anchor--font-weight: inherit;
+	--typo-anchor--font-style: inherit;
+	--typo-anchor--letter-spacing: inherit;
+	--typo-anchor--text-decoration-line: none;
+	--typo-anchor--hover--text-decoration-line: underline;
+	--typo-anchor--active--text-decoration-line: none;
+	--typo-anchor--focus--text-decoration-line: none;
+	--typo-base--font-stretch: inherit;
+	--typo-base--font-kerning: inherit;
+	--typo-base--text-shadow: inherit;
+	--typo-base--word-spacing: inherit;
+	--typo-base--hyphens: inherit;
+	--typo-base--text-transform: inherit;
+	--typo-heading--font-stretch: inherit;
+	--typo-heading--font-kerning: inherit;
+	--typo-heading--text-shadow: inherit;
+	--typo-heading--word-spacing: inherit;
+	--typo-heading--hyphens: inherit;
+	--typo-heading--text-transform: inherit;
+	--typo-anchor--font-stretch: inherit;
+	--typo-anchor--font-kerning: inherit;
+	--typo-anchor--text-shadow: inherit;
+	--typo-anchor--word-spacing: inherit;
+	--typo-anchor--hyphens: inherit;
+	--typo-anchor--text-transform: inherit;
+	--typo-anchor--text-decoration-color: inherit;
+	--typo-anchor--text-decoration-style: inherit;
+	--typo-anchor--text-decoration-thickness: inherit;
+	--typo-anchor--text-underline-offset: inherit;
+	--typo-anchor--text-underline-position: inherit;
+	--typo-anchor--hover--text-decoration-color: inherit;
+	--typo-anchor--hover--text-decoration-style: inherit;
+	--typo-anchor--hover--text-decoration-thickness: inherit;
+	--typo-anchor--hover--text-underline-offset: inherit;
+	--typo-anchor--hover--text-underline-position: inherit;
+	--typo-anchor--active--text-decoration-color: inherit;
+	--typo-anchor--active--text-decoration-style: inherit;
+	--typo-anchor--active--text-decoration-thickness: inherit;
+	--typo-anchor--active--text-underline-offset: inherit;
+	--typo-anchor--active--text-underline-position: inherit;
+	--typo-anchor--focus--text-decoration-color: inherit;
+	--typo-anchor--focus--text-decoration-style: inherit;
+	--typo-anchor--focus--text-decoration-thickness: inherit;
+	--typo-anchor--focus--text-underline-offset: inherit;
+	--typo-anchor--focus--text-underline-position: inherit;
+	--default-outline-width: 1px;
+	--corner-shape-base: initial;
+	--corner-shape-container: initial;
+	--color-brand-light: var(--color-primary-500);
+	--color-brand-contrast-light: var(--color-primary-contrast-500);
+	--color-brand-dark: var(--color-primary-500);
+	--color-brand-contrast-dark: var(--color-primary-contrast-500);
+	--spacing: 0.25rem;
+	--radius-base: 0.25rem;
+	--radius-container: 0.25rem;
+	--default-border-width: 1px;
+	--default-ring-width: 1px;
+	--color-root-bg-light: var(--color-surface-50);
+	--color-root-bg-dark: var(--color-surface-950);
+	--color-primary-50: oklch(93.65% 0.03 243.69deg);
+	--color-primary-100: oklch(86.69% 0.07 243.91deg);
+	--color-primary-200: oklch(79.91% 0.1 243.88deg);
+	--color-primary-300: oklch(73.4% 0.14 246.26deg);
+	--color-primary-400: oklch(67.62% 0.17 248.53deg);
+	--color-primary-500: oklch(62.66% 0.19 252.79deg);
+	--color-primary-600: oklch(57.89% 0.18 252.67deg);
+	--color-primary-700: oklch(53.02% 0.16 252.52deg);
+	--color-primary-800: oklch(48.21% 0.14 251.62deg);
+	--color-primary-900: oklch(43.1% 0.13 251.24deg);
+	--color-primary-950: oklch(37.83% 0.11 250.7deg);
+	--color-primary-contrast-dark: var(--color-primary-950);
+	--color-primary-contrast-light: var(--color-primary-50);
+	--color-primary-contrast-50: var(--color-primary-contrast-dark);
+	--color-primary-contrast-100: var(--color-primary-contrast-dark);
+	--color-primary-contrast-200: var(--color-primary-contrast-dark);
+	--color-primary-contrast-300: var(--color-primary-contrast-dark);
+	--color-primary-contrast-400: var(--color-primary-contrast-dark);
+	--color-primary-contrast-500: var(--color-primary-contrast-light);
+	--color-primary-contrast-600: var(--color-primary-contrast-light);
+	--color-primary-contrast-700: var(--color-primary-contrast-light);
+	--color-primary-contrast-800: var(--color-primary-contrast-light);
+	--color-primary-contrast-900: var(--color-primary-contrast-light);
+	--color-primary-contrast-950: var(--color-primary-contrast-light);
+	--color-secondary-50: oklch(96.07% 0.03 207.96deg);
+	--color-secondary-100: oklch(91.96% 0.07 208.51deg);
+	--color-secondary-200: oklch(88.28% 0.1 209.06deg);
+	--color-secondary-300: oklch(85.19% 0.12 210.25deg);
+	--color-secondary-400: oklch(82.65% 0.14 212.18deg);
+	--color-secondary-500: oklch(80.64% 0.14 215.16deg);
+	--color-secondary-600: oklch(74.37% 0.13 215.38deg);
+	--color-secondary-700: oklch(67.92% 0.12 215deg);
+	--color-secondary-800: oklch(61.61% 0.11 214.39deg);
+	--color-secondary-900: oklch(54.83% 0.1 213.72deg);
+	--color-secondary-950: oklch(47.88% 0.08 213.85deg);
+	--color-secondary-contrast-dark: var(--color-secondary-950);
+	--color-secondary-contrast-light: var(--color-secondary-50);
+	--color-secondary-contrast-50: var(--color-secondary-contrast-dark);
+	--color-secondary-contrast-100: var(--color-secondary-contrast-dark);
+	--color-secondary-contrast-200: var(--color-secondary-contrast-dark);
+	--color-secondary-contrast-300: var(--color-secondary-contrast-dark);
+	--color-secondary-contrast-400: var(--color-secondary-contrast-dark);
+	--color-secondary-contrast-500: var(--color-secondary-contrast-dark);
+	--color-secondary-contrast-600: var(--color-secondary-contrast-dark);
+	--color-secondary-contrast-700: var(--color-secondary-contrast-light);
+	--color-secondary-contrast-800: var(--color-secondary-contrast-light);
+	--color-secondary-contrast-900: var(--color-secondary-contrast-light);
+	--color-secondary-contrast-950: var(--color-secondary-contrast-light);
+	--color-tertiary-50: oklch(90.13% 0.01 247.9deg);
+	--color-tertiary-100: oklch(78.73% 0.02 248.04deg);
+	--color-tertiary-200: oklch(66.65% 0.03 249.97deg);
+	--color-tertiary-300: oklch(54.38% 0.04 249.83deg);
+	--color-tertiary-400: oklch(41.21% 0.05 251.1deg);
+	--color-tertiary-500: oklch(27.79% 0.07 252.85deg);
+	--color-tertiary-600: oklch(26.14% 0.06 252.83deg);
+	--color-tertiary-700: oklch(24.39% 0.06 251.99deg);
+	--color-tertiary-800: oklch(22.35% 0.05 252.72deg);
+	--color-tertiary-900: oklch(20.53% 0.05 251.37deg);
+	--color-tertiary-950: oklch(18.73% 0.04 250.69deg);
+	--color-tertiary-contrast-dark: var(--color-tertiary-950);
+	--color-tertiary-contrast-light: var(--color-tertiary-50);
+	--color-tertiary-contrast-50: var(--color-tertiary-contrast-dark);
+	--color-tertiary-contrast-100: var(--color-tertiary-contrast-dark);
+	--color-tertiary-contrast-200: var(--color-tertiary-contrast-dark);
+	--color-tertiary-contrast-300: var(--color-tertiary-contrast-dark);
+	--color-tertiary-contrast-400: var(--color-tertiary-contrast-light);
+	--color-tertiary-contrast-500: var(--color-tertiary-contrast-light);
+	--color-tertiary-contrast-600: var(--color-tertiary-contrast-light);
+	--color-tertiary-contrast-700: var(--color-tertiary-contrast-light);
+	--color-tertiary-contrast-800: var(--color-tertiary-contrast-light);
+	--color-tertiary-contrast-900: var(--color-tertiary-contrast-light);
+	--color-tertiary-contrast-950: var(--color-tertiary-contrast-light);
+	--color-success-50: oklch(96.15% 0.04 123.64deg);
+	--color-success-100: oklch(91.85% 0.08 124.79deg);
+	--color-success-200: oklch(87.93% 0.12 126.24deg);
+	--color-success-300: oklch(83.94% 0.16 127.29deg);
+	--color-success-400: oklch(80.39% 0.19 128.93deg);
+	--color-success-500: oklch(76.81% 0.2 130.85deg);
+	--color-success-600: oklch(70.9% 0.19 130.64deg);
+	--color-success-700: oklch(64.8% 0.17 130.64deg);
+	--color-success-800: oklch(58.88% 0.15 130.5deg);
+	--color-success-900: oklch(52.47% 0.14 130.49deg);
+	--color-success-950: oklch(45.93% 0.12 130.07deg);
+	--color-success-contrast-dark: var(--color-success-950);
+	--color-success-contrast-light: var(--color-success-50);
+	--color-success-contrast-50: var(--color-success-contrast-dark);
+	--color-success-contrast-100: var(--color-success-contrast-dark);
+	--color-success-contrast-200: var(--color-success-contrast-dark);
+	--color-success-contrast-300: var(--color-success-contrast-dark);
+	--color-success-contrast-400: var(--color-success-contrast-dark);
+	--color-success-contrast-500: var(--color-success-contrast-dark);
+	--color-success-contrast-600: var(--color-success-contrast-dark);
+	--color-success-contrast-700: var(--color-success-contrast-light);
+	--color-success-contrast-800: var(--color-success-contrast-light);
+	--color-success-contrast-900: var(--color-success-contrast-light);
+	--color-success-contrast-950: var(--color-success-contrast-light);
+	--color-warning-50: oklch(96.66% 0.04 92.8deg);
+	--color-warning-100: oklch(92.85% 0.07 92.93deg);
+	--color-warning-200: oklch(89.28% 0.11 92.19deg);
+	--color-warning-300: oklch(85.8% 0.14 91.57deg);
+	--color-warning-400: oklch(82.61% 0.16 89.43deg);
+	--color-warning-500: oklch(79.53% 0.16 86.04deg);
+	--color-warning-600: oklch(73.44% 0.15 86.42deg);
+	--color-warning-700: oklch(67.23% 0.14 86.89deg);
+	--color-warning-800: oklch(60.78% 0.12 86.11deg);
+	--color-warning-900: oklch(54.25% 0.11 86.67deg);
+	--color-warning-950: oklch(47.51% 0.1 87.45deg);
+	--color-warning-contrast-dark: var(--color-warning-950);
+	--color-warning-contrast-light: var(--color-warning-50);
+	--color-warning-contrast-50: var(--color-warning-contrast-dark);
+	--color-warning-contrast-100: var(--color-warning-contrast-dark);
+	--color-warning-contrast-200: var(--color-warning-contrast-dark);
+	--color-warning-contrast-300: var(--color-warning-contrast-dark);
+	--color-warning-contrast-400: var(--color-warning-contrast-dark);
+	--color-warning-contrast-500: var(--color-warning-contrast-dark);
+	--color-warning-contrast-600: var(--color-warning-contrast-dark);
+	--color-warning-contrast-700: var(--color-warning-contrast-light);
+	--color-warning-contrast-800: var(--color-warning-contrast-light);
+	--color-warning-contrast-900: var(--color-warning-contrast-light);
+	--color-warning-contrast-950: var(--color-warning-contrast-light);
+	--color-error-50: oklch(92.42% 0.04 348.1deg);
+	--color-error-100: oklch(83.94% 0.08 348.39deg);
+	--color-error-200: oklch(75.74% 0.12 349.39deg);
+	--color-error-300: oklch(68.16% 0.17 351.73deg);
+	/* the text-relevant reds lift on dark, where the light-tuned steps lose contrast; ordering kept */
+	--color-error-400: light-dark(oklch(61.78% 0.2 354.34deg), oklch(71% 0.19 354.34deg));
+	--color-error-500: light-dark(oklch(57.22% 0.22 358.61deg), oklch(67% 0.2 358.61deg));
+	--color-error-600: light-dark(oklch(52.78% 0.2 358.29deg), oklch(62.5% 0.2 358.29deg));
+	--color-error-700: light-dark(oklch(48.48% 0.19 358.24deg), oklch(58% 0.19 358.24deg));
+	--color-error-800: oklch(43.85% 0.17 357.8deg);
+	--color-error-900: oklch(39.34% 0.15 357.68deg);
+	--color-error-950: oklch(34.45% 0.13 356.99deg);
+	--color-error-contrast-dark: var(--color-error-950);
+	--color-error-contrast-light: var(--color-error-50);
+	--color-error-contrast-50: var(--color-error-contrast-dark);
+	--color-error-contrast-100: var(--color-error-contrast-dark);
+	--color-error-contrast-200: var(--color-error-contrast-dark);
+	--color-error-contrast-300: var(--color-error-contrast-dark);
+	--color-error-contrast-400: var(--color-error-contrast-light);
+	--color-error-contrast-500: var(--color-error-contrast-light);
+	--color-error-contrast-600: var(--color-error-contrast-light);
+	--color-error-contrast-700: var(--color-error-contrast-light);
+	--color-error-contrast-800: var(--color-error-contrast-light);
+	--color-error-contrast-900: var(--color-error-contrast-light);
+	--color-error-contrast-950: var(--color-error-contrast-light);
+	--color-surface-50: oklch(98.51% 0 none);
+	--color-surface-100: oklch(91.74% 0.01 247.84deg);
+	--color-surface-200: oklch(84.85% 0.01 247.93deg);
+	--color-surface-300: oklch(77.88% 0.01 248deg);
+	--color-surface-400: oklch(70.7% 0.02 248.11deg);
+	--color-surface-500: oklch(63.35% 0.03 248.24deg);
+	--color-surface-600: oklch(58.65% 0.02 246.06deg);
+	--color-surface-700: oklch(53.86% 0.02 243.22deg);
+	--color-surface-800: oklch(48.84% 0.02 251.01deg);
+	--color-surface-900: oklch(43.81% 0.02 248.2deg);
+	--color-surface-950: oklch(38.63% 0.01 243.95deg);
+	--color-surface-contrast-dark: var(--color-surface-950);
+	--color-surface-contrast-light: var(--color-surface-50);
+	--color-surface-contrast-50: var(--color-surface-contrast-dark);
+	--color-surface-contrast-100: var(--color-surface-contrast-dark);
+	--color-surface-contrast-200: var(--color-surface-contrast-dark);
+	--color-surface-contrast-300: var(--color-surface-contrast-dark);
+	--color-surface-contrast-400: var(--color-surface-contrast-dark);
+	--color-surface-contrast-500: var(--color-surface-contrast-light);
+	--color-surface-contrast-600: var(--color-surface-contrast-light);
+	--color-surface-contrast-700: var(--color-surface-contrast-light);
+	--color-surface-contrast-800: var(--color-surface-contrast-light);
+	--color-surface-contrast-900: var(--color-surface-contrast-light);
+	--color-surface-contrast-950: var(--color-surface-contrast-light);
+
+	/* Texpile's own colours, beside Skeleton's families. Each is the exact value the app painted
+	   before it was themeable, so this theme looks unchanged and another theme overrides them.
+	   light-dark() pairs follow data-mode through color-scheme (app.css). */
+
+	/* CodeMirror syntax roles (cmHighlight.ts): GitHub Primer hues, one per mode */
+	--syntax-comment: light-dark(#59636e, #9198a1);
+	--syntax-keyword: light-dark(#cf222e, #ff7b72);
+	--syntax-import: light-dark(#8250df, #d2a8ff);
+	--syntax-command: light-dark(#0550ae, #79c0ff);
+	--syntax-math-ident: light-dark(#1b7c83, #56d4dd);
+	--syntax-math-text: light-dark(#116329, #7ee787);
+	--syntax-literal: light-dark(#953800, #ffa657);
+	--syntax-string: light-dark(#0a3069, #a5d6ff);
+	--syntax-url: light-dark(#0969da, #58a6ff);
+	--syntax-monospace: light-dark(#7d4e00, #e3b341);
+	--syntax-operator: light-dark(#bf3989, #f778ba);
+	--syntax-inserted: light-dark(#116329, #7ee787);
+	--syntax-deleted: light-dark(#82071e, #ffa198);
+
+	/* find-in-document matches, both editors */
+	--find-match-bg: light-dark(rgba(255, 255, 0, 0.4), rgba(255, 255, 0, 0.25));
+	--find-match-active-bg: light-dark(rgba(255, 128, 0, 0.6), rgba(255, 128, 0, 0.4));
+
+	/* spell and grammar underlines (suggestion.css), one hue per proofread category */
+	--proof-default: #14b8a6;
+	--proof-spelling: #ff0000;
+	--proof-typo: #ff0000;
+	--proof-capitalization: #ff8c00;
+	--proof-wordchoice: #0064ff;
+	--proof-style: #9333ea;
+	--proof-repetition: #eab308;
+
+	/* review comments: the thread tint, and the selection a composer is open for */
+	--comment-tint: rgb(234, 179, 8);
+	--comment-pending-tint: rgb(59, 130, 246);
+
+	/* the "you are here" flash after a SyncTeX, mode-switch or reference jump */
+	--jump-flash: rgb(255, 196, 0);
+	/* draft mode: the band around the paragraph being edited */
+	--draft-band: oklch(90.5% 0.182 98.111);
+
+	/* suggestion and agent diff tints in the visual editor */
+	--diff-insert-tint: rgb(74, 222, 128);
+	--diff-delete-tint: rgb(239, 68, 68);
+	--diff-highlight-tint: rgb(250, 204, 21);
+
+	/* \ref and \cite chips */
+	--ref-fg: light-dark(oklch(54.6% 0.245 262.881), oklch(70.7% 0.165 254.624));
+	--ref-bg: light-dark(oklch(97% 0.014 254.604), oklch(28.2% 0.091 267.935));
+	--ref-broken-fg: light-dark(oklch(50.5% 0.213 27.518), oklch(70.4% 0.191 22.216));
+	--ref-broken-bg: light-dark(oklch(97.1% 0.013 17.38), oklch(25.8% 0.092 26.042));
+
+	/* git status, carried by the file name's colour */
+	--git-modified: oklch(76.9% 0.188 70.08);
+	--git-added: oklch(72.3% 0.219 149.579);
+	--git-deleted: oklch(63.7% 0.237 25.331);
+	--git-renamed: oklch(60.6% 0.25 292.717);
+
+	/* math symbol keys */
+	--math-key-edge: oklch(70.7% 0.165 254.624);
+
+	/* the colour picker's clear mark */
+	--swatch-clear: oklch(63.7% 0.237 25.331);
+	/* page view: the sheet behind the document */
+	--page-sheet: light-dark(#fff, oklch(98.5% 0.002 247.839));
+	/* an empty math field, and one about to be deleted */
+	--math-empty-tint: rgb(239, 68, 68);
+	--mathfield-focus-border: light-dark(var(--color-surface-950), var(--color-surface-400));
+	/* the selected block's outline while the context menu is open */
+	--selected-node-outline: #8cf;
+	/* a peer's cursor label when it carries no colour of its own */
+	--collab-cursor-fallback: rgb(250, 129, 0);
+	/* the source editor's math preview: its control buttons on hover */
+	--math-preview-btn-hover: rgba(128, 128, 128, 0.18);
+	/* the image resize frame */
+	--image-frame: light-dark(#000, #fff);
+	/* the terminal; xterm reads these through themeColour() */
+	--terminal-bg: light-dark(var(--color-surface-50), var(--color-surface-950));
+	--terminal-fg: light-dark(var(--color-surface-950), var(--color-surface-50));
+	/* the brand blue and the one legacy grey still referenced (@theme aliases in app.css) */
+	--brand-blue: #0088f7;
+	--brand-gray: #d0d4e9;
+
+	/* the PDF pane's chrome lives in texpile-tokens.css. It used to be duplicated here too, and
+	   [data-theme] outranks that file's html block, so every edit there was silently overridden */
+}

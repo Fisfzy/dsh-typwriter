@@ -1,0 +1,69 @@
+// Rescanning the workspace tree, and the follow-on work every rescan implies.
+//
+// The tree is a snapshot rather than a live view, so this runs on window focus and on the file
+// service's change and operation events. Keeping the session manifest sync and the git refresh
+// here means every trigger gets them for free from a single call site.
+import { fileService } from '$lib/files/service/fileService';
+import { workspaceRoot, fileTree, texFiles } from '$lib/workspace/workspaceStore';
+import { tabs } from '$lib/workspace/tabs.svelte';
+import { refreshGitStatus, takeNoGitHint } from '$lib/workspace/scm/gitStore';
+import { capsOf } from '$lib/workspace/fileMode.svelte';
+import { toaster } from '$lib/modals/toaster-svelte';
+import { m } from '$lib/paraglide/messages';
+import type { TreeEntry } from '$lib/workspace/fileSystem';
+import type { WorkspaceProvider } from '$lib/workspace/workspaceProvider';
+import type { EditSession } from '$lib/collab/editSession';
+
+/** every file path in the tree, flattened, for pruning tabs whose file vanished */
+export function flatFiles(es: TreeEntry[]): string[] {
+	return es.flatMap((e) => (e.type === 'dir' ? flatFiles(e.children ?? []) : [e.path]));
+}
+
+export type TreeRefreshDeps = {
+	provider: WorkspaceProvider;
+	session: EditSession;
+	/** don't rebuild while the user is typing a name in the tree: a refresh would tear the inline
+	 * input down mid-edit. It rescans once they commit. */
+	isEditingTree(): boolean;
+};
+
+export async function refreshTree(deps: TreeRefreshDeps): Promise<void> {
+	const { provider, session } = deps;
+	const root = workspaceRoot.current;
+	if (!root) return;
+	if (deps.isEditingTree()) return;
+	// a lone file: no tree to show and no repository to follow (auto-fetch, change bars), and its folder may be Downloads.
+	// Cleared rather than skipped, for a window that had a repository open before
+	if (!capsOf(provider).project) {
+		fileTree.current = [];
+		void refreshGitStatus(null);
+		return;
+	}
+
+	try {
+		const { children, files } = await fileService.scanTreeAndFiles(root);
+		fileTree.current = children;
+		tabs.prune(flatFiles(children)); // tabs for files that vanished (remote deletes, external rm)
+		texFiles.current = files;
+	} catch (e) {
+		console.error('Failed to read folder tree:', e);
+	}
+
+	// shared session: the manifest mirrors the tree, same single call-site trick
+	void session.syncTree();
+
+	refreshScm(provider);
+}
+
+/** Source Control's changes; a save changes them without changing the tree */
+export function refreshScm(provider: WorkspaceProvider): void {
+	const root = workspaceRoot.current;
+	// Guests have no disk and no repo, and this runs on every manifest change, so don't spawn git
+	// per remote file op. The refresh is non-blocking and never throws.
+	if (!root || !capsOf(provider).project || !capsOf(provider).git) return;
+	void refreshGitStatus(root).then(({ missingGit }) => {
+		if (missingGit && takeNoGitHint()) {
+			toaster.warning({ title: m.wsview_toast_no_git_title(), description: m.wsview_toast_no_git_desc() });
+		}
+	});
+}

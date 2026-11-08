@@ -1,0 +1,27 @@
+{
+	"version": 1,
+	"deps": [
+		{"id":"packages/xparse"},
+		{"id":"packages/graphicx"},
+		{"id":"packages/keyval"},
+		{"id":"packages/graphics"},
+		{"id":"packages/trig"},
+		{"id":"packages/greek6cbc"},
+		{"id":"packages/greek4cbc"},
+		{"id":"packages/iftex"}
+	],
+	"macros": [
+		{"name":"boustrophedon","args":[{"kind":"o","keys":["packages/boustrophedon#boustro"]},{"kind":"m"}]},
+		{"name":"boustrophedonAny","args":[{"kind":"m"}]},
+		{"name":"boustrophedonArchaic","args":[{"kind":"m"}]},
+		{"name":"boustrophedonClassical","args":[{"kind":"m"}]},
+		{"name":"startBoustrophedon","args":[{"kind":"o","placeholder":"keys"}]},
+		{"name":"startBoustrophedonAny"},
+		{"name":"startBoustrophedonArchaic"},
+		{"name":"startBoustrophedonClassical"},
+		{"name":"stopBoustrophedon"}
+	],
+	"keys": {
+		"packages/boustrophedon#boustro": [{"key":"ObscureLetters","values":["Off","On"]},{"key":"resetDirection","values":["Page","Paragraph"]},{"key":"digammaAndKoppa","values":["Off","On"]},{"key":"inLine","values":["False","True","false","true"]},{"key":"inline","values":["False","True","false","true"]},{"key":"reset","values":["page","paragraph"]},{"key":"start","values":["LTR","RTL"]},{"key":"Type","values":["Any","Archaic","Classical"]},{"key":"LineWidth","placeholder":"length"}]
+	}
+}

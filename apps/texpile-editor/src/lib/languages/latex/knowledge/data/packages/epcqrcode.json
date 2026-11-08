@@ -1,0 +1,16 @@
+{
+	"version": 1,
+	"deps": [
+		{"id":"packages/qrcode"},
+		{"id":"packages/xcolor"},
+		{"id":"packages/xkeyval"},
+		{"id":"packages/xstring"},
+		{"id":"packages/calculator"}
+	],
+	"macros": [
+		{"name":"epcqr","args":[{"kind":"m","placeholder":"keys","keys":["packages/epcqrcode#epcqr"]}]}
+	],
+	"keys": {
+		"packages/epcqrcode#epcqr": [{"key":"bic","placeholder":""},{"key":"ref","placeholder":""},{"key":"iban","placeholder":""},{"key":"name","placeholder":""},{"key":"text","placeholder":""},{"key":"information","placeholder":""},{"key":"charset","placeholder":""},{"key":"amount","placeholder":"number"},{"key":"reason","placeholder":""}]
+	}
+}

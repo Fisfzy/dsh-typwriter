@@ -1,0 +1,23 @@
+{
+	"version": 1,
+	"deps": [
+		{"id":"packages/keyval"}
+	],
+	"macros": [
+		{"name":"polyadd","args":[{"kind":"m","placeholder":"a+b"},{"kind":"m","placeholder":"polynomial a"},{"kind":"m","placeholder":"polynomial b"}]},
+		{"name":"polydiv","args":[{"kind":"m","placeholder":"a/b"},{"kind":"m","placeholder":"polynomial a"},{"kind":"m","placeholder":"polynomial b"}]},
+		{"name":"polyfactorize","args":[{"kind":"m","placeholder":"polynomial"}],"doc":"The command prints a factorization of the polynomial as long as all except two roots are rational, see figure 3."},
+		{"name":"polygcd","args":[{"kind":"m","placeholder":"gcd"},{"kind":"m","placeholder":"polynomial a"},{"kind":"m","placeholder":"polynomial b"}]},
+		{"name":"polyhornerscheme","args":[{"kind":"o","placeholder":"key=value list","keys":["packages/polynom#keyval:pld"]},{"kind":"m","placeholder":"polynomial"}],"doc":"The command prints Horner’s scheme for the given polynomial with respect to the specified evaluation point."},
+		{"name":"polylongdiv","args":[{"kind":"o","placeholder":"key=value list","keys":["packages/polynom#keyval:pld"]},{"kind":"m","placeholder":"polynomial a"},{"kind":"m","placeholder":"polynomial b"}]},
+		{"name":"polylonggcd","args":[{"kind":"o","placeholder":"key=value list","keys":["packages/polynom#keyval:pld"]},{"kind":"m","placeholder":"polynomial a"},{"kind":"m","placeholder":"polynomial b"}]},
+		{"name":"polymul","args":[{"kind":"m","placeholder":"ab"},{"kind":"m","placeholder":"polynomial a"},{"kind":"m","placeholder":"polynomial b"}]},
+		{"name":"polyprint","args":[{"kind":"m","placeholder":"polynomial"}]},
+		{"name":"polyremainder"},
+		{"name":"polyset","args":[{"kind":"m","placeholder":"key=value list","keys":["packages/polynom#keyval:pld"]}],"doc":"\\polyset changes the settings for the rest of the current environment or group."},
+		{"name":"polysub","args":[{"kind":"m","placeholder":"a-b"},{"kind":"m","placeholder":"polynomial a"},{"kind":"m","placeholder":"polynomial b"}]}
+	],
+	"keys": {
+		"packages/polynom#keyval:pld": [{"key":"X","placeholder":""},{"key":"arraycolsep","placeholder":""},{"key":"arrayrowsep","placeholder":""},{"key":"delims","placeholder":""},{"key":"div","placeholder":""},{"key":"resultstyle","placeholder":""},{"key":"stage","placeholder":"number"},{"key":"tutorlimit","placeholder":"number"},{"key":"tutorstyle","placeholder":""},{"key":"vars","placeholder":""},{"key":"x","placeholder":""},{"key":"style","placeholder":""},{"key":"showbase","bare":true,"placeholder":""},{"key":"showvar","bare":true,"placeholder":""},{"key":"showbasesep","bare":true,"placeholder":""},{"key":"showmiddlerow","bare":true,"placeholder":""},{"key":"resultleftrule","bare":true,"placeholder":""},{"key":"resultrightrule","bare":true,"placeholder":""},{"key":"resultbottomrule","bare":true,"placeholder":""},{"key":"equalcolwidths","bare":true,"placeholder":""},{"key":"tutor","bare":true,"placeholder":""},{"key":"plusface","placeholder":""},{"key":"diagarrow","placeholder":""},{"key":"downarrow","placeholder":""},{"key":"mul","placeholder":""},{"key":"diagarrowxoffset","placeholder":"length"},{"key":"plusyoffset","placeholder":"length"},{"key":"downarrowxoffset","placeholder":"length"}]
+	}
+}

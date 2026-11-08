@@ -1,0 +1,268 @@
+# Build Texpile installers for all three OSes; a version tag (v*) also publishes to R2 and creates
+# a binary-free GitHub release (notes + download link; distribution is texpile.com, not GitHub).
+# publish-r2 also ships the electron-updater feed: latest*.yml at the bucket root (served by
+# updates.texpile.com) with file urls pointing at the immutable v<version>/ binaries + blockmaps.
+#
+# Windows always signs with Azure Trusted Signing (AZURE_* repo variables + secrets); macOS always
+# signs (Developer ID) and notarizes (MACOS_CSC_*/APPLE_* secrets). Linux always builds unsigned
+# (no distribution-wide signing convention there). Signing is injected as env vars/CLI overrides
+# here (not electron-builder.yml) so local `pnpm dist` stays unsigned and needs no credentials.
+# electron-builder reads CSC_LINK/CSC_KEY_PASSWORD directly (it auto-detects raw base64 content
+# and manages its own temporary signing keychain); notarization only needs APPLE_API_KEY/_ID/_ISSUER
+# as env vars, no explicit config, since @electron/notarize's `--key` arg must be a real file path,
+# not the secret's base64 content, it's decoded to a temp file first.
+name: release
+
+on:
+  workflow_dispatch:
+    inputs:
+      publish_r2:
+        description: 'Also upload the installers to the R2 downloads bucket'
+        type: boolean
+        default: false
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write # github release perm
+
+jobs:
+  test:
+    uses: ./.github/workflows/test.yml
+
+  build:
+    needs: test
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            artifacts: |
+              release/*.exe
+              release/*.blockmap
+              release/latest.yml
+          - os: windows-latest
+            variant: portable
+            artifacts: |
+              release/*-portable.zip
+          - os: macos-15
+            artifacts: |
+              release/*.dmg
+              release/*.zip
+              release/*.blockmap
+              release/latest-mac.yml
+          - os: ubuntu-latest
+            artifacts: |
+              release/*.AppImage
+              release/*.deb
+              release/latest-linux.yml
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - id: ver
+        run: echo "v=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+        shell: bash
+
+      - name: Write release notes for the updater feed
+        run: node apps/texpile-editor/scripts/release-notes.mjs > release-notes.md
+        shell: bash
+
+      - name: Set up Azure Trusted Signing (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Install-PSResource -Name TrustedSigning -Version '[0.5.0,)' -Repository PSGallery -TrustRepository -Scope CurrentUser -ErrorAction Stop
+          # import here too: a module that installs but won't load should fail this step, not the build
+          Import-Module TrustedSigning -MinimumVersion 0.5.0 -ErrorAction Stop
+          Write-Host "TrustedSigning $((Get-Module TrustedSigning).Version) ready"
+
+      - name: Build & sign installer (Windows / Azure Trusted Signing)
+        if: runner.os == 'Windows' && matrix.variant != 'portable'
+        shell: pwsh
+        run: >
+          pnpm dist
+          --config.releaseInfo.releaseNotesFile=release-notes.md
+          --config.win.azureSignOptions.endpoint=${{ vars.AZURE_ENDPOINT }}
+          --config.win.azureSignOptions.codeSigningAccountName=${{ vars.AZURE_CODE_SIGNING_ACCOUNT }}
+          --config.win.azureSignOptions.certificateProfileName=${{ vars.AZURE_CERT_PROFILE }}
+          "--config.win.azureSignOptions.publisherName=Texpile LLC"
+          --config.win.azureSignOptions.timestampRfc3161=http://timestamp.acs.microsoft.com
+          --config.win.azureSignOptions.timestampDigest=SHA256
+        env:
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+
+      - name: Build & sign portable zip (Windows / Azure Trusted Signing)
+        if: runner.os == 'Windows' && matrix.variant == 'portable'
+        shell: pwsh
+        run: >
+          pnpm dist:portable
+          --config.releaseInfo.releaseNotesFile=release-notes.md
+          --config.win.azureSignOptions.endpoint=${{ vars.AZURE_ENDPOINT }}
+          --config.win.azureSignOptions.codeSigningAccountName=${{ vars.AZURE_CODE_SIGNING_ACCOUNT }}
+          --config.win.azureSignOptions.certificateProfileName=${{ vars.AZURE_CERT_PROFILE }}
+          "--config.win.azureSignOptions.publisherName=Texpile LLC"
+          --config.win.azureSignOptions.timestampRfc3161=http://timestamp.acs.microsoft.com
+          --config.win.azureSignOptions.timestampDigest=SHA256
+        env:
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+
+      - name: Build & sign installer (macOS / Developer ID + notarization)
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          echo "$APPLE_API_KEY_BASE64" | base64 --decode > "$RUNNER_TEMP/apple_api_key.p8"
+          export APPLE_API_KEY="$RUNNER_TEMP/apple_api_key.p8"
+          pnpm dist --config.releaseInfo.releaseNotesFile=release-notes.md
+        env:
+          CSC_LINK: ${{ secrets.MACOS_CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.MACOS_CSC_PASSWORD }}
+          APPLE_API_KEY_BASE64: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+
+      - name: Build installer (Linux, unsigned)
+        if: runner.os == 'Linux'
+        run: pnpm dist --config.releaseInfo.releaseNotesFile=release-notes.md
+
+      # the runner's glibc must never become the app's floor (1.6.0 needed GLIBC_2.42)
+      - name: Check native modules need glibc 2.28 at most (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          found=0; bad=0
+          for f in $(find release/linux-unpacked -name '*.node'); do
+            found=1
+            v=$(objdump -T "$f" | grep -oE 'GLIBC_[0-9.]+' | sed 's/^GLIBC_//' | sort -V | tail -1)
+            echo "$f needs GLIBC_$v"
+            if [ "$(printf '%s\n2.28\n' "$v" | sort -V | tail -1)" != "2.28" ]; then echo "::error::$f needs GLIBC_$v"; bad=1; fi
+          done
+          [ "$found" = 1 ] || { echo "::error::no native modules in release/linux-unpacked"; exit 1; }
+          [ "$bad" = 0 ]
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: texpile-${{ runner.os }}${{ matrix.variant && format('-{0}', matrix.variant) || '' }}-v${{ steps.ver.outputs.v }}
+          path: ${{ matrix.artifacts }}
+          if-no-files-found: error
+
+  publish-r2:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v') || inputs.publish_r2
+    runs-on: ubuntu-latest
+    environment: CICD
+    env:
+      BUCKET: texpile-releases # must match the bucket name created in the Cloudflare dashboard
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: texpile-*
+          merge-multiple: true
+          path: dist
+
+      - name: Verify artifacts and rewrite updater feed urls
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          missing=0
+          for f in "Texpile-Setup-$VERSION.exe" "Texpile-Setup-$VERSION.exe.blockmap" "Texpile-$VERSION-portable.zip" \
+                   "Texpile-$VERSION.dmg" "Texpile-$VERSION.zip" "Texpile-$VERSION.zip.blockmap" \
+                   "Texpile-$VERSION.AppImage" "texpile-$VERSION.deb" \
+                   latest.yml latest-mac.yml latest-linux.yml; do
+            [ -f "dist/$f" ] || { echo "::error::missing artifact dist/$f"; missing=1; }
+          done
+          [ "$missing" = 0 ]
+          node apps/texpile-editor/scripts/update-yml.mjs dist/latest.yml dist/latest-mac.yml dist/latest-linux.yml
+          ls -la dist
+
+      - name: Write latest.json
+        run: |
+          node apps/texpile-editor/scripts/latest-json.mjs > dist/latest.json
+          cat dist/latest.json
+
+      - name: Upload to R2
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          put() { npx wrangler@4 r2 object put "$BUCKET/$1" --file "$2" --remote --content-type "$3"; }
+          put "v$VERSION/Texpile-Setup-$VERSION.exe" "dist/Texpile-Setup-$VERSION.exe" application/octet-stream
+          put "v$VERSION/Texpile-$VERSION-portable.zip" "dist/Texpile-$VERSION-portable.zip" application/zip
+          put "v$VERSION/Texpile-$VERSION.dmg" "dist/Texpile-$VERSION.dmg" application/octet-stream
+          put "v$VERSION/Texpile-$VERSION.AppImage" "dist/Texpile-$VERSION.AppImage" application/octet-stream
+          put "v$VERSION/texpile-$VERSION.deb" "dist/texpile-$VERSION.deb" application/octet-stream
+          put "v$VERSION/Texpile-$VERSION.zip" "dist/Texpile-$VERSION.zip" application/zip
+          put "v$VERSION/Texpile-Setup-$VERSION.exe.blockmap" "dist/Texpile-Setup-$VERSION.exe.blockmap" application/octet-stream
+          put "v$VERSION/Texpile-$VERSION.zip.blockmap" "dist/Texpile-$VERSION.zip.blockmap" application/octet-stream
+          put "Texpile-Setup.exe" "dist/Texpile-Setup-$VERSION.exe" application/octet-stream
+          put "Texpile.dmg" "dist/Texpile-$VERSION.dmg" application/octet-stream
+          put "Texpile.AppImage" "dist/Texpile-$VERSION.AppImage" application/octet-stream
+          put "texpile.deb" "dist/texpile-$VERSION.deb" application/octet-stream
+          put "latest.yml" "dist/latest.yml" "text/yaml; charset=utf-8"
+          put "latest-mac.yml" "dist/latest-mac.yml" "text/yaml; charset=utf-8"
+          put "latest-linux.yml" "dist/latest-linux.yml" "text/yaml; charset=utf-8"
+          put "latest.json" "dist/latest.json" application/json
+
+      - name: Update versions.json
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          npx wrangler@4 r2 object get "$BUCKET/versions.json" --file dist/versions.json --remote 2>/dev/null \
+            || echo '{"versions":[]}' > dist/versions.json
+          node -e '
+            const fs = require("fs");
+            const version = process.env.VERSION;
+            let manifest;
+            try { manifest = JSON.parse(fs.readFileSync("dist/versions.json", "utf8")); } catch { manifest = null; }
+            if (!manifest || !Array.isArray(manifest.versions)) manifest = { versions: [] };
+            const entry = JSON.parse(fs.readFileSync("dist/latest.json", "utf8"));
+            manifest.versions = manifest.versions.filter((v) => v.version !== version);
+            manifest.versions.unshift(entry);
+            // retention: the newest STABLE major line and its latest 3 minor series, plus any
+            // prerelease ahead of the newest stable (an rc must not evict the 0.x list). The
+            // v<version>/ binaries stay in R2 forever regardless (blockmaps reference them) delete manually
+            const core = (v) => v.version.split("-")[0].split(".").map(Number);
+            const gt = (a, b) => (a[0] !== b[0] ? a[0] > b[0] : a[1] !== b[1] ? a[1] > b[1] : a[2] > b[2]);
+            const stable = manifest.versions.filter((v) => !v.version.includes("-"));
+            const newest = stable.map(core).sort((a, b) => (gt(a, b) ? -1 : gt(b, a) ? 1 : 0))[0] ?? [-1, 0, 0];
+            const minors = [...new Set(stable.filter((v) => core(v)[0] === newest[0]).map((v) => core(v)[1]))]
+              .sort((a, b) => b - a)
+              .slice(0, 3);
+            manifest.versions = manifest.versions.filter((v) =>
+              v.version.includes("-") ? gt(core(v), newest) : core(v)[0] === newest[0] && minors.includes(core(v)[1])
+            );
+            fs.writeFileSync("dist/versions.json", JSON.stringify(manifest, null, 2));
+          '
+          cat dist/versions.json
+          npx wrangler@4 r2 object put "$BUCKET/versions.json" --file dist/versions.json --remote --content-type application/json
+
+      - name: Publish GitHub release (notes + download link, no binaries)
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          { echo "Download installers: https://texpile.com/download"; echo; \
+            node apps/texpile-editor/scripts/release-notes.mjs | sed 's/^/- /'; } > body.md
+          gh release create "$GITHUB_REF_NAME" --title "Texpile $GITHUB_REF_NAME" --notes-file body.md             $([[ "$GITHUB_REF_NAME" == *-* ]] && echo --prerelease)
+
+  # the browser guest follows the desktop release; join.yml itself skips anything but a stable tag
+  deploy-join:
+    needs: publish-r2
+    uses: ./.github/workflows/join.yml
+    secrets: inherit

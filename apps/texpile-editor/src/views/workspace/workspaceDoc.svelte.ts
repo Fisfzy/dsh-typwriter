@@ -1,0 +1,368 @@
+// The open document and its parse/mode lifecycle. Single source of truth for a .tex file:
+// its raw text (doc.texSource), the whole file. The visual editor is a view over it: entry
+// parses into doc.visualDoc + doc.docMeta, every visual edit serializes straight back into
+// doc.texSource, and source mode binds to it directly. No rival copy can drift.
+import { fileService } from '$lib/files/service/fileService';
+import { mark } from '$lib/debug/startupDoctor';
+import { untrack } from 'svelte';
+import { DocumentBuffer, fileKind, formatOf, hasVisualMode } from '$lib/workspace/documentBuffer.svelte';
+import { ViewModeSwitch } from '$lib/workspace/viewModeSwitch.svelte';
+import { DiffMode } from '$lib/workspace/diffMode.svelte';
+import { FileOpener } from '$lib/workspace/fileOpener';
+import { VisualParser, MAX_VISUAL_BYTES, type ParseFailure } from '$lib/workspace/visualParse.svelte';
+import { followParseContext } from '$lib/collab/parse/followParseContext.svelte';
+import { compileEngine } from '$lib/languages/latex/intellisense/packages/loadedPackages';
+import { gatherProjectMacros } from '$lib/workspace/project';
+import { activeCompare, activeFilePath, mainFile, workspaceRoot } from '$lib/workspace/workspaceStore';
+import { editPreambleHere, editorViewStore, sourceCmView } from '$lib/stores/editorStore';
+import { offerFileInserts } from '$lib/workspace/document/menuOffers/fileInserts';
+import { countOpenFile } from '$lib/stores/countStore.svelte';
+import { visualDocCache } from '$lib/workspace/visualDocCache';
+import type { WorkspaceProvider } from '$lib/workspace/workspaceProvider';
+import type { EditSession } from '$lib/collab/editSession';
+import type { FileWriter } from '$lib/buffers/fileWriter';
+import { fromLf } from '$lib/workspace/edits/lineEndings';
+import { snapToSavedFile } from '$lib/workspace/edits/savedFileSnap';
+import { samePath } from '$lib/workspace/fileSystem';
+import { isFileInside } from '$lib/files/identity/fileUris';
+import { toaster } from '$lib/modals/toaster-svelte';
+import { m } from '$lib/paraglide/messages';
+import { snippetStatus } from '$lib/editor/snippets/file/snippetStatus.svelte';
+import { addLocalHistory } from '$lib/workspace/localHistory/localHistory.svelte';
+import { rereadTypstProject, typstNamesNow } from '$lib/languages/typst/visual/core/scope/fileScopeNow.svelte';
+
+type DocDeps = {
+	provider: WorkspaceProvider;
+	session: () => EditSession;
+	guest: () => boolean;
+	visualCollab: () => { noteLocalEdit(): void; noteFreshParse(): void; beforeLocalEdit(): void } | null;
+	saver: () => FileWriter;
+	/** a jump asked for the incoming file survives the switch; older ones must not */
+	clearStaleGoto: (loadedPath: string | null) => void;
+	/** compare the open file against the last saved version, in a tab of its own */
+	startCompare: () => void;
+};
+
+export class WorkspaceDoc {
+	// macro-defining text from the main file's include chain, fed to the parser (see workspace/project.ts)
+	projectMacros = $state('');
+	/** files whose save the check could not parse in time, told once each */
+	private uncheckedSaves = new Set<string>();
+
+	// worker parse + sequencing live in lib/workspace/visualParse.svelte.ts
+	readonly parser = new VisualParser(() => this.projectMacros);
+	readonly doc: DocumentBuffer;
+	readonly modes: ViewModeSwitch;
+	readonly diff: DiffMode;
+	private opener: FileOpener;
+
+	constructor(private d: DocDeps) {
+		// the open file's buffers and edit handlers live in lib/workspace/documentBuffer.svelte.ts
+		this.doc = new DocumentBuffer({
+			textModel: (path) => {
+				const binding = d.session().collabFor(path);
+				return binding && { text: binding.ytext, write: (content, before) => d.session().edit(path, content, before) };
+			},
+			baselineOf: (path) => d.saver().baselineOf(path),
+			writeNow: (path, force) => void d.saver().save(path, force),
+			rebuildVisual: () => this.rebuildVisualFromSource(),
+			isVisualMode: () => this.modes.mode === 'visual',
+			noteLocalEdit: () => d.visualCollab()?.noteLocalEdit(),
+			beforeLocalEdit: () => d.visualCollab()?.beforeLocalEdit(),
+			clearPendingAnchor: () => (this.modes.pendingVisualAnchor = null),
+			projectMacros: () => this.projectMacros,
+			offerInserts: offerFileInserts,
+			reparse: (text, format) => this.parser.reparse(text, format),
+			// once per file: a file too slow to parse twice is slow on every save
+			noteSaveUnchecked: (path) => {
+				console.warn(`[save] ${path} was saved unchecked: it could not be parsed again in time`);
+				if (this.uncheckedSaves.has(path)) return;
+				this.uncheckedSaves.add(path);
+				toaster.info({ title: m.wsview_toast_save_unchecked_title(), description: m.wsview_toast_save_unchecked_desc() });
+			},
+			// kept apart from the saves the 5-minute copy gathers, so the warning's "previous version" is there
+			keepVersionBefore: (path, text) => void addLocalHistory(path, text, 'before-unverified-save'),
+			savedReadsOtherwise: (text, difference) => {
+				console.warn(`[save] the saved file reads back otherwise, the editor takes it: ${difference}`);
+				void snapToSavedFile(editorViewStore.current, this.doc, async (t) => (await this.tryParseVisual(t)).parsed ?? null, text);
+			}
+		});
+		// view mode, scroll anchors and cross-mode history live in lib/workspace/viewModeSwitch.svelte.ts
+		editPreambleHere.current = (edit) => this.doc.editPreamble(edit);
+		this.modes = new ViewModeSwitch({
+			getKind: () => this.doc.kind,
+			getLoadedPath: () => this.doc.path,
+			getSource: () => this.doc.texSource,
+			getDocMeta: () => this.doc.docMeta,
+			getMountedSource: () => this.doc.lastDocSource,
+			getSourceMap: () => this.doc.sourceMap,
+			getEncodingIssue: () => this.doc.encodingIssue,
+			getConflicted: () => this.doc.conflicted,
+			leaveConflicts: () => this.doc.leaveConflicts(),
+			rebuildVisual: () => this.rebuildVisualFromSource(),
+			captureDiffSnapshot: () => void this.diff.snapshot(),
+			startCompare: () => d.startCompare()
+		});
+		// state and snapshotting live in lib/workspace/diffMode.svelte.ts. The version is
+		// snapshotted, not bound - it is the half that cannot change.
+		this.diff = new DiffMode({
+			getLoadedPath: () => this.doc.path,
+			getWorkingText: () => (hasVisualMode(this.doc.kind) ? this.doc.texSource : this.doc.rawContent),
+			// same macro context as the live document, or the diff reports the difference between two
+			// parsers rather than between two versions
+			getMacros: () => this.projectMacros
+		});
+		// opening the active file into the buffers lives in lib/workspace/fileOpener.ts
+		this.opener = new FileOpener({
+			doc: this.doc,
+			parser: this.parser,
+			// the host's open file is its buffered text, which can be ahead of the disk; a guest reads the session's
+			readSource: (p) => {
+				const binding = d.guest() ? null : d.session().collabFor(p);
+				if (!binding) return fileService.readSource(p);
+				return Promise.resolve({ text: fromLf(binding.ytext.toString(), d.saver().eolOf(p)), encoding: 'utf8' });
+			},
+			baselineOf: (p) => d.saver().baselineOf(p),
+			probe: (p) => fileService.probe(p),
+			whenIdle: () => d.saver().whenIdle(),
+			isVisualMode: () => this.modes.mode === 'visual',
+			isSourceMode: () => this.modes.mode === 'source',
+			isDiffMode: () => !!activeCompare.current,
+			claimVisualLock: (path) => {
+				const session = d.session();
+				if (session.active) session.setVisualLock(this.hostHoldsExclusively(fileKind(path), this.modes.mode, path) ? path : null);
+			},
+			beforeOpen: (path) => d.session().beforeOpen(path),
+			// MUST honor the opener's format: it parses BEFORE doc.path switches, so the reactive
+			// `kind` (tryParseVisual) still points at the outgoing file and cross-format opens
+			// would parse .tex as markdown (and vice versa)
+			parse: (text, format) => this.parser.parse(text, format),
+			fallbackToSource: (failure) => this.fallbackToSource(failure),
+			clearPerFileViewState: () => this.clearPerFileViewState(),
+			captureDiffSnapshot: () => void this.diff.snapshot(),
+			closeOpenFile: () => this.closeOpenFile()
+		});
+
+		// mirror to the global store so menuBarCommands can route Insert/Format
+		$effect(() => this.modes.syncStore());
+		// the top bar's word count
+		$effect(() => countOpenFile(this.doc.path, this.doc.buffer));
+		$effect(() => {
+			void d.session().manifestRev;
+			untrack(() => this.doc.bindModel());
+		});
+		// the doc.visualDoc dep re-fires this when an async re-parse lands (the doc swap itself is untracked)
+		$effect(() => {
+			if (sourceCmView.current) untrack(() => this.modes.sourceMounted());
+		});
+		$effect(() => {
+			void editorViewStore.current;
+			void this.doc.visualDoc;
+			void this.modes.pendingVisualAnchor;
+			void this.modes.mode;
+			this.modes.tryResolvePendingAnchor();
+		});
+		// guests never enter diff (no disk/git to diff against); visual is fine, it runs on the
+		// shared Y.Text like everything else
+		$effect(() => {
+			if (d.guest() && activeCompare.current) activeCompare.current = null;
+		});
+		/**
+		 * Depends on the COMPARISON alone. The snapshot is untracked: as a dependency the working
+		 * buffer would re-diff on every keystroke, and the path would fire on a file SWITCH while
+		 * the incoming buffer is still loading, capturing the outgoing file. FileOpener covers that.
+		 */
+		$effect(() => {
+			const compare = activeCompare.current;
+			untrack(() => {
+				this.diff.setCompareRef(compare);
+				if (compare && activeFilePath.current) void this.diff.snapshot();
+			});
+		});
+		// Waits for visual mode to be showing: a source comparison never needs the version parsed.
+		$effect(() => {
+			void this.diff.original; // the dependency: a new version's bytes start a new parse
+			const kind = this.doc.kind;
+			if (!activeCompare.current || this.modes.mode !== 'visual' || !hasVisualMode(kind)) return;
+			if (this.diff.originalFor !== this.doc.path) return;
+			untrack(() => void this.diff.ensureVersionDoc(kind as 'tex' | 'md' | 'typ'));
+		});
+		// shared session: a file the host holds in a NON-Y-bound editor is host-exclusive (guests go
+		// read-only), else concurrent guest edits to that file's Y.Text would be clobbered.
+		$effect(() => {
+			const session = d.session();
+			if (!session.active) return;
+			session.setVisualLock(this.hostHoldsExclusively(this.doc.kind, this.modes.mode, this.doc.path) ? this.doc.path : null);
+		});
+		followParseContext({
+			session: d.session,
+			guest: d.guest,
+			macros: () => this.projectMacros,
+			engine: compileEngine,
+			adoptMacros: (macros) => this.adoptProjectMacros(macros)
+		});
+		// package files load after the folder opens, and a pull can change the main file
+		let packagesSeen = snippetStatus.packages;
+		let mainSeen = mainFile.current;
+		$effect(() => {
+			const now = snippetStatus.packages;
+			const main = mainFile.current;
+			if (now === packagesSeen && main === mainSeen) return;
+			packagesSeen = now;
+			mainSeen = main;
+			untrack(() => this.regatherProjectMacros());
+		});
+		let namesSeen = typstNamesNow.current;
+		$effect(() => {
+			const names = typstNamesNow.current;
+			if (names === namesSeen) return;
+			namesSeen = names;
+			untrack(() => this.adoptTypstScope());
+		});
+	}
+
+	private adoptTypstScope(): void {
+		if (this.doc.kind !== 'typ') return;
+		visualDocCache.clear();
+		this.parser.lastParsedSource = '';
+		if (this.doc.path && this.modes.mode === 'visual') this.rebuildVisualFromSource(true);
+	}
+
+	/** also after every save and outside write, since one can define a command in the main file's chain */
+	regatherProjectMacros(): void {
+		rereadTypstProject();
+		const root = workspaceRoot.current;
+		const main = mainFile.current;
+		if (this.d.guest() || !root) return;
+		if (!main) return this.adoptProjectMacros('');
+		void gatherProjectMacros(main, root).then((macros) => {
+			if (mainFile.current === main) this.adoptProjectMacros(macros);
+		});
+	}
+
+	private adoptProjectMacros(macros: string): void {
+		if (macros === this.projectMacros) return;
+		this.projectMacros = macros;
+		visualDocCache.clear();
+		this.parser.lastParsedSource = '';
+		if (this.doc.path && this.doc.kind === 'tex' && this.modes.mode === 'visual') this.rebuildVisualFromSource(true);
+	}
+
+	tryParseVisual(text: string) {
+		return this.parser.parse(text, formatOf(this.doc.kind));
+	}
+
+	/**
+	 * A file the host holds in a non-Y-bound editor is host-exclusive. Source mode (tex/bib/text)
+	 * is Y-bound and co-edits freely; BOTH visual dialects consume remote edits through the
+	 * re-parse patcher (VisualCollab), so only bib held in BibManager still locks - BibManager
+	 * isn't wired to the shared doc at all.
+	 */
+	hostHoldsExclusively(k: string | null, mode: string, path: string | null): boolean {
+		if (!path) return false;
+		// markdown was listed here only while it had no remote-patch path; VisualCollab now serves
+		// both visual dialects, so it co-edits exactly like tex does
+		return k === 'bib' && mode !== 'source';
+	}
+
+	/** the path a move retargeted the open document to, which the load that follows the move leaves alone */
+	private retargeted: string | null = null;
+
+	retargetOpenFile(from: string, to: string): void {
+		const open = this.doc.path;
+		if (!open) return;
+		if (isFileInside(from, open) && this.doc.retarget(to + open.slice(from.length))) this.retargeted = this.doc.path;
+	}
+
+	loadFile(path: string) {
+		if (this.retargeted && samePath(this.retargeted, path)) {
+			this.retargeted = null;
+			return Promise.resolve();
+		}
+		this.retargeted = null;
+		mark('file-open');
+		return this.opener.open(path);
+	}
+
+	/** drop the open file's buffers AND the per-file view state that must not leak into the next file */
+	/** the binary warning's way in: read the file as text after all */
+	openAsText(path: string): void {
+		void this.opener.openAsText(path);
+	}
+
+	closeOpenFile(): void {
+		this.doc.close();
+		this.clearPerFileViewState();
+	}
+
+	/** anchors are keyed to the outgoing file's text; a new file must never inherit them */
+	clearPerFileViewState(): void {
+		this.modes.dropAnchors();
+		this.d.clearStaleGoto(this.doc.path);
+	}
+
+	fallbackToSource(failure: ParseFailure): void {
+		this.modes.mode = 'source';
+		this.doc.visualDoc = null;
+		this.doc.visualStale = false;
+		this.modes.pendingVisualAnchor = null; // never re-anchor a later visual entry off this failed switch
+		if (failure.tooComplex) {
+			toaster.warning({
+				title: m.wsview_toast_too_complex_title(),
+				description: m.wsview_toast_too_complex_desc({ count: failure.tooComplex.toLocaleString() })
+			});
+		} else if (failure.tooLarge) {
+			toaster.warning({
+				title: m.wsview_toast_too_complex_title(),
+				description: m.wsview_toast_too_large_desc({
+					size: Math.round(failure.tooLarge / 1024).toLocaleString(),
+					limit: Math.round(MAX_VISUAL_BYTES / 1024).toLocaleString()
+				})
+			});
+		} else if (failure.timeout) {
+			toaster.warning({ title: m.wsview_toast_file_too_large_title() });
+		} else {
+			toaster.error({ title: m.wsview_toast_parse_failed_title(), description: failure.message });
+		}
+	}
+
+	/** `force` reparses even when the buffer still matches the mounted doc (new macro signatures) */
+	rebuildVisualFromSource(force = false): void {
+		// marked places parse into stray paragraphs; the source editor holds the file until they are chosen
+		if (this.doc.encodingIssue || this.doc.conflicted) return;
+		// fast path: the doc last in the view already serializes to this text, so it mounts again as
+		// is. the buffer, not the parser: a visual edit moves that doc on from the last parse without
+		// reparsing, so a disk reload back to the parse's text still rebuilds, and a remount after a
+		// mode switch shows the edited doc rather than the parse
+		if (!force && this.doc.texSource === this.doc.lastDocSource && this.doc.lastDoc) {
+			this.doc.visualDoc = this.doc.lastDoc;
+			return;
+		}
+
+		// the text being parsed, not doc.texSource on arrival, or the fast path above skips a rebuild
+		const source = this.doc.texSource;
+		const path = this.doc.path;
+		const mySeq = this.parser.nextSequence();
+		this.doc.visualStale = true; // whatever is mounted until this lands predates `source`
+		void this.tryParseVisual(source).then((o) => {
+			if (!this.parser.isCurrent(mySeq)) return; // superseded
+			this.doc.visualStale = false;
+			if (o.failure) return this.fallbackToSource(o.failure);
+			if (!o.parsed) return;
+			this.doc.adoptParsed(o.parsed, source);
+			this.parser.lastParsedSource = source;
+			if (path && path === this.doc.path) visualDocCache.set(path, source, o.parsed);
+			this.d.visualCollab()?.noteFreshParse(); // a full re-parse stamped everything fresh
+			// EditorView reacts to the new localValue and swaps state on the existing instance: no remount, no flicker
+		});
+	}
+
+	rereadFileText(): void {
+		if (this.doc.dropVisualText()) this.rebuildVisualFromSource();
+	}
+
+	/** Ctrl/Cmd+S: write now instead of after the autosave delay */
+	save() {
+		return this.doc.save();
+	}
+}
