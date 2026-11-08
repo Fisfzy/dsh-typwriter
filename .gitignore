@@ -10,6 +10,8 @@
 /build/
 /.wrangler/
 *.log
+# 例外：LaTeX 编译日志的测试 fixtures（上游生成入库的对照样本，见 parser.test.ts 头注）
+!apps/texpile-editor/tests/unit/lib/latex-log/fixtures/*.log
 
 # 插件：只排除构建出来的应用包与第三方二进制（见 README「Toolchain」）
 plugin/*/app/

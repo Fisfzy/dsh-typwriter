@@ -38,13 +38,14 @@ function buttons(target: HTMLElement): string[] {
 it('offers the install when no tinymist is found', async () => {
 	const target = await render({ installed: null, inUse: null });
 	expect(buttons(target)).toEqual(['Install tinymist']);
-	expect(target.textContent).toContain('Texpile can install tinymist 0.15.8 for you.');
+	// the fork's rebrand: the copy the toolchain row offers belongs to Typwriter, not Texpile
+	expect(target.textContent).toContain('Typwriter can install tinymist 0.15.8 for you.');
 });
 
 it('offers reinstall and remove for the copy it installed', async () => {
 	const target = await render({ installed: MANAGED, inUse: { ...MANAGED, source: 'managed' } });
 	expect(buttons(target)).toEqual(['Reinstall', 'Remove']);
-	expect(target.textContent).toContain('tinymist 0.15.8, installed by Texpile.');
+	expect(target.textContent).toContain('tinymist 0.15.8, installed by Typwriter.');
 });
 
 it('stays out of the way of a tinymist the reader installed', async () => {

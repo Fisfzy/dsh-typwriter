@@ -112,7 +112,7 @@ export default defineConfig(({ mode }) => ({
 		// .wasm ES module. Inlining routes it back through Vite (and so through vite-plugin-wasm).
 		server: { deps: { inline: ['texpile-typst-syntax-wasm'] } },
 		// puts localStorage back under Node 26, whose own experimental global shadows jsdom's
-		setupFiles: ['./tests/setup/webStorage.ts', './tests/setup/fileFetch.ts'],
+		setupFiles: ['./tests/setup/webStorage.ts', './tests/setup/fileFetch.ts', './tests/setup/uiLocale.ts'],
 		// several suites shell out to real git or parse whole papers; at vitest's 5s default they
 		// timed out on a loaded machine, a different one each run, which reads as a code failure
 		testTimeout: 30_000

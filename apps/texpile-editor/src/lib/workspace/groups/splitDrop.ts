@@ -7,7 +7,7 @@ export type DropZone = 'center' | 'left' | 'right' | 'top' | 'bottom';
  *  holds a third column (grid is two), so edge drops on it stay center drops */
 const GROWN: Record<EditorLayout, { across: EditorLayout | null; down: EditorLayout | null }> = {
 	one: { across: 'columns', down: 'rows' },
-	columns: { across: 'columns3', down: 'grid' },
+	columns: { across: null, down: 'grid' },
 	columns3: { across: null, down: null },
 	rows: { across: 'grid', down: null },
 	grid: { across: null, down: null }

@@ -56,11 +56,12 @@ describe('settings hydration (auto-reopen depends on this)', () => {
 		expect(getLocale()).toBe('zh-Hans'); // regression guard: the two must not drift apart
 	});
 
-	it('defaults uiLocale to en when nothing is persisted', async () => {
+	// the fork ships zh-Hans as its default UI (upstream defaulted to en); a fresh profile speaks Chinese
+	it('defaults uiLocale to zh-Hans when nothing is persisted', async () => {
 		stubWindow({ getSettings: () => Promise.resolve({}), setSettings: () => Promise.resolve() });
 		const { loadSettings } = await import('../../../src/lib/settings');
 		const s = await loadSettings();
-		expect(s.uiLocale).toBe('en');
+		expect(s.uiLocale).toBe('zh-Hans');
 	});
 
 	it('persists only the changed fields, not the whole settings object', async () => {
