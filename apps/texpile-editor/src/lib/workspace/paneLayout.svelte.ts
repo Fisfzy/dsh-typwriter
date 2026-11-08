@@ -13,6 +13,8 @@ import { SIDEBAR_MIN, SIDEBAR_MAX, PDF_MIN, HISTORY_EDITOR_MIN, pdfMaxWidth, pdf
 
 const TOC_MIN = 0.1;
 const TOC_MAX = 0.9;
+/** the editor keeps at least this much width; below it the sidebar gives way to the right-hand panes */
+const EDITOR_FLOOR = 460;
 // the same kind of split one level in: what has changed, against the versions behind it. Bounded
 // tighter than the TOC's, because either half stops being worth showing below a couple of rows.
 const HISTORY_MIN = 0.15;
@@ -57,21 +59,50 @@ export class PaneLayout {
 	/** 打开/关闭 AGENT 对话面板 */
 	setAgentPane(open: boolean): void {
 		this.agentPaneOpen = open;
+		this.makeRoomForEditor();
 	}
 
 	/** 右缘活动栏的「代码修改」页：源代码管理的修改审阅，显示在窗口右侧 */
 	reviewOpen = $state(false);
 
+	/**
+	 * The right-hand panes opening must not squeeze the editor into a sliver: below an editor
+	 * floor the SIDEBAR gives way (shut here, not by the reader), and when the room comes back
+	 * — a pane closed, the window widened — the sidebar we shut reopens. The reader's own open
+	 * and close of the sidebar is never touched.
+	 */
+	private makeRoomForEditor(): void {
+		const panes =
+			(this.pdfPaneOpen && !this.pdfPopout ? this.pdfPaneWidth : 0) +
+			(this.agentPaneOpen ? this.agentPaneWidth : 0) +
+			40 + // the right rail
+			(this.reviewOpen ? 320 : 0) +
+			8; // splitters and gutters
+		const room = this.windowWidth() - (this.sidebarOpen ? this.sidebarWidth : 0) - panes;
+		if (room < EDITOR_FLOOR) {
+			if (this.sidebarOpen) {
+				this.sidebarMadeRoom = true;
+				this.setSidebarOpen(false);
+			}
+		} else if (this.sidebarMadeRoom && room >= EDITOR_FLOOR + this.sidebarWidth) {
+			this.sidebarMadeRoom = false;
+			this.setSidebarOpen(true);
+		}
+	}
+
 	setReviewPane(open: boolean): void {
 		this.reviewOpen = open;
 		// 与左栏的源代码管理视图是同一面板的两个家，别同时住两边
 		if (open && this.sidebarView === 'scm') this.sidebarView = 'explorer';
+		this.makeRoomForEditor();
 	}
 
 	/** a panel docked in the editor column beside the document (Version History), whose width the editor's room holds too */
 	editorAside = $state(0);
 	/** the preview was shut to make room for that panel, not by the reader, and comes back when there is room again */
 	private pdfMadeRoom = false;
+	/** the sidebar was shut by the panes needing room (not by the reader), and comes back when there is room again */
+	private sidebarMadeRoom = false;
 	/** the preview opened or shut on its own rather than at a click, so it slides rather than jumping */
 	pdfSlides = $state(false);
 	/** a splitter is being dragged right now; panes that reflow expensively can freeze while it is true */
@@ -88,6 +119,8 @@ export class PaneLayout {
 		this.pdfPaneOpen = s.pdfPaneOpen;
 		// a session reopened on Version History: the panel took its room before the saved preview came back
 		this.makeRoomForAside();
+		// a session reopened with panes open on a window too narrow for them and the sidebar both
+		this.makeRoomForEditor();
 		// one frame later, the flips made above have flushed with settle animation off; from here on
 		// the sidebar's collapse/expand is the user's and slides
 		if (browser) requestAnimationFrame(() => (this.settled = true));
@@ -101,7 +134,11 @@ export class PaneLayout {
 		this.makeRoomForAside();
 	};
 
-	toggleSidebar = () => this.setSidebarOpen(!this.sidebarOpen);
+	toggleSidebar = () => {
+		// the reader takes the sidebar over: our own auto-shut no longer brings it back
+		this.sidebarMadeRoom = false;
+		this.setSidebarOpen(!this.sidebarOpen);
+	};
 
 	/**
 	 * Takes the RAW width the pointer is asking for, not a clamped one: the clamp is what would
@@ -121,6 +158,7 @@ export class PaneLayout {
 	private commitSidebar = () => updateLayout({ sidebarWidth: this.sidebarWidth });
 
 	startSidebarResize = (e: MouseEvent) => {
+		this.sidebarMadeRoom = false;
 		const startX = e.clientX;
 		// from shut, the drag measures out from the edge, so pulling the handle back into the window
 		// is what reopens it - starting from the remembered width would snap it open on the first px
@@ -229,6 +267,7 @@ export class PaneLayout {
 		// next open would fling the pane straight back into a window nobody asked for
 		if (!open) this.pdfPopout = false;
 		updateLayout({ pdfPaneOpen: open });
+		this.makeRoomForEditor();
 	};
 
 	togglePdfPane = () => this.setPdfPaneOpen(!this.pdfPaneOpen);
@@ -254,6 +293,7 @@ export class PaneLayout {
 	/** re-clamp when the window shrinks so the preview can't squeeze the editor out */
 	reclampPdf = () => {
 		this.makeRoomForAside();
+		this.makeRoomForEditor();
 		this.pdfPaneWidth = this.clampPdf(this.pdfPaneWidth);
 	};
 
