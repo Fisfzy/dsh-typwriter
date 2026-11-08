@@ -4,6 +4,11 @@ on:
   push:
     branches:
       - '**'
+    # dependabot branches get the pull_request run already (with the app skip below); a second
+    # push run would only duplicate it — and push events carry no head_ref, so app would run
+    # there and mail a red report no dependabot PR could ever clear
+    branches-ignore:
+      - 'dependabot/**'
   pull_request:
   workflow_call:
 
