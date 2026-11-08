@@ -28,7 +28,7 @@ What this fork adds is the part that makes it work **inside a web host** and **w
 | `scripts/check-svelte.mjs` | fast structural check of all `.svelte` files (~1 s) |
 | `PATCHING.md` | how to change upstream code without breaking everything |
 | `plugin/dsh-typwriter/` | the DSH plugin: host routes, bridge shim, ACP client, left-sidebar entry |
-| `docs/` | design and acceptance notes (Chinese) |
+| `docs/` | upstream documentation; **our** design and acceptance notes are under `docs/typwriter/` (Chinese) |
 
 ## What we changed in Texpile
 
