@@ -107,6 +107,62 @@
 		{ label: '改进表达', prompt: '请找出当前文件中表达不够清晰或学术性不足的段落并改写。' }
 	];
 
+	// ---- 模型 / 思考强度（数据来自 DSH 本体：settings.json 的 agent-default-model） ----
+	type ModelEntry = { provider: string; id: string; name: string; contextWindow: number | null };
+	type ModelSel = { provider: string | null; model: string | null; reasoningEffort: string | null };
+	let modelData = $state<{ models: ModelEntry[]; current: ModelSel; efforts: string[] } | null>(null);
+	$effect(() => {
+		void (window as unknown as { texpileAgent?: { modelInfo?: () => Promise<{ models: ModelEntry[]; current: ModelSel; efforts: string[] }> } })
+			.texpileAgent?.modelInfo?.()
+			.then((r) => (modelData = r && r.models ? r : { models: [], current: { provider: null, model: null, reasoningEffort: null }, efforts: [] }))
+			.catch(() => {});
+	});
+	async function applyModel(patch: Partial<ModelSel>): Promise<void> {
+		const api = (window as unknown as { texpileAgent?: { setModel?: (s: Partial<ModelSel>) => Promise<{ current: ModelSel }> } }).texpileAgent;
+		if (!api?.setModel || !modelData) return;
+		try {
+			const r = await api.setModel(patch);
+			if (r?.current) modelData = { ...modelData, current: r.current };
+		} catch {
+			/* 落盘失败：保持现状 */
+		}
+	}
+	const EFFORT_LABELS: Record<string, string> = { minimal: '极简', low: '低', medium: '中', high: '高' };
+	const modelGroups = $derived.by(() => {
+		const cur = modelData?.current;
+		const byProvider = new Map<string, ModelEntry[]>();
+		for (const m of modelData?.models ?? []) {
+			if (!byProvider.has(m.provider)) byProvider.set(m.provider, []);
+			byProvider.get(m.provider)!.push(m);
+		}
+		return [...byProvider.entries()].map(([provider, list]) => ({
+			label: provider,
+			options: list.map((m) => ({
+				value: `${m.provider}::${m.id}`,
+				label: m.name,
+				note: m.contextWindow ? `${Math.round(m.contextWindow / 1000)}k 上下文` : undefined,
+				checked: cur?.provider === m.provider && cur?.model === m.id
+			}))
+		}));
+	});
+	const effortGroups = $derived.by(() => {
+		const cur = modelData?.current.reasoningEffort ?? null;
+		return [
+			{
+				label: '思考强度',
+				options: [
+					{ value: '', label: '默认（跟随模型）', checked: cur === null },
+					...(modelData?.efforts ?? []).map((e) => ({ value: e, label: EFFORT_LABELS[e] ?? e, checked: cur === e }))
+				]
+			}
+		];
+	});
+	const currentModelLabel = $derived(modelData?.current.model ?? '模型');
+	const currentEffortLabel = $derived.by(() => {
+		const e = modelData?.current.reasoningEffort;
+		return e ? `思考 ${EFFORT_LABELS[e] ?? e}` : '思考 默认';
+	});
+
 	// while the / menu is open the arrows, Enter, Tab and Escape are its; Enter only completes, a second one sends
 	function slashKey(e: KeyboardEvent): boolean {
 		if (!slash.open || e.isComposing) return false;
@@ -189,6 +245,36 @@
 				onImages={(files) => images.add(files)}
 				onAttachFile={() => (detached = null)}
 			/>
+			{#if modelData && modelGroups.length}
+				<!-- 模型 / 思考强度：写 DSH 的默认模型选择（settings.json），新对话起生效 -->
+				<MenuDropdown groups={modelGroups} placement="bottom-start" onSelect={(v) => {
+					const [provider, ...rest] = String(v).split('::');
+					void applyModel({ provider, model: rest.join('::') });
+				}}>
+					{#snippet trigger(attrs)}
+						<button
+							{...attrs}
+							class="text-muted hover:bg-surface-200-800 rounded-base flex h-6 shrink-0 items-center gap-0.5 px-1.5 text-xs whitespace-nowrap transition-colors"
+							use:tip={'切换模型（新对话生效）'}
+						>
+							<span class="max-w-28 truncate">{currentModelLabel}</span>
+							<ChevronDown class="size-3 shrink-0" />
+						</button>
+					{/snippet}
+				</MenuDropdown>
+				<MenuDropdown groups={effortGroups} placement="bottom-start" onSelect={(v) => void applyModel({ reasoningEffort: v === '' ? null : String(v) })}>
+					{#snippet trigger(attrs)}
+						<button
+							{...attrs}
+							class="text-muted hover:bg-surface-200-800 rounded-base flex h-6 shrink-0 items-center gap-0.5 px-1.5 text-xs whitespace-nowrap transition-colors"
+							use:tip={'思考强度（新对话生效）'}
+						>
+							<span class="max-w-24 truncate">{currentEffortLabel}</span>
+							<ChevronDown class="size-3 shrink-0" />
+						</button>
+					{/snippet}
+				</MenuDropdown>
+			{/if}
 			{#each props.config as option (option.id)}
 				<MenuDropdown groups={configOptionMenu(option)} placement="bottom-start" onSelect={(v) => props.onConfig(option.id, v)}>
 					{#snippet trigger(attrs)}
