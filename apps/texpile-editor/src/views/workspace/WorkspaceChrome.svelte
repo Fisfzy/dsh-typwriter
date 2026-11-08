@@ -183,6 +183,7 @@
 	{#if layout.sidebarOpen && !fileMode.current}
 		<WorkspaceSidebar
 			width={layout.sidebarWidth}
+			animate={layout.settled}
 			{guest}
 			bind:view={layout.sidebarView}
 			scmBusy={scm.busy}

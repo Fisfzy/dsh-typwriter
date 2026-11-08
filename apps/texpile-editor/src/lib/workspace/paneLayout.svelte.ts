@@ -25,6 +25,13 @@ const clampHistory = clampTo(HISTORY_MIN, HISTORY_MAX);
 export class PaneLayout {
 	sidebarWidth = $state(256);
 	sidebarOpen = $state(true);
+	/**
+	 * False until restore() has run AND one more frame has passed: the {#if} flip restore()
+	 * makes is a session restore, not a user action, and the sidebar must not slide for it
+	 * (a pane that sweeps on every load would read as broken). One frame later the flag turns
+	 * and every flip after that - button, Ctrl+B, drag-snap - animates.
+	 */
+	settled = $state(false);
 	/** one sidebar view at a time (VS Code activity-bar style) */
 	sidebarView = $state<'explorer' | 'search' | 'scm'>('explorer');
 	/** TOC share of the sidebar's lower region (0..1) */
@@ -72,6 +79,9 @@ export class PaneLayout {
 		this.pdfPaneOpen = s.pdfPaneOpen;
 		// a session reopened on Version History: the panel took its room before the saved preview came back
 		this.makeRoomForAside();
+		// one frame later, the flips made above have flushed with settle animation off; from here on
+		// the sidebar's collapse/expand is the user's and slides
+		if (browser) requestAnimationFrame(() => (this.settled = true));
 	}
 
 	// sidebar

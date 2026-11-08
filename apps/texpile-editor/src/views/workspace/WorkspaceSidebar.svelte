@@ -1,6 +1,7 @@
 <script lang="ts">
 	// The left sidebar: folder header + explorer / source-control / find-in-files, with the file
 	// tree and (in explorer) a resizable table-of-contents. Presentational — logic stays in the view.
+	import { slide } from 'svelte/transition';
 	import { parentRepoToConfirm } from '$lib/workspace/parentRepo.svelte';
 	import { untrack } from 'svelte';
 	import { tip } from '$lib/components/tooltip.svelte';
@@ -45,6 +46,8 @@
 
 	type Props = {
 		width: number;
+		/** user-driven flips animate; the session-restore flip (PaneLayout.settled false) does not */
+		animate?: boolean;
 		guest: boolean;
 		view: 'explorer' | 'scm' | 'search';
 		scmBusy: boolean;
@@ -99,6 +102,7 @@
 	};
 	let {
 		width,
+		animate = true,
 		guest,
 		view = $bindable(),
 		scmBusy,
@@ -146,6 +150,15 @@
 		scmChangesSince,
 		scmOpenDiff
 	}: Props = $props();
+
+	// Collapse/expand slides on x, the same shape and beat as the PDF pane's own (PreviewPane's
+	// `slides`), so the two panes of one layout move alike. Dragging the splitter does NOT pass
+	// through here: slide runs only as the {#if} in WorkspaceChrome takes the pane in or out,
+	// while a drag sets `width` directly, which no transition touches.
+	// `animate` is PaneLayout.settled: the flip restore() makes on load snaps; user flips slide.
+	// prefers-reduced-motion: 0ms keeps the toggle instant for those who asked for less motion.
+	const SLIDE_MS =
+		typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 200;
 
 	// The timeline loads when the panel is opened rather than on every tree refresh: status is cheap
 	// and runs constantly, `git log` is not and only changes when a version is saved. Commits and
@@ -264,7 +277,12 @@
 />
 
 <!-- no border-r: the splitter beside it draws its own 1px, and a border as well read as two -->
-<aside class="bg-surface-50-950 flex shrink-0 flex-col" style="width: {width}px">
+<!-- |global: the {#if} that removes this pane lives in WorkspaceChrome, not in this file -->
+<aside
+	class="bg-surface-50-950 flex shrink-0 flex-col"
+	style="width: {width}px"
+	transition:slide|global={{ axis: 'x', duration: animate ? SLIDE_MS : 0 }}
+>
 	<!-- h-9, the tab strip's height, so the two rows read as one. shrink-0: h-9 sets a height, it does not defend one. A flex child shrinks below its height
 	     whenever the column overflows, so any view below that asks for more room than is left takes
 	     it out of this row - and a title bar that changes height as you switch views reads as the
