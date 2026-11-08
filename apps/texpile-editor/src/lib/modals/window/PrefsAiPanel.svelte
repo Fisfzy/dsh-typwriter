@@ -8,6 +8,7 @@
 	import McpSetupModal from './McpSetupModal.svelte';
 	import CheckChoiceList from './CheckChoiceList.svelte';
 	import AgentModelChoice from './AgentModelChoice.svelte';
+	import AgentAssetPicker from './AgentAssetPicker.svelte';
 	import AgentPanelPrefs from '$lib/ai/agentPanel/ui/AgentPanelPrefs.svelte';
 	import { setAiOff } from '$lib/ai/aiSwitch';
 	import PrefsRow from './rows/PrefsRow.svelte';
@@ -63,6 +64,43 @@
 		await refreshMcp();
 	}
 
+	// ===== 论文助手预设：人格文本 + 从本机 DSH 读技能 / 插件 =====
+	const PERSONA_MAX = 4000;
+	const extra = () => settings.current as Record<string, unknown>;
+	const personaLen = $derived(String(extra().agentPersona ?? '').length);
+	// 历史值可能是逗号分隔字符串（旧版纯文本框），统一当成数组用
+	const asList = (v: unknown): string[] =>
+		Array.isArray(v) ? (v as string[]) : typeof v === 'string' && v.trim() ? v.split(',').map((s) => s.trim()).filter(Boolean) : [];
+	const presetSkills = $derived(asList(extra().agentPresetSkills));
+	const presetPlugins = $derived(asList(extra().agentPresetPlugins));
+
+	function agentApi() {
+		return (
+			window as unknown as {
+				texpileAgent?: {
+					listSkills?: () => Promise<{ skills?: { name: string; description?: string }[] }>;
+					listPlugins?: () => Promise<{ plugins?: { name: string; version?: string; enabled?: boolean }[] }>;
+				};
+			}
+		).texpileAgent;
+	}
+	async function loadSkills() {
+		const r = await agentApi()?.listSkills?.();
+		return (r?.skills ?? []).map((s) => ({ name: s.name, description: s.description ?? '' }));
+	}
+	async function loadPlugins() {
+		const r = await agentApi()?.listPlugins?.();
+		return (r?.plugins ?? []).map((p) => ({
+			name: p.name,
+			description: (p.version ?? '').length > 48 ? `${(p.version ?? '').slice(0, 48)}…` : (p.version ?? ''),
+			aside: p.enabled ? '已启用' : '未启用',
+			warn: !p.enabled
+		}));
+	}
+	function toggleAsset(key: 'agentPresetSkills' | 'agentPresetPlugins', current: string[], name: string, on: boolean) {
+		updateSettings({ [key]: on ? [...current, name] : current.filter((s) => s !== name) } as never);
+	}
+
 	function pick(value: string): void {
 		updateSettings({ refineAgents: value ? [value as RefineAgent] : [] });
 	}
@@ -93,29 +131,49 @@
 {/snippet}
 
 <!-- ===== 论文助手（DSH）的运行预设 ===== -->
-{#snippet rowInput(label: string, note: string, value: string, placeholder: string, key: 'agentPresetName' | 'agentPresetSkills' | 'agentPresetPlugins')}
-	<div class="border-surface-200-800 flex items-center justify-between gap-6 border-b py-3">
-		<div class="min-w-0">
-			<div class="text-sm">{label}</div>
-			<div class="text-muted text-xs">{note}</div>
-		</div>
-		<input
-			class="input w-60 text-xs"
-			spellcheck="false"
-			{placeholder}
-			value={(settings.current as Record<string, unknown>)[key] ?? ''}
-			onchange={(e) => updateSettings({ [key]: e.currentTarget.value.trim() } as never)}
-		/>
-	</div>
-{/snippet}
-
 <div class="border-surface-200-800 border-b py-3">
 	<div class="text-sm">论文助手预设</div>
-	<div class="text-muted text-xs">这些先只保存，接入后用于给 DSH 论文助手指定人格、技能与插件。</div>
+	<div class="text-muted text-xs">为 DSH 论文助手保存人格与预选的技能、插件；清单读取自本机 DSH。</div>
 </div>
-{@render rowInput('预设', '人格 / 指令预设名（留空用默认）', '', '默认', 'agentPresetName')}
-{@render rowInput('预设 Skill', '逗号分隔的技能名', '', 'typst-academic, typst-tables', 'agentPresetSkills')}
-{@render rowInput('预设插件', '逗号分隔的插件包名', '', 'dsh-typwriter', 'agentPresetPlugins')}
+
+<!-- 人格：自由文本的自定义指令，容量指示在右上 -->
+<div class="border-surface-200-800 border-b py-3">
+	<div class="flex items-start justify-between gap-6">
+		<div class="min-w-0">
+			<div class="text-sm">助手人格</div>
+			<div class="text-muted text-xs">自定义指令，作为论文助手的人格 / 系统提示（留空用默认）。</div>
+		</div>
+		<span class="text-muted shrink-0 pt-0.5 text-xs">{personaLen} / {PERSONA_MAX}</span>
+	</div>
+	<textarea
+		class="textarea mt-2 w-full resize-y text-xs"
+		rows="4"
+		spellcheck="false"
+		maxlength={PERSONA_MAX}
+		placeholder="例如：你是我的论文润色助手，保持学术语气，改动默认走修订模式…"
+		value={extra().agentPersona ?? ''}
+		onchange={(e) => updateSettings({ agentPersona: e.currentTarget.value } as never)}
+	></textarea>
+</div>
+
+<AgentAssetPicker
+	label="预设 Skill"
+	note="论文助手启动时预载的本机 DSH 技能"
+	searchPlaceholder="搜索技能…"
+	emptyText="本机 DSH（~/.dsh/skills）里没有找到技能"
+	load={loadSkills}
+	selected={presetSkills}
+	ontoggle={(name, on) => toggleAsset('agentPresetSkills', presetSkills, name, on)}
+/>
+<AgentAssetPicker
+	label="预设插件"
+	note="论文助手启动时装载的本机 DSH 插件"
+	searchPlaceholder="搜索插件…"
+	emptyText="本机 DSH（desktop profile）里没有找到插件"
+	load={loadPlugins}
+	selected={presetPlugins}
+	ontoggle={(name, on) => toggleAsset('agentPresetPlugins', presetPlugins, name, on)}
+/>
 
 <!-- ===== 代理工作区策略 ===== -->
 <div class="border-surface-200-800 flex items-start justify-between gap-6 border-b py-4">
