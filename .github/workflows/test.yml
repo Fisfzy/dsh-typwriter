@@ -33,10 +33,12 @@ jobs:
 
   # Upstream Texpile's Electron integration suite — kept for signal, but NOT adapted to the
   # Typwriter fork yet (the fork pivoted the app to a browser-hosted DSH plugin, and this suite
-  # has never passed here: 20+ failures from the missing Electron-side wiring). Non-blocking so
-  # dependency bumps don't drown in pre-existing red; flip this off once the suite is fixed.
+  # has never passed here: 20+ failures from the missing Electron-side wiring). Dependabot
+  # branches skip it (a red X they can never clear would just drown the useful test signal);
+  # runs elsewhere stay non-blocking. Remove the skip and the flag once the suite is fixed.
   app:
     runs-on: ubuntu-latest
+    if: github.event_name == 'push' || !startsWith(github.head_ref, 'dependabot/')
     continue-on-error: true
     steps:
       - uses: actions/checkout@v7
