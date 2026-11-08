@@ -99,6 +99,14 @@
 		text = slash.completion(command);
 	}
 
+	// 空输入时的预设快捷指令（参考 llm-for-zotero 的 Summarize/Key Points 行）：点击填入，可改再发
+	const PRESETS: { label: string; prompt: string }[] = [
+		{ label: '总结当前文件', prompt: '请总结当前打开文件的主要内容与结构。' },
+		{ label: '润色选中文本', prompt: '请润色我选中的文本：保持学术语气，改动最小化，并说明每处改动的原因。' },
+		{ label: '检查语法', prompt: '请检查当前文件的语法与格式错误，逐条给出位置和修改建议。' },
+		{ label: '改进表达', prompt: '请找出当前文件中表达不够清晰或学术性不足的段落并改写。' }
+	];
+
 	// while the / menu is open the arrows, Enter, Tab and Escape are its; Enter only completes, a second one sends
 	function slashKey(e: KeyboardEvent): boolean {
 		if (!slash.open || e.isComposing) return false;
@@ -144,6 +152,20 @@
 				{/each}
 				{#each images.list as image, i (i)}
 					<AgentImagePill {image} onDetach={() => images.remove(i)} />
+				{/each}
+			</div>
+		{/if}
+		{#if !text.trim() && !slash.open}
+			<!-- 预设快捷指令：空输入才出现，点一下填入（润色那条实际带不带选区由附件决定） -->
+			<div class="mb-1.5 flex flex-wrap gap-1">
+				{#each PRESETS as p (p.label)}
+					<button
+						type="button"
+						class="preset-tonal hover:preset-tonal-primary rounded-full px-2 py-0.5 text-[11px]"
+						onclick={() => (text = p.prompt)}
+					>
+						{p.label}
+					</button>
 				{/each}
 			</div>
 		{/if}

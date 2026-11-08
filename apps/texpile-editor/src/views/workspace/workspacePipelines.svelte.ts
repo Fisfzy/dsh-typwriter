@@ -77,6 +77,12 @@ export function createWorkspacePipelines(d: PipelineDeps) {
 		getVisualCaretSourcePos: (): { line: number; character: number } | null => nav.visualCaretSourcePos(),
 		syncJumpToFileLine: (file: string, line: number, column?: number) => nav.syncJumpToFileLine(file, line, undefined, column)
 	});
+	// 预览工具栏的「刷新编译」按钮：TypstPreview 拿不到 controller，事件冒泡到这里接住
+	$effect(() => {
+		const h = () => typstPreview.restart();
+		window.addEventListener('typwriter:restart-preview', h);
+		return () => window.removeEventListener('typwriter:restart-preview', h);
+	});
 	// tinymist's copy of the open .typ, which is what the preview renders, kept equal to the buffer
 	// in the visual editor too. A guest's file is on the host's server, kept by the host
 	const typstStream = new TypstDocumentStream({

@@ -9,7 +9,7 @@
 	// channel between us is postMessage, and the bridge on the far side is one we injected. That is
 	// what lets the zoom control below drive a viewer we cannot otherwise touch.
 	import { tip } from '$lib/components/tooltip.svelte';
-	import { Bot, ZoomIn, ZoomOut, Crosshair, FileOutput, PictureInPicture2 } from '@lucide/svelte';
+	import { ZoomIn, ZoomOut, Crosshair, FileOutput, PictureInPicture2, RefreshCw } from '@lucide/svelte';
 	import { typstExport } from '../export/dialog/typstExportState.svelte';
 	import type { Snippet } from 'svelte';
 	import PreviewToolbar, { type PreviewToolbarPlace } from '$lib/preview/PreviewToolbar.svelte';
@@ -290,16 +290,16 @@
 		<ColorVisionMenu {place} />
 	{/snippet}
 	<!-- no close button: Layout closes it docked, the OS window popped out, the Live button either way -->
-	<!-- AGENT 对话：打开右侧的 AGENT 面板（由 WorkspaceMain 转发） -->
-	{#snippet agentPanel(place: PreviewToolbarPlace)}
+	<!-- 刷新编译：杀掉当前 preview task 重起一个（预览硬重启，由 WorkspaceView 转发到 controller） -->
+	{#snippet refreshCompile(place: PreviewToolbarPlace)}
 		<button
 			class:menu-item={place === 'menu'}
-			onclick={() => window.dispatchEvent(new CustomEvent('typwriter:open-agent'))}
-			use:tip={'AGENT 对话'}
-			aria-label={'AGENT 对话'}
+			onclick={() => window.dispatchEvent(new CustomEvent('typwriter:restart-preview'))}
+			use:tip={'刷新编译'}
+			aria-label={'刷新编译'}
 		>
-			<Bot size={16} />
-			{#if place === 'menu'}AGENT 对话{/if}
+			<RefreshCw size={16} />
+			{#if place === 'menu'}刷新编译{/if}
 		</button>
 	{/snippet}
 	{#snippet popout()}
@@ -314,7 +314,7 @@
 		groups={[
 			...(controls ? [{ id: 'status', pinned: !!error || !!stall, foldsFirst: true, render: status }] : []),
 			{ id: 'zoom', render: zoomGroup },
-			{ id: 'agent', render: agentPanel },
+			{ id: 'refresh', render: refreshCompile },
 			{ id: 'follow', render: follow },
 			{ id: 'invert', inMenu: true, render: invert },
 			{ id: 'vision', inMenu: true, render: vision },

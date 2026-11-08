@@ -276,6 +276,13 @@ export class TypstPreviewController {
 		this.detach();
 	}
 
+	/** 刷新编译：杀掉当前 preview task，demand effect 会立刻另起一个（预览硬重启）。 */
+	restart(): void {
+		if (this.host === null) return;
+		this.host = null;
+		this.detach();
+	}
+
 	/** the Problems lane switched away from Typst; drop the accumulated LSP view */
 	clearLiveDiags(): void {
 		this.liveDiags.clear();

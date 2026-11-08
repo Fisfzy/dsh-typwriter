@@ -55,13 +55,6 @@
 		pdfPaneRef = $bindable()
 	}: WorkspaceMainProps = $props();
 
-	// 预览工具栏的「代理」按钮：冒泡到这里再转到 dock 状态（TypstPreview 拿不到 dock 实例）
-	$effect(() => {
-		const h = () => layout.setAgentPane(true);
-		window.addEventListener('typwriter:open-agent', h);
-		return () => window.removeEventListener('typwriter:open-agent', h);
-	});
-
 	// 标题栏「AGENT 对话」：把底部面板切到 Agent 页。BottomDock 自己持有 view，靠这个请求对齐
 	$effect(() => {
 		if (termDock?.agentRequest) {
