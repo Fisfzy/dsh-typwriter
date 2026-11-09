@@ -47,15 +47,17 @@
 	<div class="border-surface-300-700 mx-2 h-4 w-px shrink-0 self-center border-l"></div>
 {/if}
 
-<!-- 右侧：回 DSH 主对话 -->
+<!-- 右侧：回 DSH 主对话。DSH 的 main 槽没有可编程的"切回"API，同源宿主里整页导航回 DSH
+     根是唯一可靠的返回方式；postMessage 留给宿主侧未来做精细处理 -->
 <button
 	class="app-no-drag rounded-base hover:preset-tonal ml-1 shrink-0 px-2 py-1 text-xs"
 	title="返回 DSH"
 	onclick={() => {
 		try {
 			window.parent.postMessage({ type: 'typwriter:back' }, '*');
+			if (window.self !== window.top) window.parent.location.assign('/');
 		} catch {
-			/* ignore */
+			/* 跨域或独立页（dev-server 单页）时没有可返回的宿主 */
 		}
 	}}>返回 DSH</button
 >

@@ -144,6 +144,19 @@ export function createDispatch({ store, terminals, lsp, acp, appDir, binDir, cle
     // ---- ACP：底部 Agent 面板（这里接的是 DSH） ----
     'acp:detect': () => acp.detect(),
     'acp:start': () => acp.start(),
+    // 预热：dsh --profile acp 冷启动实测 9-16s（node_modules 冷读 + Defender 扫描 + 插件装载），
+    // 用户打开 Typwriter 时就把它拉起待命，之后点开 AGENT 面板即秒进。start() 幂等：
+    // 已活复用、并发复用，面板真开时不会二次起动
+    'acp:prewarm': async () => {
+      const root = store.state?.activeRoot;
+      if (!root) return { ok: false, reason: 'no-folder' };
+      try {
+        const st = await acp.start();
+        return st?.ok ? { ok: true } : st;
+      } catch (e) {
+        return { ok: false, error: String(e?.message || e) };
+      }
+    },
     'acp:prompt': (blocks) => acp.prompt(blocks),
     'acp:cancel': () => { acp.cancel(); return null; },
     'acp:answer': (body) => { acp.answer(body?.id, body?.optionId ?? null); return null; },

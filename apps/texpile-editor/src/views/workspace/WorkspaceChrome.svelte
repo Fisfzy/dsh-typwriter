@@ -96,6 +96,13 @@
 	// the AGENT pane can run here: the bridge exists and AI is not turned off (same gate as LayoutControls)
 	const agentOn = $derived(!panelTabOff() && !!acpBridge());
 
+	// 一进工作区就后台预拉起 dsh：acp 冷启动实测 9-16s（冷盘 + Defender 扫描 + 插件装载），
+	// 等用户点开 AGENT 面板再起就是一段转圈；prewarm 幂等，面板真开时直接复用待命进程
+	$effect(() => {
+		if (!agentOn) return;
+		void (window as unknown as { texpileAcp?: { prewarm?: () => Promise<unknown> } }).texpileAcp?.prewarm?.();
+	});
+
 	// ---- 侧栏开合动画期间的编辑器宽度钉住 ----
 	// 可视化文档是几万节点 + 数百公式的深结构，侧栏 200ms 滑动若逐帧挤压这排 flex 的 1fr，
 	// 每帧都是一次全量重排（实测每帧 300-1000ms，动画变成幻灯片）。钉住主区在起滑瞬间的

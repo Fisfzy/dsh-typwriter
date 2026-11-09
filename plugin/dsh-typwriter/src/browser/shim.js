@@ -373,6 +373,12 @@
     start: function () {
       return invoke('acp:start');
     },
+    // 后台预拉起 dsh（面板没开也拉），打开面板时免 9-16s 冷启动
+    prewarm: function () {
+      return invoke('acp:prewarm').catch(function () {
+        return { ok: false };
+      });
+    },
     prompt: function (blocks) {
       return invoke('acp:prompt', blocks);
     },
