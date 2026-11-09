@@ -30,6 +30,7 @@
 	import { canClone } from '$lib/workspace/scm/remote/gitClone';
 	import { canKeepLocalHistory } from '$lib/workspace/localHistory/localHistory.svelte';
 	import { m } from '$lib/paraglide/messages';
+	import { untrack } from 'svelte';
 	import type { Snippet } from 'svelte';
 
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any -- the pipelines are structural here
@@ -94,6 +95,34 @@
 
 	// the AGENT pane can run here: the bridge exists and AI is not turned off (same gate as LayoutControls)
 	const agentOn = $derived(!panelTabOff() && !!acpBridge());
+
+	// ---- 侧栏开合动画期间的编辑器宽度钉住 ----
+	// 可视化文档是几万节点 + 数百公式的深结构，侧栏 200ms 滑动若逐帧挤压这排 flex 的 1fr，
+	// 每帧都是一次全量重排（实测每帧 300-1000ms，动画变成幻灯片）。钉住主区在起滑瞬间的
+	// 像素宽：滑动期间编辑器纹丝不动（空出的缝被 overflow-clip 裁掉），结束后一帧落定。
+	let mainHolder = $state<HTMLDivElement>();
+	let pinRelease: ReturnType<typeof setTimeout> | undefined;
+
+	function pinMainWidth(ms: number): void {
+		const el = mainHolder;
+		if (!el) return;
+		const w = Math.round(el.getBoundingClientRect().width);
+		if (w <= 0) return;
+		el.style.flex = `0 0 ${w}px`;
+		clearTimeout(pinRelease);
+		if (ms > 0) pinRelease = setTimeout(() => (el.style.flex = ''), ms);
+	}
+
+	let prevSidebarOpen: boolean | null = null;
+	$effect(() => {
+		const open = layout.sidebarOpen;
+		const settled = layout.settled;
+		const changed = prevSidebarOpen !== null && prevSidebarOpen !== open;
+		prevSidebarOpen = open;
+		// 会话恢复的翻转（settled 前）不动画，也就没有要避开的逐帧重排
+		if (!settled || !changed) return;
+		untrack(() => pinMainWidth(260));
+	});
 </script>
 
 <!-- One title bar for both roles. A guest used to get a bare one, which meant no menus on Windows
@@ -251,7 +280,10 @@
 		/>
 	{/if}
 
-	{@render children()}
+	<!-- 主区包裹：钉住宽度的作用点（动画期间 flex 不许它长，编辑器零重排） -->
+	<div class="flex min-h-0 min-w-0 flex-1" bind:this={mainHolder}>
+		{@render children()}
+	</div>
 
 	<!-- 右缘活动栏的「代码修改」页：与左栏的源代码管理视图互斥（setReviewPane 负责切走） -->
 	{#if layout.reviewOpen && !fileMode.current}

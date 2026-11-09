@@ -278,178 +278,182 @@
 <!-- no border-r: the splitter beside it draws its own 1px, and a border as well read as two -->
 <!-- |global: the {#if} that removes this pane lives in WorkspaceChrome, not in this file -->
 <aside
-	class="bg-surface-50-950 flex shrink-0 flex-col"
+	class="bg-surface-50-950 flex shrink-0 flex-col overflow-hidden"
 	style="width: {width}px"
 	transition:slide|global={{ axis: 'x', duration: animate ? SLIDE_MS : 0 }}
 >
-	<!-- h-9, the tab strip's height, so the two rows read as one. shrink-0: h-9 sets a height, it does not defend one. A flex child shrinks below its height
+	<!-- 定宽内容层：slide 动画的是外层 aside 的宽度，内容层的可用宽度自始至终不变，
+	     浏览器据此跳过整棵文件树/大纲的逐帧重排——只有 aside 自己的裁剪框在动。 -->
+	<div class="flex h-full flex-col" style="width: {width}px">
+		<!-- h-9, the tab strip's height, so the two rows read as one. shrink-0: h-9 sets a height, it does not defend one. A flex child shrinks below its height
 	     whenever the column overflows, so any view below that asks for more room than is left takes
 	     it out of this row - and a title bar that changes height as you switch views reads as the
 	     whole layout twitching. -->
-	<div class="border-surface-200-800 flex h-9 shrink-0 items-center justify-between gap-2 border-b px-3">
-		<!-- min-w-0: the name is what gives up room as the sidebar narrows, truncating to a stub before
+		<div class="border-surface-200-800 flex h-9 shrink-0 items-center justify-between gap-2 border-b px-3">
+			<!-- min-w-0: the name is what gives up room as the sidebar narrows, truncating to a stub before
 		     any action is allowed to collapse into the menu -->
-		<span class="min-w-0 truncate text-sm font-semibold" use:tip={workspaceRoot.current ?? ''}>
-			{workspaceRoot.current ? basename(workspaceRoot.current) : m.wsview_no_folder()}
-		</span>
-		<div class="flex shrink-0 items-center gap-1">
-			{#each inlineActions as action (action.key)}
-				{@const Icon = action.icon}
-				<button
-					class="btn-icon btn-icon-xs {action.active ? 'text-primary-ink' : 'hover:preset-tonal'}"
-					use:tip={action.title ?? action.label}
-					aria-label={action.label}
-					onclick={action.run}
-				>
-					<Icon class="size-4" />
-				</button>
-			{/each}
+			<span class="min-w-0 truncate text-sm font-semibold" use:tip={workspaceRoot.current ?? ''}>
+				{workspaceRoot.current ? basename(workspaceRoot.current) : m.wsview_no_folder()}
+			</span>
+			<div class="flex shrink-0 items-center gap-1">
+				{#each inlineActions as action (action.key)}
+					{@const Icon = action.icon}
+					<button
+						class="btn-icon btn-icon-xs {action.active ? 'text-primary-ink' : 'hover:preset-tonal'}"
+						use:tip={action.title ?? action.label}
+						aria-label={action.label}
+						onclick={action.run}
+					>
+						<Icon class="size-4" />
+					</button>
+				{/each}
 
-			{#if menuActions.length > 0}
-				<Popover
-					open={actionsOpen}
-					onOpenChange={(e) => (actionsOpen = e.open)}
-					positioning={{ placement: 'bottom-end', offset: { mainAxis: 2 } }}
-					autoFocus={false}
-				>
-					<Popover.Trigger class="btn-icon btn-icon-xs hover:preset-tonal" aria-label={m.wsview_more_actions()}>
-						{#snippet element(attrs)}
-							<button {...attrs} use:tip={m.wsview_more_actions()}><MoreHorizontal class="size-4" /></button>
-						{/snippet}
-					</Popover.Trigger>
-					<Portal>
-						<Popover.Positioner class="z-floating-ui">
-							<Popover.Content class="card bg-surface-50-950 border-surface-300-700 min-w-[200px] border shadow-lg">
-								<div class="py-1">
-									{#each menuActions as action (action.key)}
-										{@const Icon = action.icon}
-										<button
-											type="button"
-											class="hover:preset-tonal flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm"
-											class:preset-tonal-primary={action.active}
-											use:tip={action.title ?? action.label}
-											onclick={() => runAction(action.run)}
-										>
-											<Icon class="size-4 shrink-0" />
-											{action.label}
-										</button>
-									{/each}
-								</div>
-							</Popover.Content>
-						</Popover.Positioner>
-					</Portal>
-				</Popover>
-			{/if}
+				{#if menuActions.length > 0}
+					<Popover
+						open={actionsOpen}
+						onOpenChange={(e) => (actionsOpen = e.open)}
+						positioning={{ placement: 'bottom-end', offset: { mainAxis: 2 } }}
+						autoFocus={false}
+					>
+						<Popover.Trigger class="btn-icon btn-icon-xs hover:preset-tonal" aria-label={m.wsview_more_actions()}>
+							{#snippet element(attrs)}
+								<button {...attrs} use:tip={m.wsview_more_actions()}><MoreHorizontal class="size-4" /></button>
+							{/snippet}
+						</Popover.Trigger>
+						<Portal>
+							<Popover.Positioner class="z-floating-ui">
+								<Popover.Content class="card bg-surface-50-950 border-surface-300-700 min-w-[200px] border shadow-lg">
+									<div class="py-1">
+										{#each menuActions as action (action.key)}
+											{@const Icon = action.icon}
+											<button
+												type="button"
+												class="hover:preset-tonal flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm"
+												class:preset-tonal-primary={action.active}
+												use:tip={action.title ?? action.label}
+												onclick={() => runAction(action.run)}
+											>
+												<Icon class="size-4 shrink-0" />
+												{action.label}
+											</button>
+										{/each}
+									</div>
+								</Popover.Content>
+							</Popover.Positioner>
+						</Portal>
+					</Popover>
+				{/if}
 
-			<!-- after the menu, so the toggles keep the same two slots at the right edge whatever collapses -->
-			{#each pinned as action (action.key)}
-				<SidebarIconButton
-					icon={action.icon}
-					label={action.label}
-					title={action.title}
-					active={action.active}
-					count={action.count}
-					onclick={action.run}
-				/>
-			{/each}
+				<!-- after the menu, so the toggles keep the same two slots at the right edge whatever collapses -->
+				{#each pinned as action (action.key)}
+					<SidebarIconButton
+						icon={action.icon}
+						label={action.label}
+						title={action.title}
+						active={action.active}
+						count={action.count}
+						onclick={action.run}
+					/>
+				{/each}
+			</div>
 		</div>
-	</div>
-	{#if view === 'search'}
-		<GlobalSearch
-			bind:this={globalSearchRef}
-			root={workspaceRoot.current ?? ''}
-			onOpen={onOpenFileAt}
-			onClose={onCloseGlobalSearch}
-			onReplace={onReplaceInFolder}
-		/>
-	{:else if view === 'scm'}
-		<!-- the panel owns its own scrolling: it is two regions with a splitter between them, each
-		     scrolling on its own, and an outer scroller here would fight both -->
-		<div class="min-h-0 flex-1">
-			<SourceControlPanel
+		{#if view === 'search'}
+			<GlobalSearch
+				bind:this={globalSearchRef}
 				root={workspaceRoot.current ?? ''}
-				isRepo={isGitRepo.current}
-				parentRepo={parentRepoToConfirm(workspaceRoot.current, gitRepoRoot.current)}
-				onUseParentRepo={() => void useParentRepoNow(workspaceRoot.current)}
-				gitMissing={gitMissing.current}
-				onRecheckGit={scmRecheckGit}
-				operation={gitOperation.current}
-				branch={gitBranch.current}
-				tracking={gitTracking.current}
-				ahead={gitAhead.current}
-				behind={gitBehind.current}
-				hasCommits={gitHasCommits.current}
-				detached={gitDetached.current}
-				changes={gitChanges.current}
-				history={gitHistory.current}
-				historyError={gitHistoryError.current}
-				historyHasMore={gitHistoryHasMore.current}
-				onShowMoreHistory={() => void showMoreGitHistory(workspaceRoot.current)}
-				busy={scmBusy}
-				onInit={scmInit}
-				onDiscard={scmDiscard}
-				onCommit={scmCommit}
-				onRestore={scmRestore}
-				onIgnoreArtifacts={scmIgnoreArtifacts}
-				onCompare={scmCompare}
-				onLoadChanges={scmChangesSince}
-				onOpenDiff={scmOpenDiff}
-				onRefresh={onRefreshGit}
-				onPublish={scmPublish}
-				onSync={scmSync}
-				onOpenConflict={scmOpenConflict}
-				onFinishCombine={scmFinishCombine}
-				onCancelCombine={scmCancelCombine}
-				{historyFraction}
-				bind:splitEl={scmSplitEl}
-				{onStartHistoryResize}
-				{onResizeHistoryByKey}
+				onOpen={onOpenFileAt}
+				onClose={onCloseGlobalSearch}
+				onReplace={onReplaceInFolder}
 			/>
-		</div>
-	{:else}
-		<div class="flex min-h-0 flex-1 flex-col" bind:this={splitEl}>
-			<!-- overflow-x-auto pairs with the tree's min-w-max: long names scroll, they are never trimmed -->
-			<div class="scroll-inset-r min-h-0 overflow-x-auto overflow-y-auto p-1.5" style="flex: 1 1 0%">
-				<FileTree
-					bind:this={fileTreeRef}
-					tree={fileTree.current}
-					rootPath={guest ? '' : (workspaceRoot.current ?? '')}
-					activePath={activeFilePath.current}
-					mainPath={mainFile.current}
-					gitStatus={gitStatusMap.current}
-					onOpen={onOpenEntry}
-					{onCreate}
-					{typstProject}
-					{onRename}
-					{onDelete}
-					{hasUnsaved}
-					{onMove}
-					{onImport}
-					{onCopyIn}
-					onSetMain={guest ? undefined : onSetMain}
-					onReveal={guest ? undefined : onReveal}
-					localHistory={!guest && canKeepLocalHistory()}
-					history={guest ? null : fileHistory}
+		{:else if view === 'scm'}
+			<!-- the panel owns its own scrolling: it is two regions with a splitter between them, each
+		     scrolling on its own, and an outer scroller here would fight both -->
+			<div class="min-h-0 flex-1">
+				<SourceControlPanel
+					root={workspaceRoot.current ?? ''}
+					isRepo={isGitRepo.current}
+					parentRepo={parentRepoToConfirm(workspaceRoot.current, gitRepoRoot.current)}
+					onUseParentRepo={() => void useParentRepoNow(workspaceRoot.current)}
+					gitMissing={gitMissing.current}
+					onRecheckGit={scmRecheckGit}
+					operation={gitOperation.current}
+					branch={gitBranch.current}
+					tracking={gitTracking.current}
+					ahead={gitAhead.current}
+					behind={gitBehind.current}
+					hasCommits={gitHasCommits.current}
+					detached={gitDetached.current}
+					changes={gitChanges.current}
+					history={gitHistory.current}
+					historyError={gitHistoryError.current}
+					historyHasMore={gitHistoryHasMore.current}
+					onShowMoreHistory={() => void showMoreGitHistory(workspaceRoot.current)}
+					busy={scmBusy}
+					onInit={scmInit}
+					onDiscard={scmDiscard}
+					onCommit={scmCommit}
+					onRestore={scmRestore}
+					onIgnoreArtifacts={scmIgnoreArtifacts}
+					onCompare={scmCompare}
+					onLoadChanges={scmChangesSince}
+					onOpenDiff={scmOpenDiff}
+					onRefresh={onRefreshGit}
+					onPublish={scmPublish}
+					onSync={scmSync}
+					onOpenConflict={scmOpenConflict}
+					onFinishCombine={scmFinishCombine}
+					onCancelCombine={scmCancelCombine}
+					{historyFraction}
+					bind:splitEl={scmSplitEl}
+					{onStartHistoryResize}
+					{onResizeHistoryByKey}
 				/>
 			</div>
-			<!-- arrow keys resize when focused: the WAI-ARIA window-splitter pattern (role=separator + tabindex) -->
-			<!-- eslint-disable-next-line svelte/valid-compile -->
-			<div
-				class="hover:bg-primary-wash active:bg-primary-flood relative z-20 -my-[3px] h-1.5 shrink-0 cursor-row-resize bg-transparent transition-colors"
-				onmousedown={onStartTocResize}
-				onkeydown={onResizeTocByKey}
-				role="separator"
-				aria-orientation="horizontal"
-				aria-label={m.wsview_resize_toc_aria()}
-				tabindex="0"
-			></div>
-			<!-- scroll-inset-r moves the scrollbar, not the box, so border-t reaches the divider; whole pixels keep rows on the grid -->
-			<div
-				class="border-surface-200-800 scroll-inset-r min-h-0 overflow-y-auto border-t p-2"
-				style="flex: 0 1 round({tocFraction * 100}%, 1px)"
-			>
-				<TableOfContents list={toc} onOpenFile={onOpenFileAt} />
+		{:else}
+			<div class="flex min-h-0 flex-1 flex-col" bind:this={splitEl}>
+				<!-- overflow-x-auto pairs with the tree's min-w-max: long names scroll, they are never trimmed -->
+				<div class="scroll-inset-r min-h-0 overflow-x-auto overflow-y-auto p-1.5" style="flex: 1 1 0%">
+					<FileTree
+						bind:this={fileTreeRef}
+						tree={fileTree.current}
+						rootPath={guest ? '' : (workspaceRoot.current ?? '')}
+						activePath={activeFilePath.current}
+						mainPath={mainFile.current}
+						gitStatus={gitStatusMap.current}
+						onOpen={onOpenEntry}
+						{onCreate}
+						{typstProject}
+						{onRename}
+						{onDelete}
+						{hasUnsaved}
+						{onMove}
+						{onImport}
+						{onCopyIn}
+						onSetMain={guest ? undefined : onSetMain}
+						onReveal={guest ? undefined : onReveal}
+						localHistory={!guest && canKeepLocalHistory()}
+						history={guest ? null : fileHistory}
+					/>
+				</div>
+				<!-- arrow keys resize when focused: the WAI-ARIA window-splitter pattern (role=separator + tabindex) -->
+				<!-- eslint-disable-next-line svelte/valid-compile -->
+				<div
+					class="hover:bg-primary-wash active:bg-primary-flood relative z-20 -my-[3px] h-1.5 shrink-0 cursor-row-resize bg-transparent transition-colors"
+					onmousedown={onStartTocResize}
+					onkeydown={onResizeTocByKey}
+					role="separator"
+					aria-orientation="horizontal"
+					aria-label={m.wsview_resize_toc_aria()}
+					tabindex="0"
+				></div>
+				<!-- scroll-inset-r moves the scrollbar, not the box, so border-t reaches the divider; whole pixels keep rows on the grid -->
+				<div
+					class="border-surface-200-800 scroll-inset-r min-h-0 overflow-y-auto border-t p-2"
+					style="flex: 0 1 round({tocFraction * 100}%, 1px)"
+				>
+					<TableOfContents list={toc} onOpenFile={onOpenFileAt} />
+				</div>
 			</div>
-		</div>
-	{/if}
+		{/if}
+	</div>
 </aside>
