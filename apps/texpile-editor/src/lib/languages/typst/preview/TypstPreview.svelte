@@ -38,6 +38,16 @@
 	};
 	let { host, paneDragging, onPopout = null, asTabStrip = true, controls }: Props = $props();
 
+	// 等待首帧的秒表：预览服务器已就绪却迟迟没有渲染帧时（大文档首编译、或会话重建后
+	// preview 请求未被响应），把静默的死等换成可操作的提示——超时给出计时与一键重启
+	let waitingSecs = $state(0);
+	$effect(() => {
+		if (host === null) return;
+		waitingSecs = 0;
+		const timer = setInterval(() => (waitingSecs += 1), 1000);
+		return () => clearInterval(timer);
+	});
+
 	let frameBox = $state<HTMLDivElement | null>(null);
 	/**
 	 * The frame's width, frozen for the duration of a splitter drag.
@@ -360,8 +370,21 @@
 				>
 			</div>
 		{:else if !error}
-			<div class="text-muted flex h-full items-center justify-center text-center text-sm">
-				{m.typst_preview_waiting()}
+			<div class="text-muted flex h-full flex-col items-center justify-center gap-3 p-6 text-center text-sm">
+				<p>{m.typst_preview_waiting()}</p>
+				{#if waitingSecs > 20}
+					<p class="text-xs">
+						已等待 {waitingSecs} 秒仍未收到渲染帧。大文档首次编译较慢；若持续无响应，重启预览：
+					</p>
+					<button
+						type="button"
+						class="btn btn-sm preset-tonal gap-1"
+						onclick={() => window.dispatchEvent(new CustomEvent('typwriter:restart-preview'))}
+					>
+						<RefreshCw class="size-3.5" />
+						刷新编译
+					</button>
+				{/if}
 			</div>
 		{/if}
 	</div>
