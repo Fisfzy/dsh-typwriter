@@ -67,14 +67,58 @@ export async function listPlugins(home) {
 }
 
 // ---- 模型选择（AGENT 对话的工具栏） ----
-// 目录来自 settings.yaml.imported（迁移快照，用户配好的 providers 全在里面）；当前选择与
-// 写入都走 <home>/settings.json —— dsh-settings-file 认这个格式，落盘即 live 生效，
-// 之后新建的 agent（包括我们重启的 ACP 会话）就跑在选定的模型上。
+// 目录的现行来源是 pi-ai 的预装 catalog（dsh 本体模型选择器同款数据）：DSH 的 profile 里
+// llm-pi-ai 插件不配 providers 时用 catalog 默认值，UI 只显示用户有凭证的那几个 provider——
+// 凭证在 <home>/.credentials.yaml 明文可读（refs 的 *_API_KEY 名与 records 的账号前缀）。
+// settings.yaml.imported（迁移快照）只作 catalog 找不到时的保底。当前选择与写入都走
+// <home>/settings.json —— dsh-settings-file 认这个格式，落盘即 live 生效。
 
 /** @typedef {{provider: string, id: string, name: string, contextWindow: number | null}} ModelEntry */
 /** @typedef {{provider: string | null, model: string | null, reasoningEffort: string | null}} ModelSelection */
 
 const EFFORTS = ['minimal', 'low', 'medium', 'high'];
+
+/** 在 DSH 的各 profile 工作区里找版本最高的 pi-ai catalog */
+async function loadPiAiCatalog(home) {
+	const found = [];
+	for (const ws of ['dsh-browser', 'profiles']) {
+		const pnpm = join(home, ws, 'node_modules', '.pnpm');
+		const entries = await readdir(pnpm, { withFileTypes: true }).catch(() => []);
+		for (const e of entries) {
+			const m = /^@earendil-works\+pi-ai@(\d+)\.(\d+)\.(\d+)/.exec(e.name);
+			if (!e.isDirectory() || !m) continue;
+			found.push({ v: m.slice(1).map(Number), file: join(pnpm, e.name, 'node_modules', '@earendil-works', 'pi-ai', 'dist', 'models.generated.js') });
+		}
+	}
+	found.sort((a, b) => b.v[0] - a.v[0] || b.v[1] - a.v[1] || b.v[2] - a.v[2]);
+	for (const f of found) {
+		try {
+			const { pathToFileURL } = await import('node:url');
+			const mod = await import(pathToFileURL(f.file).href);
+			const models = mod.MODELS ?? mod.default?.MODELS;
+			if (models && typeof models === 'object') return models;
+		} catch {
+			/* 换下一个候选 */
+		}
+	}
+	return null;
+}
+
+/** 有凭证的 provider 名集合：refs 的 XXX_API_KEY → xxx-xxx（小写连字符），
+ *  records 的账号键前缀（deepseek-account-platform/... → deepseek）。只在 catalog 里存在的保留 */
+function credentialedProviders(credsText, catalog) {
+	const out = new Set();
+	for (const m of credsText.matchAll(/^\s*([A-Z0-9_]+)_API_KEY:/gm)) {
+		const p = m[1].toLowerCase().replaceAll('_', '-');
+		if (p in catalog) out.add(p);
+	}
+	for (const m of credsText.matchAll(/^  ([a-z0-9-]+)\/[^\s:]*:/gm)) {
+		// deepseek-account-platform → deepseek（账号型凭证的 provider 是第一段去掉 -account-* 后缀）
+		const p = m[1].replace(/-account(-platform)?$/, '');
+		if (p in catalog) out.add(p);
+	}
+	return out;
+}
 
 /** 迷你解析：只认 settings.yaml.imported 里 providers 段的形状（llm-pi-ai: 下的两级缩进 + models 列表） */
 function parseProvidersYaml(text) {
@@ -126,7 +170,20 @@ async function readJson(file) {
 
 /** @returns {Promise<{models: ModelEntry[], current: ModelSelection, efforts: string[]}>} */
 export async function modelInfo(home) {
-	const models = parseProvidersYaml(await readFile(join(home, 'settings.yaml.imported'), 'utf8').catch(() => ''));
+	// 主源：pi-ai catalog（dsh 本体同款）过滤到有凭证的 provider；找不到再回落迁移快照
+	let models = [];
+	const catalog = await loadPiAiCatalog(home);
+	if (catalog) {
+		const creds = await readFile(join(home, '.credentials.yaml'), 'utf8').catch(() => '');
+		const providers = credentialedProviders(creds, catalog);
+		for (const p of providers) {
+			for (const m of Object.values(catalog[p])) {
+				models.push({ provider: p, id: m.id, name: m.name || m.id, contextWindow: typeof m.contextWindow === 'number' ? m.contextWindow : null });
+			}
+		}
+		models.sort((a, b) => a.provider.localeCompare(b.provider) || a.name.localeCompare(b.name));
+	}
+	if (models.length === 0) models = parseProvidersYaml(await readFile(join(home, 'settings.yaml.imported'), 'utf8').catch(() => ''));
 	const user = (await readJson(join(home, 'settings.json'))) || {};
 	// 当前选择：settings.json 优先，没有则回落快照开头的 agent-default-model 段
 	let current = { provider: null, model: null, reasoningEffort: null };
