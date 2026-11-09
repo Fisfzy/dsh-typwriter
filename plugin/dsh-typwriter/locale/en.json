@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Typwriter — Typst Paper Workbench",
+    "description": "A visual Typst/LaTeX paper-writing workbench with a DSH agent, live PDF preview, and MCP tools (Zotero)."
+  }
+}

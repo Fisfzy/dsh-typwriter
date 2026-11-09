@@ -8,7 +8,9 @@
     ".": "./src/host/index.js",
     "./client": "./dist/client.js",
     "./cordis.patch.yml": "./cordis.patch.yml",
-    "./package.json": "./package.json"
+    "./package.json": "./package.json",
+    "./locale/en.json": "./locale/en.json",
+    "./locale/zh-hans.json": "./locale/zh-hans.json"
   },
   "dsh": {
     "bundle": {
@@ -30,13 +32,16 @@
     "build": "node scripts/build.mjs"
   },
   "files": [
-    "src",
-    "dist",
     "app",
     "bin",
-    "cordis.patch.yml"
+    "cordis.patch.yml",
+    "dist",
+    "icon.png",
+    "locale",
+    "src"
   ],
   "devDependencies": {
     "esbuild": "^0.25.10"
-  }
+  },
+  "icon": "./icon.png"
 }
