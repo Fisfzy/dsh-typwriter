@@ -19,6 +19,7 @@
 	import { droppedPaths } from '../../attach/dropPaths';
 	import { tip } from '$lib/components/tooltip.svelte';
 	import { m } from '$lib/paraglide/messages';
+	import { agentSession } from '../../agentSession.svelte';
 	import type { AgentCommand, Attached, ConfigOption, ContextUsage, PastedImage } from '../../agentPanel.types';
 
 	type Props = {
@@ -107,11 +108,49 @@
 		{ label: '改进表达', prompt: '请找出当前文件中表达不够清晰或学术性不足的段落并改写。' }
 	];
 
-	// ---- 模型 / 思考强度（数据来自 DSH 本体：settings.json 的 agent-default-model） ----
-	type ModelEntry = { provider: string; id: string; name: string; contextWindow: number | null };
+	// ---- 模型 / 思考强度 ----
+	// 两条数据源，按宿主择一：
+	// · DSH 宿主（原生会话）：session/modelCatalog——DSH 本体同一份目录（凭证感知，与本地配置
+	//   一致），切换走 session/selectModel 作用于当前会话，立即生效
+	// · 独立 dev 页（ACP 回落）：agent:modelInfo——快照目录 + 写 settings.json，新对话生效
+	type ModelEntry = { provider: string; id: string; name: string; contextWindow: number | null; efforts: string[] | null };
 	type ModelSel = { provider: string | null; model: string | null; reasoningEffort: string | null };
+	type NativeSessionApi = {
+		modelCatalog?: () => Promise<{
+			default: ModelSel;
+			groups?: Array<{
+				id: string;
+				name?: string;
+				models?: Array<{ id: string; name?: string; reasoning?: { efforts?: string[]; defaultEffort?: string } }>;
+			}>;
+		}>;
+		selectModel?: (sessionId: string, sel: Partial<ModelSel>) => Promise<{ selected: ModelSel }>;
+	};
 	let modelData = $state<{ models: ModelEntry[]; current: ModelSel; efforts: string[] } | null>(null);
+	const nativeSession = $derived((window as unknown as { texpileSession?: NativeSessionApi }).texpileSession);
+
 	$effect(() => {
+		if (nativeSession?.modelCatalog) {
+			void nativeSession
+				.modelCatalog()
+				.then((c) => {
+					const models: ModelEntry[] = [];
+					for (const g of c.groups ?? []) {
+						for (const m of g.models ?? []) {
+							models.push({
+								provider: g.id,
+								id: m.id,
+								name: m.name || m.id,
+								contextWindow: null,
+								efforts: m.reasoning?.efforts ? [...m.reasoning.efforts] : null
+							});
+						}
+					}
+					modelData = { models, current: c.default ?? { provider: null, model: null, reasoningEffort: null }, efforts: [] };
+				})
+				.catch(() => {});
+			return;
+		}
 		void (
 			window as unknown as { texpileAgent?: { modelInfo?: () => Promise<{ models: ModelEntry[]; current: ModelSel; efforts: string[] }> } }
 		).texpileAgent
@@ -123,9 +162,22 @@
 			.catch(() => {});
 	});
 	async function applyModel(patch: Partial<ModelSel>): Promise<void> {
+		if (!modelData) return;
+		// 原生：作用于当前会话（agentSession.chat 即 sessionId），立即生效
+		if (nativeSession?.selectModel && agentSession.chat) {
+			try {
+				const next = { ...modelData.current, ...patch };
+				const r = await nativeSession.selectModel(agentSession.chat, patch);
+				if (r?.selected) modelData = { ...modelData, current: r.selected };
+				else modelData = { ...modelData, current: next };
+			} catch {
+				/* 会话可能刚切换：保持现状 */
+			}
+			return;
+		}
 		const api = (window as unknown as { texpileAgent?: { setModel?: (s: Partial<ModelSel>) => Promise<{ current: ModelSel }> } })
 			.texpileAgent;
-		if (!api?.setModel || !modelData) return;
+		if (!api?.setModel) return;
 		try {
 			const r = await api.setModel(patch);
 			if (r?.current) modelData = { ...modelData, current: r.current };
@@ -133,7 +185,15 @@
 			/* 落盘失败：保持现状 */
 		}
 	}
+	// 当前模型的可选思考强度：原生目录按模型声明（无则隐藏强度菜单），ACP 回落用全局四档
 	const EFFORT_LABELS: Record<string, string> = { minimal: '极简', low: '低', medium: '中', high: '高' };
+	const currentEfforts = $derived.by(() => {
+		const cur = modelData?.current;
+		const m = modelData?.models.find((x) => x.provider === cur?.provider && x.id === cur?.model);
+		return m?.efforts ?? modelData?.efforts ?? [];
+	});
+	/** 每组直接可见的模型数；更长的一组把余下收进组尾的子菜单（MenuDropdown 的 more） */
+	const GROUP_VISIBLE = 8;
 	const modelGroups = $derived.by(() => {
 		const cur = modelData?.current;
 		const byProvider = new Map<string, ModelEntry[]>();
@@ -141,15 +201,22 @@
 			if (!byProvider.has(m.provider)) byProvider.set(m.provider, []);
 			byProvider.get(m.provider)!.push(m);
 		}
-		return [...byProvider.entries()].map(([provider, list]) => ({
-			label: provider,
-			options: list.map((m) => ({
-				value: `${m.provider}::${m.id}`,
-				label: m.name,
-				note: m.contextWindow ? `${Math.round(m.contextWindow / 1000)}k 上下文` : undefined,
-				checked: cur?.provider === m.provider && cur?.model === m.id
-			}))
-		}));
+		return [...byProvider.entries()].map(([provider, list]) => {
+			function option(m: ModelEntry) {
+				return {
+					value: `${m.provider}::${m.id}`,
+					label: m.name,
+					checked: cur?.provider === m.provider && cur?.model === m.id
+				};
+			}
+			const visible = list.slice(0, GROUP_VISIBLE).map(option);
+			const rest = list.slice(GROUP_VISIBLE).map(option);
+			return {
+				label: `${provider}${list.length > GROUP_VISIBLE ? `（${list.length}）` : ''}`,
+				options: visible,
+				...(rest.length ? { more: { label: '更多模型', options: rest } } : {})
+			};
+		});
 	});
 	const effortGroups = $derived.by(() => {
 		const cur = modelData?.current.reasoningEffort ?? null;
@@ -158,7 +225,7 @@
 				label: '思考强度',
 				options: [
 					{ value: '', label: '默认（跟随模型）', checked: cur === null },
-					...(modelData?.efforts ?? []).map((e) => ({ value: e, label: EFFORT_LABELS[e] ?? e, checked: cur === e }))
+					...currentEfforts.map((e) => ({ value: e, label: EFFORT_LABELS[e] ?? e, checked: cur === e }))
 				]
 			}
 		];

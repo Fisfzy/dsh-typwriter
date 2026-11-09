@@ -564,7 +564,8 @@
         });
       },
       modelCatalog: function () {
-        return call('session/modelCatalog', { _request: {} });
+        // 无参端点：descriptor 校验零参数，传 _request 反而报 args 不匹配
+        return call('session/modelCatalog', {});
       },
       selectModel: function (sessionId, selection) {
         return call('session/selectModel', { request: Object.assign({ sessionId: sessionId }, selection || {}) });
