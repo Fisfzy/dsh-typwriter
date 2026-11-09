@@ -302,7 +302,7 @@
 				{/if}
 			</button>
 		{/if}
-		<!-- 独立的设置栏入口：菜单整体右移让位（返回 DSH 在右侧） -->
+		<!-- 独立的设置栏入口：菜单整体右移给标题栏控件让位 -->
 		<button
 			class="rounded-base hover:preset-tonal shrink-0 px-2 py-1 text-xs"
 			title="偏好设置"
