@@ -120,6 +120,13 @@ class EditorGroups {
 		return this.list.filter((g) => !g.window);
 	}
 
+	/** every slot is empty (no tabs anywhere): the editor column collapses so the right-hand panes
+	 *  take the room, and a drop-anywhere placeholder takes its place until a file opens again */
+	get allClosed(): boolean {
+		if (tabs.list.length) return false;
+		return this.grid.every((g) => g.id === this.focusedId || !g.tabs || g.tabs.list.length === 0);
+	}
+
 	/** a folder opens with the layout it was left with, or one editor */
 	restore(root: string | null): void {
 		for (const g of this.list) if (g.tabs) tabs.others.delete(g.tabs);

@@ -2,11 +2,13 @@
 	// The editor column as the slots of an editor layout (lib/workspace/groups): the focused slot is drawn
 	// from the workspace's live state, a parked one from what it showed when focus left it
 	import { flushSync, untrack } from 'svelte';
+	import { FilePlus } from '@lucide/svelte';
 	import type { Node as PMNode } from 'prosemirror-model';
 	import GroupCell from './GroupCell.svelte';
 	import EditorWindow from './window/EditorWindow.svelte';
 	import GroupDivider from './GroupDivider.svelte';
 	import { editorGroups, type EditorGroup, type GroupHost } from '$lib/workspace/groups/editorGroups.svelte';
+	import { openFile } from '$lib/workspace/workspaceStore';
 	import { publishFile } from '$lib/workspace/groups/fileFeed.svelte';
 	import { followParked } from './parkedFollow.svelte';
 	import { tabs, type Tab } from '$lib/workspace/tabs.svelte';
@@ -281,44 +283,64 @@
 </script>
 
 <div class="flex min-h-0 min-w-0 flex-col" style="grid-column: 1; grid-row: 2">
-	<div
-		class="min-h-0 min-w-0 flex-1 overflow-auto"
-		bind:this={scroller}
-		bind:contentRect={content}
-		bind:offsetHeight={outerHeight}
-		onscroll={() => (scrolled = scroller?.scrollTop ?? 0)}
-	>
+	{#if editorGroups.allClosed}
+		<!-- 全部文档关闭：编辑器列收为一窄条欢迎占位（拖文件进来即可打开），右侧面板占满剩余空间 -->
 		<div
-			class="grid h-full w-full"
-			style={sizes
-				? `grid-template-columns: ${trackTemplate(sizes.columns, MIN_COLUMN_PX)}; grid-template-rows: ${trackTemplate(sizes.rows, MIN_ROW_PX)}; width: max(100%, ${trackSpan(sizes.columns, MIN_COLUMN_PX)}px); height: max(100%, ${trackSpan(sizes.rows, MIN_ROW_PX)}px)`
-				: ''}
+			class="border-surface-300-700 text-muted flex min-h-0 w-16 flex-1 flex-col items-center justify-center gap-3 overflow-hidden border-r p-2 text-center text-xs"
+			ondragover={(e) => e.preventDefault()}
+			ondrop={(e) => {
+				e.preventDefault();
+				try {
+					const paths = JSON.parse(e.dataTransfer?.getData('application/x-texpile-paths') ?? '[]') as string[];
+					if (paths[0]) openFile(paths[0]);
+				} catch {
+					/* 非 JSON 拖拽忽略 */
+				}
+			}}
 		>
-			{#if sizes && tracks.columns > 1}
-				<GroupDivider axis="column" sizes={sizes.columns} least={MIN_COLUMN_PX} style="grid-column: 2; grid-row: 1 / -1" />
-			{/if}
-			{#if sizes && tracks.rows > 1}
-				<GroupDivider axis="row" sizes={sizes.rows} least={MIN_ROW_PX} style="grid-row: 2; grid-column: 1 / -1" />
-			{/if}
-			{#each editorGroups.grid as g, i (g.id)}
-				{@const at = cellOf(editorGroups.layout, i)}
-				<GroupCell
-					id={g.id}
-					pane={paneOf(g.id)}
-					hint={shownHint?.id === g.id ? shownHint.zone : null}
-					style="grid-column: {at.column * 2 + 1}; grid-row: {at.row * 2 + 1}"
-					{register}
-					onPointerDown={(e) => onCellPointerDown(g, e)}
-					onFocusIn={(e) => onCellFocusIn(g, e)}
-					onDragOver={(e) => onCellDragOver(g, e)}
-					onDragOff={() => (dropHint = null)}
-					onDrop={(e) => onCellDrop(g, e)}
-					closable={editorGroups.grid.length > 1 && editorGroups.tabsOf(g.id).length === 0}
-					onClose={() => editorGroups.closeSlot(g.id)}
-				/>
-			{/each}
+			<FilePlus class="size-5 opacity-50" />
+			<span>打开文件开始写作</span>
 		</div>
-	</div>
+	{:else}
+		<div
+			class="min-h-0 min-w-0 flex-1 overflow-auto"
+			bind:this={scroller}
+			bind:contentRect={content}
+			bind:offsetHeight={outerHeight}
+			onscroll={() => (scrolled = scroller?.scrollTop ?? 0)}
+		>
+			<div
+				class="grid h-full w-full"
+				style={sizes
+					? `grid-template-columns: ${trackTemplate(sizes.columns, MIN_COLUMN_PX)}; grid-template-rows: ${trackTemplate(sizes.rows, MIN_ROW_PX)}; width: max(100%, ${trackSpan(sizes.columns, MIN_COLUMN_PX)}px); height: max(100%, ${trackSpan(sizes.rows, MIN_ROW_PX)}px)`
+					: ''}
+			>
+				{#if sizes && tracks.columns > 1}
+					<GroupDivider axis="column" sizes={sizes.columns} least={MIN_COLUMN_PX} style="grid-column: 2; grid-row: 1 / -1" />
+				{/if}
+				{#if sizes && tracks.rows > 1}
+					<GroupDivider axis="row" sizes={sizes.rows} least={MIN_ROW_PX} style="grid-row: 2; grid-column: 1 / -1" />
+				{/if}
+				{#each editorGroups.grid as g, i (g.id)}
+					{@const at = cellOf(editorGroups.layout, i)}
+					<GroupCell
+						id={g.id}
+						pane={paneOf(g.id)}
+						hint={shownHint?.id === g.id ? shownHint.zone : null}
+						style="grid-column: {at.column * 2 + 1}; grid-row: {at.row * 2 + 1}"
+						{register}
+						onPointerDown={(e) => onCellPointerDown(g, e)}
+						onFocusIn={(e) => onCellFocusIn(g, e)}
+						onDragOver={(e) => onCellDragOver(g, e)}
+						onDragOff={() => (dropHint = null)}
+						onDrop={(e) => onCellDrop(g, e)}
+						closable={editorGroups.grid.length > 1 && editorGroups.tabsOf(g.id).length === 0}
+						onClose={() => editorGroups.closeSlot(g.id)}
+					/>
+				{/each}
+			</div>
+		</div>
+	{/if}
 </div>
 {#each editorGroups.list.filter((x) => x.window) as g (g.id)}
 	<EditorWindow
