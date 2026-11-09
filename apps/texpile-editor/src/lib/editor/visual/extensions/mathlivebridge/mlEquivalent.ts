@@ -1,4 +1,5 @@
 import type { MathSyntax } from './mathFieldFactory';
+import { typstForMathlive } from './mathStatic';
 
 // MathLive's latex in TeX's terms: what it writes that TeX cannot read, and whether its re-emitted
 // latex differs from the source only in ways TeX cannot see.
@@ -25,7 +26,8 @@ export function mathLatexEquivalent(a: string, b: string): boolean {
 }
 
 /** true when the field holds what the node does, so writing it back would change nothing. Typst
- *  comes back byte for byte wherever it was not edited, so for it only equality counts */
+ *  comes back byte for byte wherever it was not edited, so for it only equality counts — against
+ *  the sanitized spelling the field was shown (code-mode calls are stripped on the way in) */
 export function mathUnchanged(syntax: MathSyntax, stored: string, field: string): boolean {
-	return syntax === 'typst' ? stored === field : mathLatexEquivalent(stored, field);
+	return syntax === 'typst' ? typstForMathlive(stored) === field : mathLatexEquivalent(stored, field);
 }

@@ -15,6 +15,9 @@ const TOC_MIN = 0.1;
 const TOC_MAX = 0.9;
 /** the editor keeps at least this much width; below it the sidebar gives way to the right-hand panes */
 const EDITOR_FLOOR = 460;
+/** the AGENT pane's width bounds, in px */
+const AGENT_MIN = 320;
+const AGENT_MAX = 640;
 // the same kind of split one level in: what has changed, against the versions behind it. Bounded
 // tighter than the TOC's, because either half stops being worth showing below a couple of rows.
 const HISTORY_MIN = 0.15;
@@ -52,7 +55,7 @@ export class PaneLayout {
 	 * persisted: a restored session must not open a second window before the user asked for one.
 	 */
 	pdfPopout = $state(false);
-	/** 右侧独立的 AGENT 对话面板：与 PDF 预览并列，占编辑器网格的最后一列（固定宽度，暂不支持拖拽） */
+	/** 右侧独立的 AGENT 对话面板：与 PDF 预览并列，占编辑器网格的最后一列；左缘可拖拽调宽 */
 	agentPaneOpen = $state(false);
 	agentPaneWidth = $state(420);
 
@@ -61,6 +64,31 @@ export class PaneLayout {
 		this.agentPaneOpen = open;
 		this.makeRoomForEditor();
 	}
+
+	// AGENT 面板宽度的界：窄过一条对话读不开，宽过半个窗口就该关掉它了
+	private clampAgent = (w: number) => Math.min(AGENT_MAX, Math.max(AGENT_MIN, w));
+
+	/** 拖左缘调宽，与 PDF 预览同型的手势（向左拖 = 更宽）；宽度会话内有效，不持久化 */
+	startAgentResize = (e: MouseEvent) => {
+		const startX = e.clientX;
+		const startW = this.agentPaneWidth;
+		startDrag(e, {
+			compute: (ev) => startW + (startX - ev.clientX),
+			apply: (w) => (this.agentPaneWidth = this.clampAgent(w)),
+			commit: () => this.makeRoomForEditor(),
+			onState: (d) => (this.paneDragging = d)
+		});
+	};
+
+	// 键序与 PDF 的一致：左键加宽，右键变窄
+	resizeAgentByKey = (e: KeyboardEvent) =>
+		nudgeOnKey(e, {
+			keys: ['ArrowRight', 'ArrowLeft'],
+			step: 16,
+			current: () => this.agentPaneWidth,
+			apply: (w) => (this.agentPaneWidth = this.clampAgent(w)),
+			commit: () => this.makeRoomForEditor()
+		});
 
 	/** 右缘活动栏的「代码修改」页：源代码管理的修改审阅，显示在窗口右侧 */
 	reviewOpen = $state(false);

@@ -27,6 +27,17 @@ import 'mathlive/static.css';
 
 export const PLACEHOLDER_CLASS = 'math-static-placeholder';
 
+/** MathLive's Typst parser reads the math subset; code-mode calls it cannot take (#scale's
+ *  enlarged parens, #h's fixed gap) break typesetting mid-formula, and everything after the
+ *  break leaks into the render as literal source. Keep what the calls wrap or stand for —
+ *  #scale(x: …)[X] → X, #h(len) → quad — and drop any other call rather than lose the tail. */
+export function typstForMathlive(src: string): string {
+	return src
+		.replace(/#scale\s*\([^()]*\)\s*\[([^[\]]*)\]/g, '$1')
+		.replace(/#h\s*\([^()]*\)/g, 'quad ')
+		.replace(/#[a-zA-Z][\w.-]*\s*\([^()]*\)/g, ' ');
+}
+
 /** how much of a slice to spend typesetting before handing the thread back */
 const SLICE_MS = 5;
 /** rough height of one line of display math, in em */
@@ -109,7 +120,7 @@ function typeset(el: HTMLElement, latex: string): void {
 		// 'math' matches MathfieldElement's own default mode; anything else would resize on upgrade
 		const markup =
 			el.dataset.syntax === 'typst'
-				? convertTypstToMarkup(latex, { defaultMode: 'math' })
+				? convertTypstToMarkup(typstForMathlive(latex), { defaultMode: 'math' })
 				: convertLatexToMarkup(latex, { defaultMode: 'math', macros: mathMacros.current });
 		el.innerHTML = themeStaticMarkup(markup);
 	} catch {

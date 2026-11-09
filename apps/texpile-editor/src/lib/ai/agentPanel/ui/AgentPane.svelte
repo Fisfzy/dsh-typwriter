@@ -1,6 +1,7 @@
 <script lang="ts">
 	// 右侧独立的 AGENT 对话面板：与 PDF 预览并列，占编辑器网格的最后一列。
-	// 固定宽度（暂不做拖拽）——先把"侧边独立"跑通。
+	// 左缘是拖拽调宽的手柄——绝对定位贴在 border 上，不占网格列（PDF 面板是占列的分隔条，
+	// 这里两列之间已经没有空位可给）。
 	import { Bot, History, X } from '@lucide/svelte';
 	import { Popover, Portal } from '@skeletonlabs/skeleton-svelte';
 	import AgentPanel from './AgentPanel.svelte';
@@ -12,9 +13,11 @@
 
 	type Props = {
 		width?: number;
+		onStartResize: (e: MouseEvent) => void;
+		onResizeByKey: (e: KeyboardEvent) => void;
 		onClose: () => void;
 	};
-	let { width = 420, onClose }: Props = $props();
+	let { width = 420, onStartResize, onResizeByKey, onClose }: Props = $props();
 
 	const blocked = $derived(agentUnavailable());
 	const title = $derived(agentSession.agent ? agentLabel(agentSession.agent) : 'AGENT 对话');
@@ -25,6 +28,17 @@
 	style="grid-column: 4; grid-row: 2; width: {width}px"
 	aria-label="AGENT 对话"
 >
+	<!-- WAI-ARIA window-splitter，与 PaneSplitter 同款手势与视觉：7px 抓取区横跨 1px 的边线 -->
+	<!-- eslint-disable-next-line svelte/valid-compile -->
+	<div
+		class="hover:bg-primary-wash active:bg-primary-flood absolute inset-y-0 -left-[3px] z-10 w-[7px] cursor-col-resize transition-colors"
+		role="separator"
+		aria-orientation="vertical"
+		aria-label="调整 AGENT 对话宽度"
+		tabindex="0"
+		onmousedown={onStartResize}
+		onkeydown={onResizeByKey}
+	></div>
 	<header class="border-surface-200-800 flex shrink-0 items-center gap-2 border-b px-2 py-1">
 		<Bot class="size-4 opacity-70" />
 		<span class="truncate text-xs font-medium">{title}</span>

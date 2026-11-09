@@ -24,7 +24,7 @@ import {
 	type FieldListeners,
 	type MathSyntax
 } from './mathFieldFactory';
-import { renderStaticMath, setStaticMath, cancelStaticMath } from './mathStatic';
+import { renderStaticMath, setStaticMath, cancelStaticMath, typstForMathlive } from './mathStatic';
 import { mathMacros } from './mathMacros.svelte';
 import { observe } from '$lib/runes/observe.svelte';
 import { followSnippetShortcuts } from '$lib/editor/snippets/visual/mathliveSnippets';
@@ -386,7 +386,10 @@ export class MathLiveView implements NodeView {
 	private showNode(field: MathfieldElement): void {
 		this.updating = true;
 		// silenced: the formula shown again is not an edit, and its input event, fired after a caret has entered, wrote it back
-		field.setValue(this.node.textContent || '', { format: mathFormat(this.syntax), silenceNotifications: true });
+		// typst: strip the code-mode calls mathlive's parser cannot take before they leak as literal
+		// text (#scale, #h); typing in the field then writes the renderable form back
+		const shown = this.syntax === 'typst' ? typstForMathlive(this.node.textContent || '') : this.node.textContent || '';
+		field.setValue(shown, { format: mathFormat(this.syntax), silenceNotifications: true });
 		requestAnimationFrame(() => {
 			this.updating = false;
 		});

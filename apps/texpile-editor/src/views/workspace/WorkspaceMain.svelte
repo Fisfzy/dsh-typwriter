@@ -255,7 +255,12 @@
 			/>
 		{/if}
 		{#if layout.agentPaneOpen && !fileMode.current}
-			<AgentPane width={layout.agentPaneWidth} onClose={() => layout.setAgentPane(false)} />
+			<AgentPane
+				width={layout.agentPaneWidth}
+				onStartResize={layout.startAgentResize}
+				onResizeByKey={layout.resizeAgentByKey}
+				onClose={() => layout.setAgentPane(false)}
+			/>
 		{/if}
 		{#if layout.pdfPaneOpen && layout.pdfPopout}
 			<PreviewPopout
