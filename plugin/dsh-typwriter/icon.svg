@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- Typwriter 品牌徽章：纸与笔。深灰对角渐变底 + 白纸 + 文字行 + 斜放的笔，
+       与侧栏入口的线条精简版同一设计语言（纸 + 笔 + 文字行）。 -->
+  <defs>
+    <linearGradient id="typ-g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1f2430"/>
+      <stop offset="1" stop-color="#59616e"/>
+    </linearGradient>
+  </defs>
+  <rect x="4" y="4" width="56" height="56" rx="13" fill="url(#typ-g)"/>
+  <!-- 纸（右上折角） -->
+  <path d="M21 13h15l8 8v26a2 2 0 0 1-2 2H21a2 2 0 0 1-2-2V15a2 2 0 0 1 2-2Z" fill="#ffffff"/>
+  <path d="M36 13v8h8" fill="none" stroke="#1f2430" stroke-width="2.4" stroke-linejoin="round"/>
+  <!-- 文字行 -->
+  <path d="M24 28h13M24 34h13M24 40h8" fill="none" stroke="#9aa2af" stroke-width="2.6" stroke-linecap="round"/>
+  <!-- 笔：右下斜放，笔尖指向纸面 -->
+  <path d="M39 39l10 10-2.8 2.8a2 2 0 0 1-2.8 0l-7.2-7.2a2 2 0 0 1 0-2.8L39 39Z" fill="#f2f4f7" stroke="#1f2430" stroke-width="2" stroke-linejoin="round"/>
+  <path d="M41.5 41.5l7 7" stroke="#1f2430" stroke-width="1.6"/>
+  <!-- 笔尖角标 Typ -->
+  <rect x="40" y="46" width="18" height="11" rx="3" fill="#f5b642"/>
+  <text x="49" y="54.5" font-family="ui-monospace, Menlo, Consolas, monospace" font-size="9" font-weight="700" fill="#1f2430" text-anchor="middle">Typ</text>
+</svg>

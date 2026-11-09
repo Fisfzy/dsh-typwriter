@@ -36,12 +36,12 @@
     "bin",
     "cordis.patch.yml",
     "dist",
-    "icon.png",
+    "icon.svg",
     "locale",
     "src"
   ],
   "devDependencies": {
     "esbuild": "^0.25.10"
   },
-  "icon": "./icon.png"
+  "icon": "./icon.svg"
 }
