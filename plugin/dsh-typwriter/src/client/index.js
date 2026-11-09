@@ -6,25 +6,37 @@ const React = require('react');
 const KEY = 'typwriter';
 const SRC = '/typwriter/';
 
+// 统一品牌形象：图标 PNG（26×33）内嵌，右下角叠「Typ」小字角标
+const ICON_PNG =
+  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABoAAAAhCAYAAADH97ugAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAAGdYAABnWARjRyu0AAAICSURBVEhL7ZNPSJNxGMc/7+uWYGx5LWWTXpgoHgbvgl6dnUK3rgVJVAw81CFl1HAjyMuKLp66FCF5snbYtUsW9odlpUXQJaHVkohtXZyDQDezgzl6f/a+s1d7D+Hn9PJ9nocP7/M+r6Qoyho2IIvBv8I2kaSqqi2rkzRNs0f06UvRFpFt32hXZBnbRHWvrpAvMv34CaVSSSzpkGWZrq5ONO2wWIJ6okxmhtHRJKurVbFkSCjURyIRE2Nz0cmB0xTyRQD2tbYhORxiC4u5D2JEIh4jFO7TZZsnf/F+fr4maQ304u0+ysr3MgDNHoUf1SpLXz/j3u/hUXJYNzs392aTyPAYKsuV2nOjq5n8u1fMjo8xOz7GQmaKhcxD3k7eZE/TXgACqp/o8Pn12cpKbXYDQ5EZy+Uyvv7jBKNJJKeTgOonnZogOnSOUwMnxHawKso9n+L+yFmmr1+kzeXgzu0bAFy+co27qbTYDlZFGwRUPxd6fbjdLlMJ2xEdG7lKOjVBk7OhroTtiLyHjvCgsMbk61xdCVZFkiTR+Owet4YiPM1+E8t/xPCHzWY/Mji4fq5/SzjcTzx+SZcZvpGiHKS93SfGWyIY7BYjYxFALBbF6/WIsSmRyBl6ejQxNl7d78y8eElpcUmMdTQ4ZDo7OmhpOSCWYKuincB0dTvJrsgy/5/oJ0JVoceVSevUAAAAAElFTkSuQmCC';
+
 function Icon({ size }) {
   const s = size || 18;
+  const h = Math.round((s * 33) / 26);
   return React.createElement(
-    'svg',
-    {
-      width: s,
-      height: s,
-      viewBox: '0 0 24 24',
-      fill: 'none',
-      stroke: 'currentColor',
-      strokeWidth: 1.8,
-      strokeLinecap: 'round',
-      strokeLinejoin: 'round',
-      'aria-hidden': true
-    },
-    // 一支笔 + 一张纸：写作
-    React.createElement('path', { d: 'M4 3.5h9l3 3V20a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4.5a1 1 0 0 1 1-1Z' }),
-    React.createElement('path', { d: 'M13 3.5V7h3' }),
-    React.createElement('path', { d: 'M17.5 13.5l3 3-4.5 4.5H13v-3z' })
+    'span',
+    { style: { position: 'relative', display: 'inline-block', width: s, height: h, lineHeight: 0 }, 'aria-hidden': true },
+    React.createElement('img', { src: ICON_PNG, width: s, height: h, alt: '', style: { display: 'block' } }),
+    React.createElement(
+      'span',
+      {
+        style: {
+          position: 'absolute',
+          right: -2,
+          bottom: -2,
+          fontSize: Math.max(7, Math.round(s * 0.42)),
+          fontWeight: 700,
+          color: '#fff',
+          background: '#1f2430',
+          borderRadius: 3,
+          padding: '0 2px',
+          lineHeight: 1.15,
+          letterSpacing: '0.02em',
+          boxShadow: '0 0 0 1px rgba(255,255,255,.55)'
+        }
+      },
+      'Typ'
+    )
   );
 }
 
