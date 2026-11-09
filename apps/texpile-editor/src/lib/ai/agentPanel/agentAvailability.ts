@@ -10,7 +10,9 @@ export type AgentUnavailable = 'host' | 'desktop' | 'folder';
 
 export function agentUnavailable(): AgentUnavailable | null {
 	if (workspaceRoot.current === GUEST_ROOT) return 'host';
-	if (!acpBridge()) return 'desktop';
+	// 原生桥（DSH 宿主的同源 Gateway）在场即可用——它不依赖本机 dsh 程序
+	const nativePresent = !!(globalThis as { texpileSession?: unknown }).texpileSession;
+	if (!nativePresent && !acpBridge()) return 'desktop';
 	if (fileMode.current) return 'folder';
 	return null;
 }

@@ -463,5 +463,120 @@
     }
   };
 
+  // ================= window.texpileSession：DSH 原生会话（同源 Gateway） =================
+  // DSH 本体的会话 API 就在同一个源上：POST /api/<endpoint>（client-request 信封）+
+  // WS /api/remote.mux（follow 流）。AGENT 面板由此直接说 DSH 原生协议——会话即工作区
+  // 原生会话（DSH 侧栏可见可管理），且免掉自起 `dsh --profile acp` 子进程的 9-16s 冷启动。
+  // 参数名规则（实测）：网关按 TS 方法签名的参数名校验——session/list 用 _request（下划线
+  // 前缀保留），create/prompt/follow/cancel 用 request；其余命名参数平铺在 args 里。
+  window.texpileSession = (function () {
+    var rpcSeq = 0;
+    function call(endpoint, args) {
+      var rpcId = 'tw-' + (++rpcSeq);
+      return fetch('/api/' + endpoint, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ type: 'client-request', rpcId: rpcId, method: endpoint, payload: { args: args || {} } })
+      })
+        .then(function (r) { return r.json(); })
+        .then(function (env) {
+          var res = env && env.result;
+          if (res && res.ok) return res.value;
+          throw new Error((res && res.error && res.error.message) || 'gateway error: ' + endpoint);
+        });
+    }
+
+    // ---- WS mux：一条 /api/remote.mux 承载任意多条逻辑流（follow/control）----
+    var ws = null;
+    var wsReady = null;
+    var streams = Object.create(null); // streamId -> { onFrame, onDone, onError }
+    function ensureWs() {
+      if (ws && ws.readyState <= 1) return wsReady;
+      wsReady = new Promise(function (resolve, reject) {
+        var sock = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/api/remote.mux');
+        var settled = false;
+        sock.onopen = function () { settled = true; resolve(sock); };
+        sock.onerror = function () {
+          if (!settled) { settled = true; reject(new Error('WS /api/remote.mux 连接失败')); }
+        };
+        sock.onclose = function () {
+          ws = null; wsReady = null;
+          var ids = Object.keys(streams);
+          var orphans = ids.map(function (id) { return streams[id]; });
+          streams = Object.create(null);
+          for (var i = 0; i < orphans.length; i++) orphans[i] && orphans[i].onError && orphans[i].onError(new Error('WS 已断开'));
+        };
+        sock.onmessage = function (ev) {
+          var msg;
+          try { msg = JSON.parse(ev.data); } catch (e) { return; }
+          var s = streams[msg.streamId];
+          if (!s) return;
+          if (msg.type === 'item') s.onFrame && s.onFrame(msg.value);
+          else if (msg.type === 'error') { s.onError && s.onError(new Error(msg.error && msg.error.message || 'stream error')); delete streams[msg.streamId]; }
+          else if (msg.type === 'end') { s.onDone && s.onDone(); delete streams[msg.streamId]; }
+        };
+        ws = sock;
+      });
+      return wsReady;
+    }
+    var streamSeq = 0;
+    function openStream(endpoint, args, handlers) {
+      var id = 'tws-' + (++streamSeq);
+      streams[id] = handlers;
+      return ensureWs().then(function (sock) {
+        sock.send(JSON.stringify({ type: 'open', streamId: id, endpoint: endpoint, payload: { args: args || {} } }));
+        return function cancel() {
+          try { sock.send(JSON.stringify({ type: 'cancel', streamId: id })); } catch (e) { /* ignore */ }
+          delete streams[id];
+        };
+      }, function (e) {
+        delete streams[id];
+        throw e;
+      });
+    }
+
+    return {
+      available: function () { return true; },
+      // 会话生命周期：建在指定目录（= DSH 工作区原生会话）；不传 sessionId 则服务端新建
+      create: function (opts) {
+        return call('session/create', { request: { cwd: opts && opts.cwd, sessionId: opts && opts.sessionId } });
+      },
+      prompt: function (sessionId, text) {
+        return call('session/prompt', {
+          request: {
+            requestId: 'tw-req-' + (++rpcSeq),
+            sessionId: sessionId,
+            mode: 'queue',
+            content: [{ type: 'text', text: text }]
+          }
+        });
+      },
+      cancel: function (sessionId) {
+        return call('session/cancel', { request: { sessionId: sessionId } });
+      },
+      list: function () {
+        return call('session/list', { _request: {} }).then(function (v) { return (v && v.items) || []; });
+      },
+      page: function (sessionId, maxMessages) {
+        return call('session/page', {
+          request: { address: { kind: 'session', sessionId: sessionId }, maxMessages: maxMessages || 200 }
+        });
+      },
+      modelCatalog: function () {
+        return call('session/modelCatalog', { _request: {} });
+      },
+      selectModel: function (sessionId, selection) {
+        return call('session/selectModel', { request: Object.assign({ sessionId: sessionId }, selection || {}) });
+      },
+      // 事件流：初始 snapshot（含历史 records）+ 增量 event / assistant-stream 帧
+      follow: function (sessionId, handlers) {
+        return openStream('session/follow', {
+          request: { address: { kind: 'session', sessionId: sessionId }, assistantStream: true }
+        }, handlers);
+      }
+    };
+  })();
+
   console.log('[typwriter] shim installed; bootstrap =', window.__TEXPILE_BOOTSTRAP__);
 })();

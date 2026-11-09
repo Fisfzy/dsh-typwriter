@@ -2,6 +2,7 @@
 // it is not showing, and the conversation has to outlive that
 import { untrack } from 'svelte';
 import { acpBridge, type AcpBridge } from './acpBridge';
+import { nativeSessionBridge } from './nativeBridge';
 import { applyUpdate, availableCommands, configOptions, contextUsage, itemId, toolTitle } from './agentItems';
 import { keepBefore } from './changes/agentBefore';
 import { agentHost } from './agentHost.svelte';
@@ -60,7 +61,9 @@ export class AgentSession {
 	/** a Stop pressed while the save before a turn runs, when main has no turn yet to stop */
 	private stopAsked = false;
 
-	constructor(private bridge: () => AcpBridge | undefined = acpBridge) {}
+	// 原生优先：DSH 宿主里 window.texpileSession 在（同源 Gateway），会话即 DSH 工作区
+	// 原生会话——侧栏互通、免 acp 子进程冷启动；不在（独立 dev 页）时回落 ACP 子进程
+	constructor(private bridge: () => AcpBridge | undefined = () => nativeSessionBridge() ?? acpBridge()) {}
 
 	async start(root: string): Promise<void> {
 		const bridge = this.bridge();

@@ -97,9 +97,11 @@
 	const agentOn = $derived(!panelTabOff() && !!acpBridge());
 
 	// 一进工作区就后台预拉起 dsh：acp 冷启动实测 9-16s（冷盘 + Defender 扫描 + 插件装载），
-	// 等用户点开 AGENT 面板再起就是一段转圈；prewarm 幂等，面板真开时直接复用待命进程
+	// 等用户点开 AGENT 面板再起就是一段转圈；prewarm 幂等，面板真开时直接复用待命进程。
+	// DSH 宿主里 AGENT 走原生会话（texpileSession），不再需要 ACP 子进程，跳过预热
 	$effect(() => {
 		if (!agentOn) return;
+		if ((window as unknown as { texpileSession?: unknown }).texpileSession) return;
 		void (window as unknown as { texpileAcp?: { prewarm?: () => Promise<unknown> } }).texpileAcp?.prewarm?.();
 	});
 
