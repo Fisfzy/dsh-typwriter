@@ -267,17 +267,25 @@ export class AcpHost {
     });
 
     try {
-      await this.#request('initialize', {
-        protocolVersion: 1,
-        clientCapabilities: { fs: { readTextFile: true, writeTextFile: true } }
-      });
+      // 冷启动装载 profile 的全部插件（用户装了 20+ 个）实测 9-16s：30s 默认超时贴着边，
+      // 机器忙时直接误杀，放宽到 60s
+      await this.#request(
+        'initialize',
+        {
+          protocolVersion: 1,
+          clientCapabilities: { fs: { readTextFile: true, writeTextFile: true } }
+        },
+        60000
+      );
     } catch (e) {
+      // 起不来就别留半死进程：close 掉，下一次 start 从冷起干净重来
+      this.close();
       this.emit('acp:event', { type: 'state', state: 'failed', detail: `initialize 失败：${e?.message || e}` });
       return { ok: false, reason: 'missing', program: this.command };
     }
 
     try {
-      const res = await this.#request('session/new', { cwd, mcpServers: [] });
+      const res = await this.#request('session/new', { cwd, mcpServers: [] }, 60000);
       this.sessionId = res?.sessionId ?? null;
       if (!this.sessionId) throw new Error('session/new 未返回 sessionId');
       this.emit('acp:event', {
@@ -290,7 +298,10 @@ export class AcpHost {
       });
       return { ok: true, agent: 'dsh' };
     } catch (e) {
-      this.emit('acp:event', { type: 'state', state: 'failed', detail: `新建会话失败：${e?.message || e}` });
+      // session/new 超时多半是进程内部卡死（长命 acp 进程用久后的实测状态）：
+      // 杀掉残进程，下一次 start() 走 #startOnce 冷重启——不留"活着但不应答"的僵尸
+      this.close();
+      this.emit('acp:event', { type: 'state', state: 'failed', detail: `新建会话失败：${e?.message || e}（已重置，重试将从冷启动）` });
       return { ok: false, reason: 'failed' };
     }
   }
