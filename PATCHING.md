@@ -53,3 +53,18 @@ git checkout -- .        # 改坏了：秒回上一个可用状态
 ## 优先"加"而不是"改"
 能新增组件/新增属性（带默认值）解决的，就不去改上游现有的 `{#if}` 树或事件链。
 上游结构越少动，升级时冲突越少，出事面越小。
+
+## 发布（Typwriter 插件）
+
+**规矩：GitHub 与 npm 两端都要发**——GitHub 是源码与文档的家，npm 是 `dsh plugin add` 的安装源，缺一不可。
+
+发版清单（版本号三处同步：plugin package.json / 本 CHANGELOG 或提交信息 / git tag）：
+
+1. 确认 `plugin/dsh-typwriter/app/` 是最新构建（`pnpm --filter texpile-editor exec vite build --outDir dist-typwriter --base /typwriter/app/` + 拷贝）
+2. bump `plugin/dsh-typwriter/package.json` 的 `version`
+3. 提交并推送 GitHub：`git push origin master:main`
+4. 打 tag：`git tag plugin-v0.x.y && git push origin plugin-v0.x.y`
+5. 发 npm（在 `plugin/dsh-typwriter/` 下）：
+   - Granular token 首次发包会进 staging：`npm stage publish --access public`，然后 `npm stage approve <id>`（浏览器 2FA 一次）
+   - 之后版本可直接 `npm publish --access public`
+6. 验证：`npm view dsh-typwriter version` 与 GitHub Releases 都可见

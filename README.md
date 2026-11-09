@@ -41,6 +41,16 @@
 
 ![DSH 侧栏入口](docs/images/dsh-entry.png)
 
+### 从 npm 安装（推荐）
+
+```bash
+dsh plugin add dsh-typwriter
+```
+
+> 需要 `typst` 与 `tinymist` 在 PATH 或插件的 `bin/` 目录（二进制不入 npm 包，见 [typst releases](https://github.com/typst/typst/releases) / [tinymist releases](https://github.com/Myriad-Dreamin/tinymist/releases)；验证版本 typst 0.15.1 / tinymist 0.15.12）。
+
+### 从源码构建
+
 ```bash
 # 1) 构建前端（Node ≥ 24, pnpm ≥ 9）
 pnpm install
