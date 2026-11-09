@@ -32,16 +32,38 @@
     "build": "node scripts/build.mjs"
   },
   "files": [
-    "app",
-    "bin",
-    "cordis.patch.yml",
+    "src",
     "dist",
-    "icon.svg",
+    "app",
+    "icon.png",
     "locale",
-    "src"
+    "cordis.patch.yml"
   ],
   "devDependencies": {
     "esbuild": "^0.25.10"
   },
-  "icon": "./icon.svg"
+  "icon": "./icon.svg",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Fisfzy/dsh-typwriter.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Fisfzy/dsh-typwriter/issues"
+  },
+  "homepage": "https://github.com/Fisfzy/dsh-typwriter#readme",
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "deepseek-harness",
+    "typst",
+    "latex",
+    "academic-writing",
+    "paper-writing",
+    "mcp",
+    "zotero",
+    "texpile"
+  ],
+  "publishConfig": {
+    "access": "public"
+  }
 }
