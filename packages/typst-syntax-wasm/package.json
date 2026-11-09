@@ -16,7 +16,7 @@
 		"test": "vitest run"
 	},
 	"dependencies": {
-		"@lezer/common": "^1.5.4",
+		"@lezer/common": "^1.5.5",
 		"@lezer/highlight": "^1.2.5"
 	},
 	"devDependencies": {
