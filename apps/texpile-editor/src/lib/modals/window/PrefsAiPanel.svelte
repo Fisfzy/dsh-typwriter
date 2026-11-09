@@ -9,6 +9,7 @@
 	import CheckChoiceList from './CheckChoiceList.svelte';
 	import AgentModelChoice from './AgentModelChoice.svelte';
 	import AgentAssetPicker from './AgentAssetPicker.svelte';
+	import McpManager from './McpManager.svelte';
 	import AgentPanelPrefs from '$lib/ai/agentPanel/ui/AgentPanelPrefs.svelte';
 	import { setAiOff } from '$lib/ai/aiSwitch';
 	import PrefsRow from './rows/PrefsRow.svelte';
@@ -183,6 +184,9 @@
 	selected={presetPlugins}
 	ontoggle={(name, on) => toggleAsset('agentPresetPlugins', presetPlugins, name, on)}
 />
+
+<!-- ===== MCP 服务器（AGENT 对话的外接工具，如 Zotero 文献库） ===== -->
+<McpManager />
 
 <!-- ===== 代理工作区策略 ===== -->
 <div class="border-surface-200-800 flex items-start justify-between gap-6 border-b py-4">

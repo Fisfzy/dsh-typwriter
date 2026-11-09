@@ -5,6 +5,7 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import * as fsops from './fsops.js';
 import * as agentlist from './agentlist.js';
+import * as mcplist from './mcplist.js';
 import { AcpHost } from './acp.js';
 import { dshHome } from './state.js';
 
@@ -158,6 +159,19 @@ export function createDispatch({ store, terminals, lsp, acp, appDir, binDir, cle
     // AGENT 工具栏的模型 / 思考强度（写 <home>/settings.json，新 agent 生效）
     'agent:modelInfo': async () => ({ ok: true, ...(await agentlist.modelInfo(await agentHome())) }),
     'agent:setModel': async (sel) => ({ ok: true, ...(await agentlist.setModel(await agentHome(), sel || {})) }),
+    // MCP 服务器管理（配置存插件设置，生成 DSH profile patch；改动重启对话生效）
+    'agent:mcpList': async () => {
+      const s = await store.getSettings();
+      return { ok: true, servers: await mcplist.mcpList(s) };
+    },
+    'agent:mcpSet': async (servers) => {
+      const r = await mcplist.mcpSet(servers || [], dshHome);
+      // 配置的源头是插件设置：patch 是派生物，两边一起落
+      await store.setSettings({ mcpServers: r.servers });
+      return { ok: true, servers: r.servers };
+    },
+    'agent:mcpTest': async (server) => mcplist.mcpTest(server || {}),
+    'agent:zoteroToken': async () => ({ ok: true, token: await mcplist.zoteroMcpToken() }),
     'agent:run': (body) => runRefine(body || {}),
     'agent:cancel': () => {
       if (refineHost) {

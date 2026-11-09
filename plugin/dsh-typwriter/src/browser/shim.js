@@ -428,6 +428,23 @@
     setModel: function (sel) {
       return invoke('agent:setModel', sel);
     },
+    // MCP 服务器管理（偏好设置 → AI 助手）：改动写 DSH profile patch，重启对话生效
+    mcpList: function () {
+      return invoke('agent:mcpList').catch(function () {
+        return { ok: false, servers: [] };
+      });
+    },
+    mcpSet: function (servers) {
+      return invoke('agent:mcpSet', servers);
+    },
+    mcpTest: function (server) {
+      return invoke('agent:mcpTest', server);
+    },
+    zoteroToken: function () {
+      return invoke('agent:zoteroToken').catch(function () {
+        return { ok: false, token: null };
+      });
+    },
     models: function () {
       // 形状必须与 AgentModelList 一致：{ ok: true, models: [...] }
       return Promise.resolve({ ok: true, models: [] });
