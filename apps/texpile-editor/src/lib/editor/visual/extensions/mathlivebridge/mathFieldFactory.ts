@@ -5,6 +5,7 @@ import type { Node } from 'prosemirror-model';
 import { isMac } from '$lib/platform';
 import { themeColorMap } from './themeBlack';
 import { mathSearchKeydown } from './mathSearch/mathSearchKeys';
+import { typstForMathlive } from './mathStatic';
 
 /** what a math node holds: LaTeX in a .tex or .md file, Typst in a .typ one */
 export type MathSyntax = 'latex' | 'typst';
@@ -47,7 +48,9 @@ export function buildMathField(
 	field.colorMap = themeColorMap;
 	field.syntax = syntax;
 
-	field.setValue(content, { format: mathFormat(syntax) });
+	// typst: strip the code-mode calls the parser cannot take before they leak into the field as
+	// literal source (#scale, #h); this is the single choke point every live field comes through
+	field.setValue(syntax === 'typst' ? typstForMathlive(content) : content, { format: mathFormat(syntax) });
 
 	field.addEventListener('input', listeners.input);
 	field.addEventListener('move-out', listeners.moveOut as EventListener);

@@ -256,7 +256,9 @@
 
 	/* A labeled equation shows its <label> where LaTeX shows "(1)": the editor cannot know the
 	   real number (numbering is the template's #set math.equation rule), but the label proves the
-	   equation is referenceable and is exactly what the @ picker offers. mlview sets the attr. */
+	   equation is referenceable and is exactly what the @ picker offers. mlview sets the attr.
+	   Hover-revealed: always-on chips read as source leaking at a glance (reported twice as a
+	   bug), and the equation the reader is actually looking at is the one whose label they want. */
 	:global(.TypstEditor .block-math-container[data-typst-label]:not([data-typst-label=''])::after) {
 		content: '<' attr(data-typst-label) '>';
 		position: absolute;
@@ -268,6 +270,12 @@
 		color: var(--muted-text);
 		user-select: none;
 		pointer-events: none;
+		opacity: 0;
+		transition: opacity 0.15s ease-out;
+	}
+	:global(.TypstEditor .block-math-container[data-typst-label]:not([data-typst-label='']):hover::after),
+	:global(.TypstEditor .block-math-container[data-typst-label]:not([data-typst-label='']):focus-within::after) {
+		opacity: 1;
 	}
 	/* keep the hover gear clear of the chip, the way the LaTeX number pushes it left */
 	:global(.TypstEditor .block-math-container[data-typst-label]:not([data-typst-label='']) .math-settings-container) {
