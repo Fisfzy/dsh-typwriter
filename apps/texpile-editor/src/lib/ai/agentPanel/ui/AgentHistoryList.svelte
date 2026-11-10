@@ -1,6 +1,6 @@
 <script lang="ts">
-	// 历史会话列表：DSH 保存的会话（session/list），点一条接续（session/resume），「开新对话」归档当前。
-	// DSH 不给标题也不回放历史——接续后上下文在 agent 侧延续，面板从头开始记新内容。
+	// 历史会话列表：DSH 保存的会话（session/list），点一条接续（会话流回放消息与工具卡片），
+	// 「开新对话」另起一条全新会话（当前会话保留，DSH 侧栏同步可见可管理）。
 	import { Check, MessageSquarePlus } from '@lucide/svelte';
 	import { agentSession, restartAgentSession } from '../agentSession.svelte';
 
@@ -52,7 +52,7 @@
 				onclick={() => void resume(chat.id)}
 			>
 				<span class="text-muted w-6 shrink-0 text-right tabular-nums">#{i + 1}</span>
-				<span class="min-w-0 flex-1 truncate font-mono">{chat.title ?? chat.id.slice(0, 8)}</span>
+				<span class="min-w-0 flex-1 truncate font-mono">{chat.title ?? chat.id.replace(/^session-/, '').slice(0, 8)}</span>
 				<span class="text-muted shrink-0">{ago(chat.updatedAt)}</span>
 				{#if chat.id === agentSession.chat}<Check class="text-primary-ink size-3.5 shrink-0" />{/if}
 			</button>
@@ -60,14 +60,14 @@
 			<p class="text-muted px-2 py-3 text-center text-xs">还没有历史对话</p>
 		{/each}
 	</div>
-	<p class="text-muted px-1 text-[11px] leading-relaxed">接续后上下文延续到该对话；历史内容不回显，直接继续提问即可。</p>
+	<p class="text-muted px-1 text-[11px] leading-relaxed">接续会回放历史消息与工具步骤，上下文延续；这些会话与 DSH 侧栏完全同步。</p>
 	<button
 		class="preset-tonal hover:preset-tonal-primary rounded-base mt-1 flex items-center justify-center gap-1.5 px-2 py-1.5 text-xs"
 		onclick={() => {
 			props.onPicked?.();
-			void restartAgentSession();
+			void restartAgentSession(undefined, { fresh: true });
 		}}
 	>
-		<MessageSquarePlus class="size-3.5" /> 开新对话（归档当前）
+		<MessageSquarePlus class="size-3.5" /> 开新对话（当前会话保留在 DSH 侧栏）
 	</button>
 </div>

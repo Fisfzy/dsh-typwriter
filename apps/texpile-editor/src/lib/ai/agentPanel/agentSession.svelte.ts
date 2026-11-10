@@ -65,7 +65,7 @@ export class AgentSession {
 	// 原生会话——侧栏互通、免 acp 子进程冷启动；不在（独立 dev 页）时回落 ACP 子进程
 	constructor(private bridge: () => AcpBridge | undefined = () => nativeSessionBridge() ?? acpBridge()) {}
 
-	async start(root: string): Promise<void> {
+	async start(root: string, opts?: { fresh?: boolean }): Promise<void> {
 		const bridge = this.bridge();
 		if (!bridge) return;
 		this.unsubscribe ??= bridge.onEvent((e) => this.receive(e));
@@ -85,7 +85,7 @@ export class AgentSession {
 		this.chat = null;
 		this.usage = null;
 		this.state = 'starting';
-		const r = await bridge.start();
+		const r = await bridge.start(opts);
 		if (conversation !== this.conversation) return;
 		if (r.ok) this.agent = r.agent;
 		else {
@@ -228,8 +228,8 @@ export function shownAgent(): PanelAgent | '' {
 }
 
 /** another agent, or a fresh conversation with the same one */
-export async function restartAgentSession(agent?: PanelAgent): Promise<void> {
+export async function restartAgentSession(agent?: PanelAgent, opts?: { fresh?: boolean }): Promise<void> {
 	const root = agentSession.root;
 	if (agent && agent !== settings.current.agentPanel) await updateSettingsSettled({ agentPanel: agent });
-	if (root) await agentSession.start(root);
+	if (root) await agentSession.start(root, opts);
 }

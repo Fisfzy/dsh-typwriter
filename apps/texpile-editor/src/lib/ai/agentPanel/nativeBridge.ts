@@ -19,6 +19,26 @@ type SessionApi = {
 	): Promise<() => void>;
 };
 
+// 会话粘性：面板开合 / 页面重载后仍回到"当前正在用的那个"会话，而不是永远吸附最新。
+// 模块级 + localStorage 双层：前者管面板开合，后者管整页刷新。换工作区由 cwd 校验拦下。
+const PIN_KEY = 'texpile:agent-session-pin';
+let pinnedSessionId: string | null = null;
+try {
+	pinnedSessionId = JSON.parse(localStorage.getItem(PIN_KEY) ?? 'null') as string | null;
+} catch {
+	pinnedSessionId = null;
+}
+function pinSession(root: string, id: string): void {
+	pinnedSessionId = id;
+	try {
+		localStorage.setItem(PIN_KEY, JSON.stringify({ root, id }));
+	} catch {
+		/* 隐私模式等：粘性降级为会话内有效 */
+	}
+}
+// 已知标题：session/title 事件 + 本地首条消息种子。session/list 不带标题，DSH 只在 follow 流里发
+const knownTitles = new Map<string, string>();
+
 function api(): SessionApi | undefined {
 	return (globalThis as { texpileSession?: SessionApi }).texpileSession;
 }
@@ -38,7 +58,7 @@ function textOf(message: MessageLike): string {
 		.join('');
 }
 
-/** 一条 durable 事件 → 面板的 ACP update；不认识的返回 null（session/title、request/* 等杂项静默跳过） */
+/** 一条 durable 事件 → 面板的 ACP update；不认识的返回 null（session/title 在别处接、request/* 静默跳过） */
 function toUpdate(
 	event: WireEvent,
 	ownRpcIds: Set<string>
@@ -58,6 +78,32 @@ function toUpdate(
 		return { sessionUpdate: 'agent_message_chunk' as const, content: { type: 'text', text } };
 	}
 	return null;
+}
+
+/** 工具调用事件的卡片 update（tool/call 挂起 → tool/result 完成），实时流与历史回放共用 */
+function toolUpdate(event: WireEvent): Record<string, unknown> | null {
+	const d = event['data'] as { callId?: string; name?: string; message?: { content?: Array<{ type?: string; text?: string }> } } | null;
+	const callId = d?.callId;
+	if (!callId) return null;
+	if (event.type === 'tool/call') {
+		return {
+			sessionUpdate: 'tool_call',
+			toolCallId: callId,
+			title: d?.name ?? '工具调用',
+			kind: 'other',
+			status: 'in_progress'
+		};
+	}
+	const outText = (d?.message?.content ?? [])
+		.filter((p) => p?.type === 'text')
+		.map((p) => p.text ?? '')
+		.join('');
+	return {
+		sessionUpdate: 'tool_call_update',
+		toolCallId: callId,
+		status: 'completed',
+		...(outText ? { content: { type: 'text', text: outText.slice(0, 400) } } : {})
+	};
 }
 
 // 有状态（持有 sessionId 与 follow 流），必须是单例：agentSession 每次操作都调
@@ -88,8 +134,14 @@ export function nativeSessionBridge(): AcpBridge | undefined {
 			frame?: { type: string; chunk?: { type?: string; text?: string } };
 		};
 		if (f.type === 'snapshot') {
-			// 打开/回放一个会话：历史 records 依序翻译（openChat 的回放语境里 user 也显示）
+			// 打开/回放一个会话：历史 records 依序翻译（openChat 的回放语境里 user 也显示；
+			// 工具卡片同样回放，否则接续旧会话只剩文字、看不到 agent 做过什么）
 			for (const record of f.records ?? []) {
+				const tool = toolUpdate(record);
+				if (tool) {
+					emit?.({ type: 'update', update: tool as never });
+					continue;
+				}
 				const update = toUpdate(record, ownRpcIds);
 				if (update) emit?.({ type: 'update', update });
 			}
@@ -107,39 +159,14 @@ export function nativeSessionBridge(): AcpBridge | undefined {
 		if (f.type === 'event' && f.event) {
 			// 工具调用：tool/call（挂起）→ tool/result（完成/失败），按 callId 配对成步骤卡片
 			if (f.event.type === 'tool/call' || f.event.type === 'tool/result') {
-				const d = f.event['data'] as {
-					callId?: string;
-					name?: string;
-					message?: { content?: Array<{ type?: string; text?: string }> };
-				} | null;
-				const callId = d?.callId;
-				if (!callId) return;
-				if (f.event.type === 'tool/call') {
-					emit?.({
-						type: 'update',
-						update: {
-							sessionUpdate: 'tool_call',
-							toolCallId: callId,
-							title: d?.name ?? '工具调用',
-							kind: 'other',
-							status: 'in_progress'
-						}
-					});
-				} else {
-					const outText = (d?.message?.content ?? [])
-						.filter((p2) => p2?.type === 'text')
-						.map((p2) => p2.text ?? '')
-						.join('');
-					emit?.({
-						type: 'update',
-						update: {
-							sessionUpdate: 'tool_call_update',
-							toolCallId: callId,
-							status: 'completed',
-							...(outText ? { content: { type: 'text', text: outText.slice(0, 400) } } : {})
-						}
-					});
-				}
+				const tool = toolUpdate(f.event);
+				if (tool) emit?.({ type: 'update', update: tool as never });
+				return;
+			}
+			// 会话标题：DSH 在 follow 流里下发（session/list 不带）；记下供历史列表显示
+			if (f.event.type === 'session/title' && sessionId) {
+				const t = f.event['data'] as { title?: string } | null;
+				if (typeof t?.title === 'string' && t.title) knownTitles.set(sessionId, t.title);
 				return;
 			}
 			if (f.event.type === 'assistant/message') {
@@ -161,6 +188,8 @@ export function nativeSessionBridge(): AcpBridge | undefined {
 		cancelFollow = null;
 		sessionId = id;
 		streamedLen = 0;
+		const root = (workspaceRoot.current ?? '').replace(/\\/g, '/');
+		if (root) pinSession(root, id);
 		emit?.({ type: 'state', state: 'ready', title: 'DeepSeek Harness', chat: id, history: true });
 		cancelFollow =
 			(await api()?.follow(id, {
@@ -171,19 +200,26 @@ export function nativeSessionBridge(): AcpBridge | undefined {
 
 	const bridge: AcpBridge = {
 		detect: async () => ({ dsh: true }),
-		async start() {
+		async start(opts?: { fresh?: boolean }) {
 			// 统一成正斜杠：workspaceRoot 给的是 Windows 反斜杠路径，而 DSH 的会话 cwd 幂等
 			// 采纳按字面比对——斜杠方向不一致会被当成"别人的目录"拒绝（实测报 belongs to）
 			const root = (workspaceRoot.current ?? '').replace(/\\/g, '/');
 			if (!root) return { ok: false as const, reason: 'no-folder' as const };
 			try {
-				// 工作目录绑定：同目录已有会话就幂等续上（create 语义支持显式 sessionId 采纳），
-				// 没有才新建——Typwriter 与 DSH 侧栏因此操作的是同一个会话
 				const mine = (await session.list()).filter(
-					(c) => (c.cwd ?? '').replace(/\\/g, '/').toLowerCase() === root.toLowerCase() && !c.blank
+					(c) => (c.cwd ?? '').replace(/\\/g, '/').toLowerCase() === root.toLowerCase()
 				);
-				const adopt = mine.sort((a, b) => b.updatedAt - a.updatedAt)[0]?.sessionId;
-				const r = await session.create({ cwd: root, sessionId: adopt });
+				// 目标会话三选一：
+				//   fresh（「开新对话」）→ 全新空白会话（侧栏同步可见，不吞掉旧会话）
+				//   粘住的（面板开合/整页刷新后）→ 原会话，绝不被"最新"挤掉
+				//   首次进入 → 最新非空会话
+				let target: string | undefined;
+				if (!opts?.fresh && pinnedSessionId && mine.some((c) => c.sessionId === pinnedSessionId)) {
+					target = pinnedSessionId;
+				} else if (!opts?.fresh) {
+					target = mine.filter((c) => !c.blank).sort((a, b) => b.updatedAt - a.updatedAt)[0]?.sessionId;
+				}
+				const r = await session.create({ cwd: root, sessionId: target });
 				await attach(r.sessionId);
 				return { ok: true as const, agent: 'dsh' as const };
 			} catch (e) {
@@ -197,6 +233,10 @@ export function nativeSessionBridge(): AcpBridge | undefined {
 				.filter((b) => (b as { type?: string }).type === 'text')
 				.map((b) => (b as { text: string }).text)
 				.join('\n\n');
+			// 首条消息先当标题种子（session/list 不带标题；DSH 的 session/title 事件到了会覆盖）
+			if (sessionId && !knownTitles.has(sessionId) && text) {
+				knownTitles.set(sessionId, text.trim().split('\n')[0].slice(0, 40));
+			}
 			const requestId = 'native-req-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6);
 			ownRpcIds.add(requestId);
 			// 回复等待：assistant/message 或 3 分钟兜底（取消也放行）
@@ -210,6 +250,10 @@ export function nativeSessionBridge(): AcpBridge | undefined {
 			try {
 				await session.prompt(sessionId, text);
 				await done;
+				// 轮次结束：会话的 updatedAt 变了，重发 ready 让面板刷新历史列表（时间/排序跟上）
+				if (sessionId) {
+					emit?.({ type: 'state', state: 'ready', title: 'DeepSeek Harness', chat: sessionId, history: true });
+				}
 				return { ok: true as const, stopReason: 'end_turn', changes: [] };
 			} catch (e) {
 				return { ok: false as const, error: String((e as Error).message || e), stopReason: 'error', changes: [] };
@@ -232,7 +276,12 @@ export function nativeSessionBridge(): AcpBridge | undefined {
 			return (await session.list())
 				.filter((c) => (c.cwd ?? '').replace(/\\/g, '/').toLowerCase() === (root ?? '').replace(/\\/g, '/').toLowerCase())
 				.sort((a, b) => b.updatedAt - a.updatedAt)
-				.map((c) => ({ id: c.sessionId, title: null, updatedAt: new Date(c.updatedAt).toISOString() }));
+				.map((c) => ({
+					id: c.sessionId,
+					// 标题：follow 流里见过的 session/title，或本地首条消息种子；session/list 本身不带
+					title: knownTitles.get(c.sessionId) ?? null,
+					updatedAt: new Date(c.updatedAt).toISOString()
+				}));
 		},
 		async openChat(id) {
 			try {
