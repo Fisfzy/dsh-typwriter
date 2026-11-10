@@ -4,6 +4,8 @@
 	// makes this splittable at all - the state lives in lib/workspace/*.svelte.ts, not in the view.
 	import { fileMode } from '$lib/workspace/fileMode.svelte';
 	import EditorTopbar from './EditorTopbar.svelte';
+	import { agentCanvas } from '$lib/languages/typst/preview/agentCanvas/agentCanvasState.svelte';
+	import { SquareDashedMousePointer } from '@lucide/svelte';
 	import EditorStripControls from './pane/EditorStripControls.svelte';
 	import { hasViewToggle } from './pane/viewToggle';
 	import EditorGroups from './groups/EditorGroups.svelte';

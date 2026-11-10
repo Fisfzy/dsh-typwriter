@@ -18,6 +18,7 @@
 	import InvertColorsItem from '$lib/preview/invertColors/InvertColorsItem.svelte';
 	import { pagesInverted } from '$lib/preview/invertColors/pagesInverted';
 	import AgentCanvas from './agentCanvas/AgentCanvas.svelte';
+	import { agentCanvas } from './agentCanvas/agentCanvasState.svelte';
 	import { resolvedMode, themeEpoch } from '$lib/theme';
 	import { settings, updateSettings } from '$lib/settings';
 	import { followScrollTick, guestJumpFreezeTick } from './followSignal';
@@ -63,8 +64,6 @@
 	let error = $state<string | null>(null);
 	let zoom = $state<number | null>(null);
 	let frame = $state<HTMLIFrameElement | null>(null);
-	/** 圈选画布（AGENT 编辑模式）：框选区域两角经合成点击解析为源码行范围后发给 AGENT */
-	let agentEdit = $state(false);
 
 	const dark = $derived(resolvedMode.current === 'dark');
 
@@ -310,8 +309,8 @@
 	<!-- 圈选让 AI 修改：画布覆盖层的主开关（AgentCanvas 详见 agentCanvas/） -->
 	{#snippet agentEditToggle()}
 		<button
-			aria-pressed={agentEdit}
-			onclick={() => (agentEdit = !agentEdit)}
+			aria-pressed={agentCanvas.armed}
+			onclick={() => (agentCanvas.armed = !agentCanvas.armed)}
 			disabled={!frameUrl || !pageRendered}
 			use:tip={'圈选让 AI 修改'}
 			aria-label="圈选让 AI 修改"
@@ -353,18 +352,18 @@
 					title={m.typst_preview_label()}
 					class="h-full border-0 transition-[filter] duration-100"
 					class:blur-[1.5px]={frozenWidth !== null}
-					class:pointer-events-none={frozenWidth !== null || agentEdit}
+					class:pointer-events-none={frozenWidth !== null || agentCanvas.armed}
 					style:width={frozenWidth !== null ? `${frozenWidth}px` : '100%'}
 					onerror={() => (error = m.typst_preview_frame_failed())}
 				></iframe>
 			</ColorVisionFilter>
-			{#if agentEdit}
+			{#if agentCanvas.armed}
 				<!-- 圈选画布：接管指针（iframe 随之 pointer-events-none，点击都归画布） -->
 				<AgentCanvas
 					pageReady={pageRendered}
 					sendToFrame={(msg) => frame?.contentWindow?.postMessage({ channel: CHANNEL, ...msg }, '*')}
-					onDone={() => (agentEdit = false)}
-					onDismiss={() => (agentEdit = false)}
+					onDone={() => (agentCanvas.armed = false)}
+					onDismiss={() => (agentCanvas.armed = false)}
 				/>
 			{/if}
 			{#if noDocument}
