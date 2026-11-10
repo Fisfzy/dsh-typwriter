@@ -63,6 +63,8 @@ export async function sendRegionEdit(r: RegionPayload, intent: string): Promise<
 	await agentHost.current?.flushPendingSave();
 	await armTurnScope([r.file]);
 	await agentSession.send(buildRegionPrompt(r, intent), [], []);
+	// agent 把改动写在了磁盘上：拉回打开的缓冲，编辑器/预览即刻可见（回退按钮不依赖这步）
+	await refreshChangedBuffers([r.file]);
 	// 打开 AGENT 面板看过程：右栏优先拉起，底部 dock 切到 agent 页（两边都设，谁在用谁响应）
 	window.dispatchEvent(new CustomEvent('typwriter:agent-show'));
 }

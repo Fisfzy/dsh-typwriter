@@ -94,32 +94,34 @@
 	}
 
 	function drawStroke(g: CanvasRenderingContext2D, s: Stroke): void {
-		g.strokeStyle = 'rgba(99,102,241,0.9)';
-		g.fillStyle = 'rgba(99,102,241,0.9)';
-		g.lineWidth = 2;
+		// 别名以通过 no-param-reassign（绘图就是要在 ctx 上设置属性）
+		const ctx = g;
+		ctx.strokeStyle = 'rgba(99,102,241,0.9)';
+		ctx.fillStyle = 'rgba(99,102,241,0.9)';
+		ctx.lineWidth = 2;
 		if (s.kind === 'pen') {
-			g.beginPath();
+			ctx.beginPath();
 			for (let i = 0; i < s.pts.length; i++) {
 				const p = s.pts[i];
-				if (i === 0) g.moveTo(p.x, p.y);
-				else g.lineTo(p.x, p.y);
+				if (i === 0) ctx.moveTo(p.x, p.y);
+				else ctx.lineTo(p.x, p.y);
 			}
-			g.stroke();
+			ctx.stroke();
 		} else if (s.kind === 'arrow') {
-			g.beginPath();
-			g.moveTo(s.from.x, s.from.y);
-			g.lineTo(s.to.x, s.to.y);
-			g.stroke();
+			ctx.beginPath();
+			ctx.moveTo(s.from.x, s.from.y);
+			ctx.lineTo(s.to.x, s.to.y);
+			ctx.stroke();
 			const ang = Math.atan2(s.to.y - s.from.y, s.to.x - s.from.x);
-			g.beginPath();
-			g.moveTo(s.to.x, s.to.y);
-			g.lineTo(s.to.x - 10 * Math.cos(ang - 0.45), s.to.y - 10 * Math.sin(ang - 0.45));
-			g.lineTo(s.to.x - 10 * Math.cos(ang + 0.45), s.to.y - 10 * Math.sin(ang + 0.45));
-			g.closePath();
-			g.fill();
+			ctx.beginPath();
+			ctx.moveTo(s.to.x, s.to.y);
+			ctx.lineTo(s.to.x - 10 * Math.cos(ang - 0.45), s.to.y - 10 * Math.sin(ang - 0.45));
+			ctx.lineTo(s.to.x - 10 * Math.cos(ang + 0.45), s.to.y - 10 * Math.sin(ang + 0.45));
+			ctx.closePath();
+			ctx.fill();
 		} else if (s.kind === 'text') {
-			g.font = '13px ui-sans-serif, sans-serif';
-			g.fillText(s.text, s.at.x, s.at.y);
+			ctx.font = '13px ui-sans-serif, sans-serif';
+			ctx.fillText(s.text, s.at.x, s.at.y);
 		}
 	}
 
@@ -217,7 +219,9 @@
 			const p2 = collectNextJump();
 			sendToFrame({ type: 'agent-click', x: region.x + region.w - inset, y: region.y + region.h - inset });
 			const b = await p2;
-			const norm = (s: string): string => s.replace(/\\/g, '/').toLowerCase();
+			function norm(s: string): string {
+				return s.replace(/\\/g, '/').toLowerCase();
+			}
 			if (norm(a.filepath) !== norm(b.filepath)) {
 				throw new Error('圈选横跨了两个文件，先分开圈');
 			}

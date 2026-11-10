@@ -88,8 +88,9 @@ export function createWorkspacePipelines(d: PipelineDeps) {
 	// 画布圈选送出后把 AGENT 面板拉到眼前：右栏优先拉起，底部 dock 也切到 agent 页（谁在用听谁的）
 	$effect(() => {
 		function h(): void {
+			const dock = d.termDock();
 			d.layout().setAgentPane(true);
-			d.termDock().agentRequest = true;
+			dock.agentRequest = true;
 		}
 		window.addEventListener('typwriter:agent-show', h);
 		return () => window.removeEventListener('typwriter:agent-show', h);

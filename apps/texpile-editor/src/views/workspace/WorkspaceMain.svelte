@@ -154,6 +154,24 @@
 </script>
 
 {#snippet documentControls(compact = false)}
+	{#if mainIsTypst && !fileMode.current}
+		<!-- 圈选 AI：常驻入口，不依赖预览工具栏（预览没开时点它 = 开预览 + 进圈选） -->
+		<div class="mr-2 flex items-center">
+			<button
+				class="btn btn-sm gap-1 px-2 text-xs {agentCanvas.armed ? 'preset-filled-primary-500' : 'preset-tonal'}"
+				aria-pressed={agentCanvas.armed}
+				aria-label="圈选让 AI 修改"
+				title="圈选让 AI 修改：在预览上圈一块，AI 直接改源码"
+				onclick={() => {
+					agentCanvas.armed = true;
+					if (!layout.pdfPaneOpen || layout.pdfPopout) layout.setPdfPaneOpen(true);
+				}}
+			>
+				<SquareDashedMousePointer class="size-3.5 shrink-0" />
+				{#if !compact}圈选 AI{/if}
+			</button>
+		</div>
+	{/if}
 	{#if fileMode.current && hasViewToggle(livePane.loadedPath, livePane.kind, guest)}
 		<!-- a lone file has no tab strip, so its editor's own controls come up here rather than keep a bar of their own -->
 		<div class="mr-2 flex items-center">
