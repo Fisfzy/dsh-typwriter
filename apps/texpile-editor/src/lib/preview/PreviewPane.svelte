@@ -51,6 +51,8 @@
 		onDiagnostics: (logPath: string) => void;
 		/** it opens or shuts on its own, not at a click (PaneLayout.pdfSlides), so it slides to be seen */
 		slides?: boolean;
+		/** 全部文档收起时预览吃下编辑器让出的整列：定宽改 100%，拖拽把手暂停（fill 下拖不出变化） */
+		fill?: boolean;
 	};
 	let {
 		width,
@@ -75,12 +77,13 @@
 		onInverseSync,
 		onSettled,
 		onDiagnostics,
-		slides = false
+		slides = false,
+		fill = false
 	}: Props = $props();
 </script>
 
 <PaneSplitter
-	resizable
+	resizable={!fill}
 	resizeLabel={m.wsview_resize_pdf_preview_aria()}
 	{onStartResize}
 	{onResizeByKey}
@@ -90,7 +93,7 @@
 <!-- no border-l: the splitter's own 1px IS the rule now, and a border beside it read as two -->
 <aside
 	class="relative flex shrink-0 flex-col"
-	style="width: {width}px; grid-column: 3; grid-row: {dockShrunk ? '2 / -1' : '2'}"
+	style="width: {fill ? '100%' : width + 'px'}; grid-column: 3; grid-row: {dockShrunk ? '2 / -1' : '2'}"
 	transition:slide|global={{ axis: 'x', duration: slides ? 200 : 0 }}
 >
 	{#if onSyncToCursor && !mainUnset}

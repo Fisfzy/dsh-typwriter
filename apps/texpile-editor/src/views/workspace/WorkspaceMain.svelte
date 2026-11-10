@@ -202,11 +202,18 @@
 	/>
 {/snippet}
 
+<!-- 全部文档收起时释放的空间必须整体给一条轨道（若四个轨道全用 auto，网格默认的
+     justify-content: stretch 会把剩余宽度均分给每条 auto 轨道，窄条欢迎位旁边就出现
+     一片无意义的空白）。预览开着时给预览列（第 3 列，面板以 100% 宽吃满）；预览关着
+     时给第 2 列，让左侧的关闭滑轨贴到窗口右缘——收起状态下轨道若紧跟窄条，向左拖拽
+     重新打开预览的行程在几何上就不存在了 -->
 <main
 	class="grid min-h-0 min-w-0 flex-1"
 	style="grid-template-columns: {editorGroups.allClosed
-		? 'auto'
-		: 'minmax(0, 1fr)'} auto auto auto; grid-template-rows: auto minmax(0, 1fr) auto auto"
+		? layout.pdfPaneOpen && !layout.pdfPopout
+			? 'auto auto minmax(0, 1fr) auto'
+			: 'auto minmax(0, 1fr) auto auto'
+		: 'minmax(0, 1fr) auto auto auto'}; grid-template-rows: auto minmax(0, 1fr) auto auto"
 >
 	<!-- editor column (toolbar + content) with the PDF pane beside it, so the PDF skips the
 	     toolbar while the header (Compile) stays above it. the wrapper is display:contents so
@@ -216,6 +223,7 @@
 		{#if !fileMode.current && layout.pdfPaneOpen && !layout.pdfPopout}
 			<PreviewPane
 				width={layout.pdfPaneWidth}
+				fill={editorGroups.allClosed}
 				{dockShrunk}
 				{guest}
 				guestPdf={session.guestPdf}
@@ -253,7 +261,7 @@
 				onStartResize={layout.startPdfResize}
 				onResizeByKey={layout.resizePdfByKey}
 				bottomInset={termDock.shrink || !termDock.visible ? 0 : termDock.height}
-				class="z-30"
+				class="z-30 {editorGroups.allClosed ? 'justify-self-end' : ''}"
 				style="grid-column: 2; grid-row: 2 / -1"
 			/>
 		{/if}
