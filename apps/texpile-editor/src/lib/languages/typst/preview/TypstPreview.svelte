@@ -352,19 +352,14 @@
 					title={m.typst_preview_label()}
 					class="h-full border-0 transition-[filter] duration-100"
 					class:blur-[1.5px]={frozenWidth !== null}
-					class:pointer-events-none={frozenWidth !== null || agentCanvas.armed}
+					class:pointer-events-none={frozenWidth !== null}
 					style:width={frozenWidth !== null ? `${frozenWidth}px` : '100%'}
 					onerror={() => (error = m.typst_preview_frame_failed())}
 				></iframe>
 			</ColorVisionFilter>
 			{#if agentCanvas.armed}
 				<!-- 圈选画布：接管指针（iframe 随之 pointer-events-none，点击都归画布） -->
-				<AgentCanvas
-					pageReady={pageRendered}
-					sendToFrame={(msg) => frame?.contentWindow?.postMessage({ channel: CHANNEL, ...msg }, '*')}
-					onDone={() => (agentCanvas.armed = false)}
-					onDismiss={() => (agentCanvas.armed = false)}
-				/>
+				<AgentCanvas pageReady={pageRendered} onDone={() => (agentCanvas.armed = false)} onDismiss={() => (agentCanvas.armed = false)} />
 			{/if}
 			{#if noDocument}
 				<!-- a card, not bare text: the surround behind it is mid-grey in both themes, so bare

@@ -1,8 +1,9 @@
-// 画布圈选的角点解析收集器。
+// 画布圈选的角点收集：用户在预览上真实点击两个角（左上→右下），tinymist 的
+// "点击→src-point→LSP 解析"链路给出每个角的源码位置，两个角夹出源码行范围。
 //
-// 框选的两个角点经注入桥派发合成点击后，tinymist 的"点击→src-point→LSP 解析"链路会把结果
-// 送进 previewController 的 jumpHandler。这里在 jumpHandler 最前面插一道：收集模式打开时，
-// 解析结果归画布所有（并抑制"编辑器跳过去"的副作用）；没打开时一切照旧。
+// 为什么不用合成事件：loopback 跨源页里，派发的合成点击（isTrusted:false）不触发
+// 查看器的点击处理（实测，同源旧页里是可以的）。所以收集模式开启时画布对指针
+// 完全放行（pointer-events:none），点击直接落在预览上——用户点的就是真点击。
 
 export type JumpCorner = {
 	/** 绝对路径，tinymist 原样给出 */
@@ -13,49 +14,46 @@ export type JumpCorner = {
 	character: number;
 };
 
-type Waiting = {
-	resolve: (corner: JumpCorner) => void;
-	reject: (e: Error) => void;
-	timer: ReturnType<typeof setTimeout>;
+type Collector = {
+	corners: JumpCorner[];
+	onDone: (a: JumpCorner, b: JumpCorner) => void;
+	onProgress?: (collected: number) => void;
 };
 
-let pending: Waiting | null = null;
+let collector: Collector | null = null;
 
-/** 等待下一个跳转解析结果（画布角点）。超时拒绝，由调用方降级。 */
-export function collectNextJump(timeoutMs = 4000): Promise<JumpCorner> {
-	if (pending) pending.reject(new Error('上一个角点还没回来'));
-	return new Promise<JumpCorner>((resolve, reject) => {
-		const timer = setTimeout(() => {
-			if (pending?.reject === rejectRef) {
-				pending = null;
-				reject(new Error('角点解析超时：预览页可能没响应这次点击'));
-			}
-		}, timeoutMs);
-		const rejectRef = reject;
-		pending = { resolve, reject, timer };
-	});
+/** 开启角点收集：接下来的两次真实预览点击依次作为区域的对角。 */
+export function startCornerCollection(onDone: (a: JumpCorner, b: JumpCorner) => void, onProgress?: (collected: number) => void): void {
+	cancelCornerCollection();
+	collector = { corners: [], onDone, onProgress };
 }
 
-/** jumpHandler 最先调用：收集模式打开时消费这个跳转并返回 true（调用方随即不再路由）。 */
+/** 关闭收集（用户取消/面板关闭）。 */
+export function cancelCornerCollection(): void {
+	collector = null;
+}
+
+/** 收集是否开启（jumpHandler 据此拦截点击解析，不再跳编辑器）。 */
+export function collectingActive(): boolean {
+	return collector !== null;
+}
+
+/** 已收集的角点数（状态条显示 1/2、2/2）。 */
+export function collectedCount(): number {
+	return collector ? collector.corners.length : 0;
+}
+
+/** jumpHandler 最先调用：收集开启时点击解析归画布（返回 true，调用方不再路由去跳编辑器）。 */
 export function consumeJump(jump: { filepath?: string; start?: [number, number] | null } | null): boolean {
-	try {
-		(globalThis as Record<string, unknown>).__lastPreviewJump = { jump, at: Date.now(), pending: !!pending };
-	} catch {
-		/* 调试埋点，失败不影响主流程 */
+	if (!collector || !jump?.filepath || !jump.start) return false;
+	collector.corners.push({ filepath: jump.filepath, line: jump.start[0], character: jump.start[1] });
+	const n = collector.corners.length;
+	collector.onProgress?.(n);
+	if (n >= 2) {
+		const [a, b] = collector.corners;
+		const done = collector.onDone;
+		collector = null;
+		done(a, b);
 	}
-	const waiting = pending;
-	if (!waiting || !jump?.filepath || !jump.start) return false;
-	clearTimeout(waiting.timer);
-	pending = null;
-	waiting.resolve({ filepath: jump.filepath, line: jump.start[0], character: jump.start[1] });
 	return true;
-}
-
-/** 页面切换/面板关闭时清掉未决的收集，避免悬挂的 promise。 */
-export function cancelPendingJumps(): void {
-	if (pending) {
-		clearTimeout(pending.timer);
-		pending.reject(new Error('区域收集已取消'));
-		pending = null;
-	}
 }
