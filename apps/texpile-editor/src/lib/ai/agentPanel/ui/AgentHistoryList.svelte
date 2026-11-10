@@ -42,6 +42,17 @@
 <div class="flex min-h-0 flex-col gap-1">
 	<div class="flex items-center justify-between px-1">
 		<span class="text-muted text-xs">历史对话（{sorted.length}）</span>
+		<!-- 开新对话就摆在历史标题旁边，一眼可见 -->
+		<button
+			class="hover:preset-tonal text-muted hover:text-primary-ink rounded-base flex items-center gap-1 px-1.5 py-0.5 text-[11px]"
+			title="开新对话"
+			onclick={() => {
+				props.onPicked?.();
+				void restartAgentSession(undefined, { fresh: true });
+			}}
+		>
+			<MessageSquarePlus class="size-3" />新对话
+		</button>
 	</div>
 	<div class="max-h-56 overflow-y-auto">
 		{#each sorted as chat, i (chat.id)}
@@ -61,13 +72,4 @@
 		{/each}
 	</div>
 	<p class="text-muted px-1 text-[11px] leading-relaxed">接续会回放历史消息与工具步骤，上下文延续；这些会话与 DSH 侧栏完全同步。</p>
-	<button
-		class="preset-tonal hover:preset-tonal-primary rounded-base mt-1 flex items-center justify-center gap-1.5 px-2 py-1.5 text-xs"
-		onclick={() => {
-			props.onPicked?.();
-			void restartAgentSession(undefined, { fresh: true });
-		}}
-	>
-		<MessageSquarePlus class="size-3.5" /> 开新对话（当前会话保留在 DSH 侧栏）
-	</button>
 </div>

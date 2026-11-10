@@ -75,7 +75,7 @@
 			<div class="mx-auto flex w-full max-w-3xl flex-col gap-2 px-3">
 				{#if !agentSession.items.length}
 					<p class="text-muted text-sm">{m.agent_panel_empty({ agent })}</p>
-					<!-- 空对话时先看见历史：接续一段旧对话，或开新对话把它归档 -->
+					<!-- 空对话时先看见历史：接续一段旧对话，或用面板顶部的 ＋ 开新对话 -->
 					{#if agentSession.history && agentSession.chats.length}
 						<div class="card border-surface-200-800 mt-2 border p-2">
 							<AgentHistoryList />

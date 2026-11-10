@@ -2,11 +2,11 @@
 	// 右侧独立的 AGENT 对话面板：与 PDF 预览并列，占编辑器网格的最后一列。
 	// 左缘是拖拽调宽的手柄——绝对定位贴在 border 上，不占网格列（PDF 面板是占列的分隔条，
 	// 这里两列之间已经没有空位可给）。
-	import { Bot, History, X } from '@lucide/svelte';
+	import { Bot, History, MessageSquarePlus, X } from '@lucide/svelte';
 	import { Popover, Portal } from '@skeletonlabs/skeleton-svelte';
 	import AgentPanel from './AgentPanel.svelte';
 	import AgentHistoryList from './AgentHistoryList.svelte';
-	import { agentSession } from '../agentSession.svelte';
+	import { agentSession, restartAgentSession } from '../agentSession.svelte';
 	import { agentUnavailable } from '../agentAvailability';
 	import { agentLabel } from '../agentNames';
 	import { tip } from '$lib/components/tooltip.svelte';
@@ -46,6 +46,18 @@
 			<span class="text-muted shrink-0 text-[10px]">{agentSession.chats.length}</span>
 		{/if}
 		<span class="flex-1"></span>
+		{#if agentSession.history}
+			<!-- 开新对话就放在历史入口旁边：真建一条全新会话，当前会话保留在 DSH 侧栏 -->
+			<button
+				class="btn-icon btn-icon-sm"
+				aria-label="开新对话"
+				title="开新对话"
+				disabled={agentSession.state !== 'ready'}
+				onclick={() => void restartAgentSession(undefined, { fresh: true })}
+			>
+				<MessageSquarePlus class="size-4" />
+			</button>
+		{/if}
 		{#if agentSession.history}
 			<Popover positioning={{ placement: 'bottom-end', offset: { mainAxis: 2 } }} autoFocus={false}>
 				<Popover.Trigger class="btn-icon btn-icon-sm" aria-label="历史对话">

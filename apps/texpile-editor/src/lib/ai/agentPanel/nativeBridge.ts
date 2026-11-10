@@ -206,9 +206,7 @@ export function nativeSessionBridge(): AcpBridge | undefined {
 			const root = (workspaceRoot.current ?? '').replace(/\\/g, '/');
 			if (!root) return { ok: false as const, reason: 'no-folder' as const };
 			try {
-				const mine = (await session.list()).filter(
-					(c) => (c.cwd ?? '').replace(/\\/g, '/').toLowerCase() === root.toLowerCase()
-				);
+				const mine = (await session.list()).filter((c) => (c.cwd ?? '').replace(/\\/g, '/').toLowerCase() === root.toLowerCase());
 				// 目标会话三选一：
 				//   fresh（「开新对话」）→ 全新空白会话（侧栏同步可见，不吞掉旧会话）
 				//   粘住的（面板开合/整页刷新后）→ 原会话，绝不被"最新"挤掉
