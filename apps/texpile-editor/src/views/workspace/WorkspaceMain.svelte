@@ -10,6 +10,7 @@
 	import { livePaneProps } from './livePaneProps';
 	import PreviewPane from '$lib/preview/PreviewPane.svelte';
 	import AgentPane from '$lib/ai/agentPanel/ui/AgentPane.svelte';
+	import { editorGroups } from '$lib/workspace/groups/editorGroups.svelte';
 	import PreviewPopout from '$lib/preview/PreviewPopout.svelte';
 	import PaneSplitter from '$lib/components/PaneSplitter.svelte';
 	import TerminalDock from '$lib/terminal/TerminalDock.svelte';
@@ -203,7 +204,9 @@
 
 <main
 	class="grid min-h-0 min-w-0 flex-1"
-	style="grid-template-columns: minmax(0, 1fr) auto auto auto; grid-template-rows: auto minmax(0, 1fr) auto auto"
+	style="grid-template-columns: {editorGroups.allClosed
+		? 'auto'
+		: 'minmax(0, 1fr)'} auto auto auto; grid-template-rows: auto minmax(0, 1fr) auto auto"
 >
 	<!-- editor column (toolbar + content) with the PDF pane beside it, so the PDF skips the
 	     toolbar while the header (Compile) stays above it. the wrapper is display:contents so
