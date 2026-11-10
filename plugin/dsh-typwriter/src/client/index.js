@@ -4,7 +4,8 @@
 const React = require('react');
 
 const KEY = 'typwriter';
-const SRC = '/typwriter/';
+// 带 #/workspace：DSH 切换面板会卸载重挂 iframe，src 无 hash 时新文档落在启动屏一瞬
+const SRC = '/typwriter/#/workspace';
 
 // 统一品牌形象（精简线条版，与管理页 icon.svg 同一设计语言）：一张纸、几行字、一支斜放的笔。
 // currentColor 线条随 DSH 主题着色；右下角叠「Typ」小字角标。

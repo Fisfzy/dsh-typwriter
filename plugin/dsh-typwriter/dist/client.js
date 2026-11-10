@@ -26,7 +26,7 @@ __export(index_exports, {
 module.exports = __toCommonJS(index_exports);
 var React = require("react");
 var KEY = "typwriter";
-var SRC = "/typwriter/";
+var SRC = "/typwriter/#/workspace";
 function Icon({ size }) {
   const s = size || 18;
   return React.createElement(

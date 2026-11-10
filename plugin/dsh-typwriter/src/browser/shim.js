@@ -23,22 +23,38 @@
   }
 
   // ---- 请求/响应 RPC（对应 ipcRenderer.invoke） ----
-  function invoke(fn) {
-    var args = Array.prototype.slice.call(arguments, 1);
+  // 宿主在面板切换等瞬间可能把请求挂住（实测 iframe 重建时 settings:get 永久 pending，
+  // 应用卡在启动屏）：每次调用带超时，超时重试一次，两次都失败才报错。
+  function fetchOnce(fn, args, signal) {
     return fetch(RPC, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       credentials: 'same-origin',
-      body: JSON.stringify({ fn: fn, args: args })
-    })
-      .then(function (res) {
-        return res.json();
-      })
-      .then(function (r) {
-        if (r && r.ok) return r.value;
-        // 裸错误文本：渲染端的 ipc() 会再剥一次 "Error invoking remote method" 前缀
-        throw new Error((r && r.error) || 'Unknown error');
+      body: JSON.stringify({ fn: fn, args: args }),
+      signal: signal
+    }).then(function (res) {
+      return res.json();
+    });
+  }
+  function invoke(fn) {
+    var args = Array.prototype.slice.call(arguments, 1);
+    var attempt = function (n) {
+      var ctrl = typeof AbortController === 'function' ? new AbortController() : null;
+      var timer = ctrl ? setTimeout(function () { ctrl.abort(); }, 15000) : null;
+      var p = fetchOnce(fn, args, ctrl ? ctrl.signal : undefined);
+      if (timer) p = p.finally(function () { clearTimeout(timer); });
+      return p.catch(function (e) {
+        if (n > 0 && (e && (e.name === 'AbortError' || String(e).indexOf('Failed to fetch') >= 0))) {
+          return attempt(n - 1);
+        }
+        throw e;
       });
+    };
+    return attempt(1).then(function (r) {
+      if (r && r.ok) return r.value;
+      // 裸错误文本：渲染端的 ipc() 会再剥一次 "Error invoking remote method" 前缀
+      throw new Error((r && r.error) || 'Unknown error');
+    });
   }
 
   // ---- SSE 总线：一条流扇出成多个 onX ----
