@@ -85,6 +85,15 @@ export function createWorkspacePipelines(d: PipelineDeps) {
 		window.addEventListener('typwriter:restart-preview', h);
 		return () => window.removeEventListener('typwriter:restart-preview', h);
 	});
+	// 画布圈选送出后把 AGENT 面板拉到眼前：右栏优先拉起，底部 dock 也切到 agent 页（谁在用听谁的）
+	$effect(() => {
+		function h(): void {
+			d.layout().setAgentPane(true);
+			d.termDock().agentRequest = true;
+		}
+		window.addEventListener('typwriter:agent-show', h);
+		return () => window.removeEventListener('typwriter:agent-show', h);
+	});
 	// tinymist's copy of the open .typ, which is what the preview renders, kept equal to the buffer
 	// in the visual editor too. A guest's file is on the host's server, kept by the host
 	const typstStream = new TypstDocumentStream({

@@ -9,7 +9,7 @@
 	// channel between us is postMessage, and the bridge on the far side is one we injected. That is
 	// what lets the zoom control below drive a viewer we cannot otherwise touch.
 	import { tip } from '$lib/components/tooltip.svelte';
-	import { ZoomIn, ZoomOut, Crosshair, FileOutput, PictureInPicture2, RefreshCw } from '@lucide/svelte';
+	import { ZoomIn, ZoomOut, Crosshair, FileOutput, PictureInPicture2, RefreshCw, SquareDashedMousePointer } from '@lucide/svelte';
 	import { typstExport } from '../export/dialog/typstExportState.svelte';
 	import type { Snippet } from 'svelte';
 	import PreviewToolbar, { type PreviewToolbarPlace } from '$lib/preview/PreviewToolbar.svelte';
@@ -17,6 +17,7 @@
 	import ColorVisionFilter from '$lib/preview/colorVision/ColorVisionFilter.svelte';
 	import InvertColorsItem from '$lib/preview/invertColors/InvertColorsItem.svelte';
 	import { pagesInverted } from '$lib/preview/invertColors/pagesInverted';
+	import AgentCanvas from './agentCanvas/AgentCanvas.svelte';
 	import { resolvedMode, themeEpoch } from '$lib/theme';
 	import { settings, updateSettings } from '$lib/settings';
 	import { followScrollTick, guestJumpFreezeTick } from './followSignal';
@@ -62,6 +63,8 @@
 	let error = $state<string | null>(null);
 	let zoom = $state<number | null>(null);
 	let frame = $state<HTMLIFrameElement | null>(null);
+	/** 圈选画布（AGENT 编辑模式）：框选区域两角经合成点击解析为源码行范围后发给 AGENT */
+	let agentEdit = $state(false);
 
 	const dark = $derived(resolvedMode.current === 'dark');
 
@@ -143,6 +146,8 @@
 		zoom: number | null;
 	};
 	let status = $state<FrameStatus | null>(null);
+	// 模板里的 `status` 是同名 snippet，脚本里另起别名给画布判断"页面已渲染"
+	const pageRendered = $derived(!!status && status.pages > 0);
 
 	// A framed page is a different origin with its own console, so a failure in there is invisible
 	// from out here. The bridge reports back instead, and the pane says what is wrong rather than
@@ -302,6 +307,18 @@
 			{#if place === 'menu'}刷新编译{/if}
 		</button>
 	{/snippet}
+	<!-- 圈选让 AI 修改：画布覆盖层的主开关（AgentCanvas 详见 agentCanvas/） -->
+	{#snippet agentEditToggle()}
+		<button
+			aria-pressed={agentEdit}
+			onclick={() => (agentEdit = !agentEdit)}
+			disabled={!frameUrl || !pageRendered}
+			use:tip={'圈选让 AI 修改'}
+			aria-label="圈选让 AI 修改"
+		>
+			<SquareDashedMousePointer size={16} />
+		</button>
+	{/snippet}
 	{#snippet popout()}
 		<button onclick={() => onPopout?.()} use:tip={m.wsview_popout_preview()} aria-label={m.wsview_popout_preview()}>
 			<PictureInPicture2 size={16} />
@@ -316,6 +333,7 @@
 			{ id: 'zoom', render: zoomGroup },
 			{ id: 'refresh', render: refreshCompile },
 			{ id: 'follow', render: follow },
+			{ id: 'agentEdit', render: agentEditToggle },
 			{ id: 'invert', inMenu: true, render: invert },
 			{ id: 'vision', inMenu: true, render: vision },
 			{ id: 'export', inMenu: true, render: exportPdf },
@@ -335,11 +353,20 @@
 					title={m.typst_preview_label()}
 					class="h-full border-0 transition-[filter] duration-100"
 					class:blur-[1.5px]={frozenWidth !== null}
-					class:pointer-events-none={frozenWidth !== null}
+					class:pointer-events-none={frozenWidth !== null || agentEdit}
 					style:width={frozenWidth !== null ? `${frozenWidth}px` : '100%'}
 					onerror={() => (error = m.typst_preview_frame_failed())}
 				></iframe>
 			</ColorVisionFilter>
+			{#if agentEdit}
+				<!-- 圈选画布：接管指针（iframe 随之 pointer-events-none，点击都归画布） -->
+				<AgentCanvas
+					pageReady={pageRendered}
+					sendToFrame={(msg) => frame?.contentWindow?.postMessage({ channel: CHANNEL, ...msg }, '*')}
+					onDone={() => (agentEdit = false)}
+					onDismiss={() => (agentEdit = false)}
+				/>
+			{/if}
 			{#if noDocument}
 				<!-- a card, not bare text: the surround behind it is mid-grey in both themes, so bare
 				     muted text was barely legible on it -->

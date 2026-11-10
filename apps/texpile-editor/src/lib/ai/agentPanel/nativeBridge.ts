@@ -190,7 +190,16 @@ export function nativeSessionBridge(): AcpBridge | undefined {
 		streamedLen = 0;
 		const root = (workspaceRoot.current ?? '').replace(/\\/g, '/');
 		if (root) pinSession(root, id);
-		emit?.({ type: 'state', state: 'ready', title: 'DeepSeek Harness', chat: id, history: true });
+		// takesSelection：视觉/源码编辑器的划选以 pill 跟随消息（native 侧序列化进文本，见 prompt）
+		emit?.({
+			type: 'state',
+			state: 'ready',
+			title: 'DeepSeek Harness',
+			chat: id,
+			history: true,
+			takesSelection: true,
+			takesImages: false
+		});
 		cancelFollow =
 			(await api()?.follow(id, {
 				onFrame,
@@ -227,10 +236,18 @@ export function nativeSessionBridge(): AcpBridge | undefined {
 		},
 		async prompt(blocks) {
 			if (!sessionId) return { ok: false as const, error: '会话未就绪', stopReason: 'error', changes: [] };
-			const text = blocks
+			// 网关这条链路只收文本：划选 pill（resource，file://…#Lfirst:last）序列化成文字随行，
+			// 图片 v1 仍不带（models 未验证识图；deepseek-v4 支持后在 imageBlocks 处接）
+			const words = blocks
 				.filter((b) => (b as { type?: string }).type === 'text')
 				.map((b) => (b as { text: string }).text)
 				.join('\n\n');
+			const picks = blocks
+				.filter((b) => (b as { type?: string }).type === 'resource')
+				.map((b) => (b as { resource: { uri?: string; text?: string } }).resource)
+				.filter((r) => r && (r.uri || r.text))
+				.map((r) => `[选中内容] ${r.uri ?? ''}\n<<<\n${r.text ?? ''}\n>>>`);
+			const text = [words, ...picks].filter(Boolean).join('\n\n');
 			// 首条消息先当标题种子（session/list 不带标题；DSH 的 session/title 事件到了会覆盖）
 			if (sessionId && !knownTitles.has(sessionId) && text) {
 				knownTitles.set(sessionId, text.trim().split('\n')[0].slice(0, 40));

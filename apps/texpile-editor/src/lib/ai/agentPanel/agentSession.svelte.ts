@@ -5,6 +5,7 @@ import { acpBridge, type AcpBridge } from './acpBridge';
 import { nativeSessionBridge } from './nativeBridge';
 import { applyUpdate, availableCommands, configOptions, contextUsage, itemId, toolTitle } from './agentItems';
 import { keepBefore } from './changes/agentBefore';
+import { collectTurnChanges, armTurnScope, releaseTurnScope, turnScopeArmed } from './turnScope';
 import { agentHost } from './agentHost.svelte';
 import { settings, updateSettingsSettled } from '$lib/settings';
 import { workspaceRoot } from '$lib/workspace/workspaceStore';
@@ -127,6 +128,9 @@ export class AgentSession {
 		this.state = 'working';
 		this.stopAsked = false;
 		await agentHost.current?.flushPendingSave();
+		// 带选区 pill 的轮次是"监督编辑"：先给涉及文件上快照，轮次结束差异进 changes（可回退）
+		const scopedPaths = [...new Set(attached.map((a) => a.path).filter((p): p is string => !!p))];
+		if (scopedPaths.length) await armTurnScope(scopedPaths);
 		if (conversation !== this.conversation) return;
 		this.items = [...this.items, { kind: 'user', id: itemId(), text, attached, images }];
 		if (this.stopAsked) {
@@ -139,7 +143,12 @@ export class AgentSession {
 		// read again: events moved it on while the turn ran. Main moves it on before it answers, so one still
 		// working is a turn main never began
 		if (this.stateNow() === 'working') this.state = 'ready';
-		const files = keepBefore(r.changes ?? []);
+		// 监督轮次（画布圈选/视觉选区发起）：native 桥不产出 changes，由客户端快照比对补上，
+		// keepBefore 存 before 后 AgentChanges 的单文件回退按钮对这轮同样可用
+		let changes = r.changes ?? [];
+		if (turnScopeArmed()) changes = [...changes, ...(await collectTurnChanges())];
+		else releaseTurnScope();
+		const files = keepBefore(changes);
 		const after: ChatItem[] = [];
 		if (!r.ok && r.error && this.stateNow() !== 'signed-out') after.push({ kind: 'error', id: itemId(), text: r.error });
 		if (files.length) after.push({ kind: 'changes', id: itemId(), files });

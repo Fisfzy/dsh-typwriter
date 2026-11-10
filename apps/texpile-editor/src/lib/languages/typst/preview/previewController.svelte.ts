@@ -24,6 +24,7 @@ import {
 import { startTypstPreview, killTypstPreview, scrollTypstPreview } from './previewCommands';
 import { typstProblemsLog } from './previewProblems';
 import { noteFollowScroll } from './followSignal';
+import { consumeJump } from './agentCanvas/regionResolve';
 import { m } from '$lib/paraglide/messages';
 
 export type TypstPreviewHooks = {
@@ -344,6 +345,9 @@ export class TypstPreviewController {
 			if (this.host === null) return;
 			setPreviewJumpHandler((jump) => {
 				if (!jump?.filepath || !jump.start) return;
+				// 画布圈选的角点收集最优先：框选发 intent 时两个合成点击的解析结果归画布，
+				// 不跳编辑器（否则点一下角整个视图就跳走，圈选体验全毁）
+				if (consumeJump(jump)) return;
 				const key = `${jump.filepath}:${jump.start[0]}:${jump.start[1]}`;
 				if (key === this.lastPreviewJump.key && Date.now() - this.lastPreviewJump.at < 800) return;
 				this.lastPreviewJump = { key, at: Date.now() };
