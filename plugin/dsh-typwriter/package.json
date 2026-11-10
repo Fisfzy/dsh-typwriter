@@ -1,6 +1,6 @@
 {
   "name": "dsh-typwriter",
-  "version": "0.1.0",
+  "version": "0.1.5",
   "description": "Typst 论文写作工作台：在 DSH 里编辑、编译、预览 Typst 文档（界面基于 Texpile，AGPL-3.0）",
   "type": "module",
   "main": "src/host/index.js",
@@ -8,7 +8,9 @@
     ".": "./src/host/index.js",
     "./client": "./dist/client.js",
     "./cordis.patch.yml": "./cordis.patch.yml",
-    "./package.json": "./package.json"
+    "./package.json": "./package.json",
+    "./locale/en.json": "./locale/en.json",
+    "./locale/zh-hans.json": "./locale/zh-hans.json"
   },
   "dsh": {
     "bundle": {
@@ -34,9 +36,37 @@
     "dist",
     "app",
     "bin",
+    "icon.png",
+    "icon.svg",
+    "locale",
     "cordis.patch.yml"
   ],
   "devDependencies": {
     "esbuild": "^0.25.10"
+  },
+  "icon": "./icon.svg",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Fisfzy/dsh-typwriter.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Fisfzy/dsh-typwriter/issues"
+  },
+  "homepage": "https://github.com/Fisfzy/dsh-typwriter#readme",
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "deepseek-harness",
+    "typst",
+    "latex",
+    "academic-writing",
+    "paper-writing",
+    "mcp",
+    "zotero",
+    "texpile"
+  ],
+  "publishConfig": {
+    "access": "public"
   }
 }
+

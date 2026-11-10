@@ -5,6 +5,7 @@ import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { readdir, readFile, stat } from 'node:fs/promises';
 import { join } from 'node:path';
+import { dshHome } from './state.js';
 
 const SKIP_DIRS = new Set(['node_modules', '.git', '.texpile', '.workbuddy', 'out', 'output', '__pycache__']);
 
@@ -201,7 +202,7 @@ export class AcpHost {
     if (this.starting) return this.starting;
     // 已经有活着的会话：直接复用，不重启进程
     if (this.child && this.sessionId) {
-      this.emit('acp:event', { type: 'state', state: 'ready', title: 'DeepSeek Harness', takesSelection: true, takesImages: false, history: false });
+      this.emit('acp:event', { type: 'state', state: 'ready', title: 'DeepSeek Harness', takesSelection: true, takesImages: false, history: true });
       return { ok: true, agent: 'dsh' };
     }
     this.starting = this.#startOnce();
@@ -266,17 +267,25 @@ export class AcpHost {
     });
 
     try {
-      await this.#request('initialize', {
-        protocolVersion: 1,
-        clientCapabilities: { fs: { readTextFile: true, writeTextFile: true } }
-      });
+      // 冷启动装载 profile 的全部插件（用户装了 20+ 个）实测 9-16s：30s 默认超时贴着边，
+      // 机器忙时直接误杀，放宽到 60s
+      await this.#request(
+        'initialize',
+        {
+          protocolVersion: 1,
+          clientCapabilities: { fs: { readTextFile: true, writeTextFile: true } }
+        },
+        60000
+      );
     } catch (e) {
+      // 起不来就别留半死进程：close 掉，下一次 start 从冷起干净重来
+      this.close();
       this.emit('acp:event', { type: 'state', state: 'failed', detail: `initialize 失败：${e?.message || e}` });
       return { ok: false, reason: 'missing', program: this.command };
     }
 
     try {
-      const res = await this.#request('session/new', { cwd, mcpServers: [] });
+      const res = await this.#request('session/new', { cwd, mcpServers: [] }, 60000);
       this.sessionId = res?.sessionId ?? null;
       if (!this.sessionId) throw new Error('session/new 未返回 sessionId');
       this.emit('acp:event', {
@@ -285,11 +294,14 @@ export class AcpHost {
         title: 'DeepSeek Harness',
         takesSelection: true,
         takesImages: false,
-        history: false
+        history: true
       });
       return { ok: true, agent: 'dsh' };
     } catch (e) {
-      this.emit('acp:event', { type: 'state', state: 'failed', detail: `新建会话失败：${e?.message || e}` });
+      // session/new 超时多半是进程内部卡死（长命 acp 进程用久后的实测状态）：
+      // 杀掉残进程，下一次 start() 走 #startOnce 冷重启——不留"活着但不应答"的僵尸
+      this.close();
+      this.emit('acp:event', { type: 'state', state: 'failed', detail: `新建会话失败：${e?.message || e}（已重置，重试将从冷启动）` });
       return { ok: false, reason: 'failed' };
     }
   }
@@ -350,11 +362,24 @@ export class AcpHost {
     try {
       const res = await this.#request('session/list', {});
       const list = Array.isArray(res?.sessions) ? res.sessions : [];
-      return list.map((s) => ({
-        id: String(s.sessionId ?? s.id ?? ''),
-        title: s.title ?? null,
-        updatedAt: s.updatedAt ?? null
-      }));
+      // DSH 的 session/list 不带时间：每个会话在 ~/.dsh/sessions/<编码工作区>/<id> 有目录，
+      // 用目录 mtime 补上 updatedAt（一次遍历建映射，列表最多百来条）
+      const mtimes = new Map();
+      const base = join(dshHome(), 'sessions');
+      for (const ws of await readdir(base).catch(() => [])) {
+        for (const id of await readdir(join(base, ws)).catch(() => [])) {
+          const st = await stat(join(base, ws, id)).catch(() => null);
+          if (st?.isDirectory()) mtimes.set(id, st.mtime.toISOString());
+        }
+      }
+      return list.map((s) => {
+        const id = String(s.sessionId ?? s.id ?? '');
+        return {
+          id,
+          title: s.title ?? null,
+          updatedAt: s.updatedAt ?? mtimes.get(id) ?? null
+        };
+      });
     } catch {
       return [];
     }

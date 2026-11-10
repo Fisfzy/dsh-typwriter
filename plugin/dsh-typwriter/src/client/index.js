@@ -4,27 +4,56 @@
 const React = require('react');
 
 const KEY = 'typwriter';
-const SRC = '/typwriter/';
+// 带 #/workspace：DSH 切换面板会卸载重挂 iframe，src 无 hash 时新文档落在启动屏一瞬
+const SRC = '/typwriter/#/workspace';
 
+// 统一品牌形象（精简线条版，与管理页 icon.svg 同一设计语言）：一张纸、几行字、一支斜放的笔。
+// currentColor 线条随 DSH 主题着色；右下角叠「Typ」小字角标。
 function Icon({ size }) {
   const s = size || 18;
   return React.createElement(
-    'svg',
-    {
-      width: s,
-      height: s,
-      viewBox: '0 0 24 24',
-      fill: 'none',
-      stroke: 'currentColor',
-      strokeWidth: 1.8,
-      strokeLinecap: 'round',
-      strokeLinejoin: 'round',
-      'aria-hidden': true
-    },
-    // 一支笔 + 一张纸：写作
-    React.createElement('path', { d: 'M4 3.5h9l3 3V20a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4.5a1 1 0 0 1 1-1Z' }),
-    React.createElement('path', { d: 'M13 3.5V7h3' }),
-    React.createElement('path', { d: 'M17.5 13.5l3 3-4.5 4.5H13v-3z' })
+    'span',
+    { style: { position: 'relative', display: 'inline-block', width: s, height: s, lineHeight: 0 }, 'aria-hidden': true },
+    React.createElement(
+      'svg',
+      {
+        width: s,
+        height: s,
+        viewBox: '0 0 24 24',
+        fill: 'none',
+        stroke: 'currentColor',
+        strokeWidth: 1.8,
+        strokeLinecap: 'round',
+        strokeLinejoin: 'round'
+      },
+      // 纸（右上折角）
+      React.createElement('path', { d: 'M4.5 3.5h9l3 3v13a1 1 0 0 1-1 1h-11a1 1 0 0 1-1-1v-15a1 1 0 0 1 1-1Z' }),
+      React.createElement('path', { d: 'M13.5 3.5V7h3' }),
+      // 文字行
+      React.createElement('path', { d: 'M7 10.5h6.5M7 13.5h4.5' }),
+      // 笔：斜放右下，笔尖朝纸
+      React.createElement('path', { d: 'M17.5 13.5l3 3-4.5 4.5H13v-3z' })
+    ),
+    React.createElement(
+      'span',
+      {
+        style: {
+          position: 'absolute',
+          right: -2,
+          bottom: -2,
+          fontSize: Math.max(7, Math.round(s * 0.42)),
+          fontWeight: 700,
+          color: '#fff',
+          background: '#1f2430',
+          borderRadius: 3,
+          padding: '0 2px',
+          lineHeight: 1.15,
+          letterSpacing: '0.02em',
+          boxShadow: '0 0 0 1px rgba(255,255,255,.55)'
+        }
+      },
+      'Typ'
+    )
   );
 }
 
