@@ -124,6 +124,353 @@
     return function () {};
   }
 
+  // ================= 目录选择 =================
+  // DSH 的目录选择器有两个后端（ctx.directoryPicker 的能力区分）：
+  //   native —— /api/directoryPicker/pick：在宿主桌面上弹系统对话框
+  //   browse —— /api/directoryPicker/list + createDirectory：应用内浏览器
+  //
+  // 关键：桌面 profile 里装了 dsh-mobile / dsh-remote，connection 因此允许远程来源，
+  // directory-picker-auto 判定"可能有远程客户端"，会挂 browse 后端而不是 native。
+  // 之前只接 native（宿主 dialog:openFolder 在 browse 组合里只能返回 null），
+  // 所以"打开文件夹"仍然没有任何反应。这里自己实现应用内浏览器，两种后端都能用。
+  var pickSeq = 0;
+  var pickActive = null;
+
+  /** 调 DSH 平台 API：POST /api/<namespace>/<method>，client-request 信封 */
+  function platformCall(method, args) {
+    var rpcId = 'tw-pick-' + ++pickSeq;
+    return fetch('/api/' + method, {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        type: 'client-request',
+        rpcId: rpcId,
+        method: method,
+        payload: { args: args || {} }
+      })
+    }).then(function (res) {
+      return res.json();
+    }).then(function (env) {
+      var r = env && env.result;
+      if (r && r.ok) return r.value;
+      var err = new Error((r && r.error && r.error.message) || ('gateway error: ' + method));
+      err.api = true;
+      err.code = r && r.error && r.error.code;
+      err.details = r && r.error && r.error.details;
+      throw err;
+    });
+  }
+
+  function pickEl(tag, cls, text) {
+    var node = document.createElement(tag);
+    if (cls) node.className = cls;
+    if (text != null) node.textContent = text;
+    return node;
+  }
+
+  var PICK_STYLE = [
+    '.twpick-backdrop{position:fixed;inset:0;z-index:2147483000;display:flex;align-items:center;justify-content:center;',
+    'background:rgba(8,10,14,.45);font:13px/1.5 system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;color:CanvasText}',
+    '.twpick-panel{display:flex;flex-direction:column;width:min(720px,calc(100vw - 40px));max-height:min(78vh,760px);',
+    'background:Canvas;border:1px solid ButtonBorder;border-radius:12px;box-shadow:0 18px 60px rgba(0,0,0,.38);overflow:hidden}',
+    '.twpick-head{display:flex;align-items:center;gap:8px;padding:12px 14px;border-bottom:1px solid ButtonBorder}',
+    '.twpick-title{flex:1;min-width:0;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
+    '.twpick-x{border:0;background:transparent;color:CanvasText;font:inherit;font-size:15px;line-height:1;padding:4px 6px;border-radius:6px;cursor:pointer;opacity:.7}',
+    '.twpick-x:hover{opacity:1;background:color-mix(in srgb,CanvasText 10%,transparent)}',
+    '.twpick-bar{display:flex;gap:8px;padding:10px 14px;border-bottom:1px solid ButtonBorder}',
+    '.twpick-input{flex:1;min-width:0;font:inherit;padding:6px 10px;border:1px solid ButtonBorder;border-radius:7px;background:Field;color:FieldText;outline:none}',
+    '.twpick-input:focus{border-color:Highlight}',
+    '.twpick-btn{font:inherit;padding:6px 12px;border:1px solid ButtonBorder;border-radius:7px;background:ButtonFace;color:ButtonText;cursor:pointer;white-space:nowrap}',
+    '.twpick-btn:hover:not(:disabled){filter:brightness(.96)}',
+    '.twpick-btn.primary{background:Highlight;border-color:Highlight;color:HighlightText;font-weight:600}',
+    '.twpick-btn:disabled{opacity:.5;cursor:default}',
+    '.twpick-crumbs{display:flex;flex-wrap:wrap;gap:2px;padding:8px 14px 0}',
+    '.twpick-crumb{max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;border:0;border-radius:5px;',
+    'background:transparent;color:LinkText;font:inherit;font-size:12px;padding:2px 5px;cursor:pointer}',
+    '.twpick-crumb:hover{background:color-mix(in srgb,CanvasText 9%,transparent)}',
+    '.twpick-list{flex:1;min-height:150px;overflow:auto;padding:8px 10px 12px}',
+    '.twpick-row{display:flex;align-items:center;gap:8px;width:100%;padding:6px 10px;border:0;border-radius:7px;',
+    'background:transparent;color:CanvasText;font:inherit;text-align:left;cursor:pointer}',
+    '.twpick-row:hover{background:color-mix(in srgb,CanvasText 9%,transparent)}',
+    '.twpick-row .n{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
+    '.twpick-row.hidden{opacity:.55}',
+    '.twpick-empty,.twpick-loading{padding:20px 10px;color:GrayText;text-align:center}',
+    '.twpick-foot{display:flex;align-items:center;gap:8px;padding:12px 14px;border-top:1px solid ButtonBorder}',
+    '.twpick-msg{flex:1;min-width:0;font-size:12px;color:GrayText;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}'
+  ].join('');
+
+  function ensurePickStyle() {
+    if (document.getElementById('tw-pick-style')) return;
+    var style = document.createElement('style');
+    style.id = 'tw-pick-style';
+    style.textContent = PICK_STYLE;
+    (document.head || document.documentElement).appendChild(style);
+  }
+
+  /**
+   * 应用内目录浏览器。解析为选中的绝对路径，取消为 null。
+   * @param {string} title
+   * @param {{path:string,home?:string,crumbs?:Array,entries?:Array,truncated?:boolean}} initial
+   */
+  function openBrowsePicker(title, initial) {
+    if (pickActive) return pickActive.promise;
+    ensurePickStyle();
+
+    var resolveFn;
+    var promise = new Promise(function (resolve) {
+      resolveFn = resolve;
+    });
+
+    var marked = document.activeElement;
+    var state = { path: '', crumbs: [], entries: [], home: '' };
+    var loading = false;
+
+    var overlay = pickEl('div', 'twpick-backdrop');
+    var panel = pickEl('div', 'twpick-panel');
+    overlay.appendChild(panel);
+
+    var head = pickEl('div', 'twpick-head');
+    head.appendChild(pickEl('span', 'twpick-title', title || '选择文件夹'));
+    var closeX = pickEl('button', 'twpick-x', '✕');
+    closeX.type = 'button';
+    closeX.title = '取消';
+    head.appendChild(closeX);
+    panel.appendChild(head);
+
+    var bar = pickEl('div', 'twpick-bar');
+    var upBtn = pickEl('button', 'twpick-btn', '↑ 上一级');
+    upBtn.type = 'button';
+    var pathInput = pickEl('input', 'twpick-input');
+    pathInput.type = 'text';
+    pathInput.spellcheck = false;
+    pathInput.placeholder = '输入绝对路径，回车跳转';
+    var goBtn = pickEl('button', 'twpick-btn', '转到');
+    goBtn.type = 'button';
+    bar.appendChild(upBtn);
+    bar.appendChild(pathInput);
+    bar.appendChild(goBtn);
+    panel.appendChild(bar);
+
+    var crumbs = pickEl('div', 'twpick-crumbs');
+    panel.appendChild(crumbs);
+
+    var list = pickEl('div', 'twpick-list');
+    panel.appendChild(list);
+
+    var foot = pickEl('div', 'twpick-foot');
+    var msg = pickEl('span', 'twpick-msg', '');
+    var cancelBtn = pickEl('button', 'twpick-btn', '取消');
+    cancelBtn.type = 'button';
+    var okBtn = pickEl('button', 'twpick-btn primary', '选择此文件夹');
+    okBtn.type = 'button';
+    foot.appendChild(msg);
+    foot.appendChild(cancelBtn);
+    foot.appendChild(okBtn);
+    panel.appendChild(foot);
+
+    function finish(value) {
+      if (!pickActive) return;
+      pickActive = null;
+      document.removeEventListener('keydown', onKey, true);
+      try {
+        overlay.remove();
+      } catch (e) {
+        /* ignore */
+      }
+      if (marked && typeof marked.focus === 'function') {
+        try {
+          marked.focus();
+        } catch (e) {
+          /* ignore */
+        }
+      }
+      resolveFn(value);
+    }
+
+    function onKey(e) {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        finish(null);
+      }
+    }
+
+    function setMsg(text) {
+      msg.textContent = text || '';
+    }
+
+    function renderCrumbs() {
+      crumbs.textContent = '';
+      var rows = Array.isArray(state.crumbs) ? state.crumbs : [];
+      for (var i = 0; i < rows.length; i++) {
+        (function (row) {
+          var b = pickEl('button', 'twpick-crumb', row.name || row.path);
+          b.type = 'button';
+          b.title = row.path;
+          b.addEventListener('click', function () {
+            go(row.path);
+          });
+          crumbs.appendChild(b);
+        })(rows[i]);
+      }
+    }
+
+    function renderEntries() {
+      list.textContent = '';
+      var entries = Array.isArray(state.entries) ? state.entries : [];
+      if (!entries.length && !loading) {
+        list.appendChild(pickEl('div', 'twpick-empty', '（这个目录下没有子文件夹）'));
+        return;
+      }
+      for (var i = 0; i < entries.length; i++) {
+        (function (entry) {
+          var row = pickEl('button', 'twpick-row' + (entry.hidden ? ' hidden' : ''));
+          row.type = 'button';
+          row.title = entry.path;
+          row.appendChild(document.createTextNode('📁'));
+          row.appendChild(pickEl('span', 'n', entry.name));
+          row.addEventListener('click', function () {
+            go(entry.path);
+          });
+          list.appendChild(row);
+        })(entries[i]);
+      }
+    }
+
+    function showLoading() {
+      loading = true;
+      list.textContent = '';
+      list.appendChild(pickEl('div', 'twpick-loading', '载入中…'));
+    }
+
+    function go(path) {
+      var target = String(path == null ? '' : path).trim();
+      showLoading();
+      setMsg('');
+      platformCall('directoryPicker/list', target ? { path: target } : {}).then(
+        function (listing) {
+          loading = false;
+          state = {
+            path: listing.path || target,
+            home: listing.home || state.home,
+            crumbs: listing.crumbs || [],
+            entries: listing.entries || []
+          };
+          pathInput.value = state.path;
+          renderCrumbs();
+          renderEntries();
+          if (listing.truncated) setMsg('目录项过多，列表已截断');
+        },
+        function (err) {
+          loading = false;
+          pathInput.value = state.path || target;
+          renderCrumbs();
+          renderEntries();
+          setMsg((err && err.message) || '无法读取该目录');
+        }
+      );
+    }
+
+    function goUp() {
+      var rows = state.crumbs || [];
+      if (rows.length >= 2) return go(rows[rows.length - 2].path);
+      var p = String(state.path || '');
+      var cut = Math.max(p.lastIndexOf('/'), p.lastIndexOf('\\'));
+      if (cut > 0) return go(p.slice(0, cut));
+      setMsg('已经在顶层目录');
+    }
+
+    upBtn.addEventListener('click', goUp);
+    goBtn.addEventListener('click', function () {
+      go(pathInput.value);
+    });
+    pathInput.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        go(pathInput.value);
+      }
+    });
+    okBtn.addEventListener('click', function () {
+      if (state.path) finish(state.path);
+    });
+    cancelBtn.addEventListener('click', function () {
+      finish(null);
+    });
+    closeX.addEventListener('click', function () {
+      finish(null);
+    });
+    overlay.addEventListener('mousedown', function (e) {
+      if (e.target === overlay) finish(null);
+    });
+    document.addEventListener('keydown', onKey, true);
+
+    pickActive = { promise: promise, finish: finish };
+    document.body.appendChild(overlay);
+
+    if (initial && initial.path) {
+      state = {
+        path: initial.path,
+        home: initial.home || '',
+        crumbs: initial.crumbs || [],
+        entries: initial.entries || []
+      };
+      pathInput.value = state.path;
+      renderCrumbs();
+      renderEntries();
+    }
+    setTimeout(function () {
+      pathInput.focus();
+      if (typeof pathInput.select === 'function') pathInput.select();
+    }, 0);
+
+    return promise;
+  }
+
+  /** 宿主兜底：native 后端时宿主 dialog:openFolder 会弹系统对话框 */
+  function hostOpenFolder() {
+    return invoke('dialog:openFolder').catch(function () {
+      return null;
+    });
+  }
+
+  /**
+   * 选目录：优先系统对话框（native 后端），组合里只有 browse 时用应用内浏览器。
+   * 解析为绝对路径；取消/不可用为 null。
+   */
+  function chooseDirectory(title) {
+    var label = typeof title === 'string' && title.trim() ? title.trim() : '选择论文文件夹';
+    return platformCall('directoryPicker/pick', {}).then(
+      function (picked) {
+        // native 后端：系统对话框的结果就是终局；null 表示用户取消，不再弹第二个选择器
+        return typeof picked === 'string' && picked ? picked : null;
+      },
+      function (err) {
+        // 组合里是 browse 后端：pick 以 directory-picker/unavailable 拒绝
+        if (err && err.code === 'directory-picker/unavailable') return browseThenPick(label);
+        // 平台 API 有回答但 pick 走不通：再试 browse，仍不行才退回宿主
+        if (err && err.api) return browseThenPick(label);
+        // 没有平台 API（旧宿主/独立运行）：退回宿主自己的对话框
+        return hostOpenFolder();
+      }
+    );
+  }
+
+  /** browse 组合：先取一次根目录列表再开浏览器；列表也失败时给空壳让用户输路径 */
+  function browseThenPick(label) {
+    return platformCall('directoryPicker/list', {}).then(
+      function (listing) {
+        return openBrowsePicker(label, listing);
+      },
+      function (err) {
+        if (err && err.api) {
+          return openBrowsePicker(label, { path: '', home: '', crumbs: [], entries: [] });
+        }
+        return hostOpenFolder();
+      }
+    );
+  }
+
   // ================= window.texpileNative =================
   window.texpileNative = {
     // 必须是同步的：Texpile 在首帧之前就读它（openWorkspace.ts 的 bootOpen）
@@ -133,14 +480,16 @@
 
     // ---- 会话 / 设置 / 窗口 ----
     openFolder: function () {
-      // 没有原生目录选择器；由 DSH 侧入口传 ?root= 打开。返回 null 让渲染端不误动。
-      return Promise.resolve(null);
+      // 开始页/文件菜单的"打开文件夹"：browse 组合走应用内浏览器，native 组合走系统对话框。
+      return chooseDirectory('选择论文文件夹');
     },
-    pickFolder: function () {
-      return Promise.resolve(null);
+    pickFolder: function (title) {
+      return chooseDirectory(title || '选择文件夹');
     },
-    pickFile: function () {
-      return Promise.resolve(null);
+    pickFile: function (title) {
+      return invoke('dialog:pickFile', title).catch(function () {
+        return null;
+      });
     },
     getSettings: function () {
       return invoke('settings:get');
@@ -225,8 +574,12 @@
     fsFormatLatex: function (path, text) {
       return invoke('fs:formatLatex', path, text);
     },
-    // 没有目录监视器：外部改动不会自动刷新（v1 取舍）
-    onWorkspaceFsChanged: noopUnsub,
+    // 目录监视：外部改动（DSH Agent / 其他编辑器写文件）由宿主的 fs.watch 合并后下发
+    onWorkspaceFsChanged: function (cb) {
+      return on('workspace:fs-changed', function (changes) {
+        if (typeof cb === 'function') cb(Array.isArray(changes) ? changes : []);
+      });
+    },
 
     // SyncTeX 是 LaTeX 专有；Typst 没有对应数据。
     // 但 Typst 的"点 PDF 跳源码"由 tinymist 预览经 LSP 提供，不走这里。
@@ -287,7 +640,7 @@
     },
     tinymistStatus: function () {
       return invoke('typst:tinymist:status').catch(function () {
-        return { installed: false };
+        return { pinned: '', supported: false, installed: null, step: null };
       });
     },
     installTinymist: function () {
@@ -351,14 +704,15 @@
 
     // ---- 工具链探测（偏好设置用，缺了不影响编辑） ----
     probeToolchain: function () {
-      return invoke('toolchain:probe').catch(function () {
-        return {};
+      return invoke('toolchain:probe').then(function (v) {
+        // 契约是数组；宿主异常时也返回数组，否则 Preferences 的 each 会炸
+        return Array.isArray(v) ? v : [];
       });
     },
     onProbeResult: noopUnsub,
     distros: function () {
-      return invoke('toolchain:distros').catch(function () {
-        return {};
+      return invoke('toolchain:distros').then(function (v) {
+        return Array.isArray(v) ? v : [];
       });
     },
     texBib: function () {
@@ -369,8 +723,11 @@
         return null;
       });
     },
-    dirForms: function () {
-      return Promise.resolve(null);
+    dirForms: function (entry) {
+      return invoke('toolchain:dirForms', entry).catch(function () {
+        // 宿主没有这个通道时，至少给出能渲染的形状
+        return { absolute: String(entry || ''), relative: null, exists: false, real: String(entry || '') };
+      });
     }
   };
 

@@ -1,7 +1,7 @@
 // RPC 派发：把渲染端 `window.texpileNative.*` 的调用映射到宿主实现。
 // 通道名与 electron/preload.ts 里的 ipcRenderer.invoke 通道一一对应，
 // 所以 shim 可以直接把 fn 名字透传过来。
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 import { existsSync, realpathSync } from 'node:fs';
 import { delimiter, join, resolve } from 'node:path';
 import * as fsops from './fsops.js';
@@ -12,7 +12,7 @@ import { dshHome } from './state.js';
 import { preparedPreviewHtml } from './previewPage.js';
 
 /** 需要"真实现"的通道→实现表；其余走桩 */
-export function createDispatch({ store, terminals, lsp, acp, appDir, binDir, clearPendingLsp, previewServer, pickDirectory }) {
+export function createDispatch({ store, terminals, lsp, acp, appDir, binDir, clearPendingLsp, previewServer, pickDirectory, logger, watcher }) {
   // 选择器列出的是论文助手实际会看到的家目录：与 index.js 里 ACP 的 env() 同一规则
   const agentHome = async () => {
     const s = await store.getSettings();
@@ -77,8 +77,11 @@ export function createDispatch({ store, terminals, lsp, acp, appDir, binDir, cle
     // 就永远打不开别的目录——实机安装的第一个故障。
     'dialog:openFolder': async () => {
       try {
-        return (await pickDirectory?.()) ?? null;
+        const picked = (await pickDirectory?.()) ?? null;
+        logger?.write?.(`[dialog] openFolder -> ${picked ?? 'null'}`);
+        return picked;
       } catch (e) {
+        logger?.write?.(`[dialog] openFolder failed: ${e?.message || e}`);
         console.error('[typwriter] open folder dialog failed:', e?.message || e);
         return null;
       }
@@ -97,17 +100,38 @@ export function createDispatch({ store, terminals, lsp, acp, appDir, binDir, cle
     'menu:popup': () => null,
 
     // ---- 工作区 ----
-    // claim 是"这个目录现在归我"：顺便落盘，重开面板/重启后还能回到同一篇论文
+    // claim 是"这个目录现在归我"：落盘 + 起文件监视（外部改动靠它通知渲染端）
     'workspace:claim': async (root) => {
-      if (typeof root === 'string' && root.trim()) await store.setActiveRoot(root);
+      if (typeof root === 'string' && root.trim()) {
+        await store.setActiveRoot(root);
+        watcher?.setRoot(root);
+      }
       return { ok: true };
     },
-    // 关闭工作区：清掉落盘的 activeRoot，下次打开回到开始页
+    // 关闭工作区：清掉落盘的 activeRoot 并停止监视，下次打开回到开始页
     'workspace:release': async () => {
+      watcher?.stop();
       await store.setActiveRoot(null);
       return { ok: true };
     },
-    'shell:revealItem': () => ({ ok: false, error: 'reveal 不在网页宿主里实现' }),
+    'shell:revealItem': async (path) => {
+      const target = String(path || '');
+      if (!target) return { ok: false, error: 'missing path' };
+      try {
+        if (process.platform === 'win32') {
+          // /select, 与路径必须是两个 argv 元素；detached 避免拖住宿主
+          spawn('explorer.exe', ['/select,', target], { detached: true, stdio: 'ignore', windowsHide: true }).unref();
+        } else if (process.platform === 'darwin') {
+          spawn('open', ['-R', target], { detached: true, stdio: 'ignore' }).unref();
+        } else {
+          spawn('xdg-open', [target], { detached: true, stdio: 'ignore' }).unref();
+        }
+        return { ok: true };
+      } catch (e) {
+        logger?.write?.(`[reveal] ${e?.message || e}`);
+        return { ok: false, error: String(e?.message || e) };
+      }
+    },
 
     // ---- 文件系统 ----
     'fs:scan': (root, exts) => fsops.fsScan(root, exts),
@@ -159,6 +183,8 @@ export function createDispatch({ store, terminals, lsp, acp, appDir, binDir, cle
       reason: 'unsupported',
       detail: '内置 tinymist 随 Typwriter 插件提供，不能单独移除。'
     }),
+    // 单向下发通道，没有下载任务可取消；给个处理器避免"未实现的通道"
+    'typst:tinymist:cancel': () => null,
     'typst:packageFiles': () => null,
 
     // ---- 工具链探测（Preferences › Toolchain 的数据源） ----
@@ -207,8 +233,11 @@ export function createDispatch({ store, terminals, lsp, acp, appDir, binDir, cle
 				});
 				return { ok: true, url: `/typwriter/preview-page?${q.toString()}`, sameOrigin: true };
 			}
-			return { ok: true, url: await previewServer.serve(html) };
+			const url = await previewServer.serve(html);
+			logger?.write?.(`[preview] prepared ${host} -> ${url}`);
+			return { ok: true, url };
 		} catch (e) {
+			logger?.write?.(`[preview] prepare failed host=${host}: ${String(e?.message || e)}`);
 			return { ok: false, error: String(e?.message || e) };
 		}
 	},
