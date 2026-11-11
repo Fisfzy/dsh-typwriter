@@ -152,7 +152,9 @@
 			// 到点把错误显式抛回画布，避免"发送"按钮永远转圈。
 			await Promise.race([
 				sendRegionEdit(pendingRegion, intent),
-				new Promise((_, reject) => setTimeout(() => reject(new Error('发送超时：AGENT 会话 60 秒内没有响应，请重试或查看 AGENT 面板')), 60000))
+				new Promise((_, reject) =>
+					setTimeout(() => reject(new Error('发送超时：AGENT 会话 60 秒内没有响应，请重试或查看 AGENT 面板')), 60000)
+				)
 			]);
 			strokes = [];
 			pendingRegion = null;
