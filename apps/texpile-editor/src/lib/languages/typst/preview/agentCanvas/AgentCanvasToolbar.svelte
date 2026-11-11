@@ -10,6 +10,8 @@
 		tool: Tool;
 		/** 已收集角点数（点击定位进度 0/1/2） */
 		collected: number;
+		/** 预览页已渲染（未渲染时意图按钮禁用） */
+		pageReady: boolean;
 		busy?: boolean;
 		onSwitch: (mode: Mode) => void;
 		onTool: (tool: Tool) => void;
@@ -80,7 +82,7 @@
 	</button>
 	<button
 		class="btn btn-sm preset-filled-primary-500 ml-1 gap-1 px-2 text-xs"
-		disabled={busy || (mode === 'locate' && collected < 2)}
+		disabled={busy || !pageReady || (mode === 'locate' && collected < 2)}
 		onclick={onIntent}
 		aria-label="定位到源码并填写意图"
 		title="定位到源码并填写意图"
