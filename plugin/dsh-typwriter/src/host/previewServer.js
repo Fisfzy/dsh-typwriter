@@ -40,7 +40,9 @@ const HOST_PAGE_CSP = [
 const MAX_PAGES = 24;
 
 export class PreviewPageServer {
-  constructor() {
+  /** @param logger 可选宿主日志：页面桥脚本的 /diag 上报会写进去 */
+  constructor(logger) {
+    this.logger = logger;
     this.server = null;
     this.port = 0;
     this.starting = null;
@@ -75,8 +77,27 @@ export class PreviewPageServer {
 
   #handle(req, res) {
     const url = new URL(req.url || '/', 'http://127.0.0.1');
+    // 预览页桥脚本的诊断上报：桌面端出问题时不用打开 DevTools，直接看 host.log
+    if (url.pathname === '/diag' && req.method === 'POST') {
+      const chunks = [];
+      let size = 0;
+      req.on('data', (c) => {
+        size += c.length;
+        if (size <= 8192) chunks.push(c);
+      });
+      req.on('end', () => {
+        try {
+          this.logger?.write?.('[diag] ' + Buffer.concat(chunks).toString('utf8').slice(0, 4000));
+        } catch {
+          /* ignore */
+        }
+        res.writeHead(204);
+        res.end();
+      });
+      return;
+    }
     if (req.method !== 'GET' && req.method !== 'HEAD') {
-      res.writeHead(405, { allow: 'GET, HEAD' });
+      res.writeHead(405, { allow: 'GET, HEAD, POST' });
       res.end();
       return;
     }

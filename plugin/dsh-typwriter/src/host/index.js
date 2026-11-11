@@ -102,7 +102,7 @@ export default {
     // 预览页的 loopback http 原点：tinymist 的数据面只接受 http://127.0.0.1 来的
     // WebSocket（Origin 白名单），DSH 桌面端页面原点是 dsh-app://app，同源提供会被
     // 拒绝；所以预览页由这个独立的小服务提供，渲染端跨源 iframe 嵌入。
-    const previewServer = new PreviewPageServer();
+    const previewServer = new PreviewPageServer(logger);
 
     // 目录选择：DSH 平台的 ctx.directoryPicker（desktop=原生 IFileOpenDialog，
     // 远程=browse 后端）。服务可能在插件装配之后才就绪，所以这里惰性取。

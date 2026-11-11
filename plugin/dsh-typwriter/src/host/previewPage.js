@@ -155,6 +155,14 @@ function injection(opts) {
 	function reply(type, value) {
 		try { parent.postMessage({ channel: CHANNEL, type: type, value: value }, '*'); } catch (e) {}
 	}
+	// 诊断上报：预览页由插件自己的 loopback 服务提供，/diag 直接落到宿主日志。
+	// 桌面端没有 DevTools 可用，这条通道让"框选不生效"能直接定位到阶段。
+	function diag(obj) {
+		try {
+			obj.t = Date.now();
+			fetch('/diag', { method: 'POST', body: JSON.stringify(obj), keepalive: true }).catch(function () {});
+		} catch (e) {}
+	}
 	// 跳转涟漪：follow 期间是噪音，静默窗内的涟漪直接摘掉（滚动本身不动）
 	var quietUntil = 0;
 	var rippleHost = document.getElementById('typst-container-main');
@@ -237,14 +245,9 @@ function injection(opts) {
 			// 映射复刻查看器 installEditorJumpToHandler 的 resolveFrameLoc：
 			// elementFromPoint → 最近的 .typst-page → 往前找同页号的 .typst-page-inner 矩形
 			// → 归一化到 data-page-width/height；page_no 从 1 开始。
-			function resolveFrameLoc(px, py) {
-				var el = document.elementFromPoint(px, py);
-				if (!el) return null;
-				var pageEl = null;
-				for (var cur = el; cur; cur = cur.parentElement) {
-					if (cur.classList && cur.classList.contains('typst-page')) { pageEl = cur; break; }
-				}
-				if (!pageEl) return null;
+			// 页面几何：每个 .typst-page（g）都有一个兄弟背景矩形 .typst-page-inner，
+			// 查看器的映射用背景矩形做归一化；这里抽出来供"页内命中"和"几何兜底"共用。
+			function pageBg(pageEl) {
 				var pageNumber = pageEl.getAttribute('data-page-number');
 				if (pageNumber === null) return null;
 				var bg = pageEl;
@@ -261,11 +264,46 @@ function injection(opts) {
 				if (!isFinite(pw) || !isFinite(ph)) return null;
 				var n = parseInt(pageNumber, 10);
 				if (!isFinite(n)) return null;
+				return { page: pageEl, n: n, w: pw, h: ph, r: r };
+			}
+			function locIn(geo, px, py) {
+				// 夹取到页面矩形内：页边/页间空白处的角点也能落到最近的页面坐标
+				var cx = Math.min(Math.max(px, geo.r.left), geo.r.right);
+				var cy = Math.min(Math.max(py, geo.r.top), geo.r.bottom);
 				return {
-					page_no: n + 1,
-					x: ((px - r.left) / r.width) * pw,
-					y: ((py - r.top) / r.height) * ph
+					page_no: geo.n + 1,
+					x: ((cx - geo.r.left) / geo.r.width) * geo.w,
+					y: ((cy - geo.r.top) / geo.r.height) * geo.h
 				};
+			}
+			function rectDistance(r, px, py) {
+				var dx = px < r.left ? r.left - px : px > r.right ? px - r.right : 0;
+				var dy = py < r.top ? r.top - py : py > r.bottom ? py - r.bottom : 0;
+				return Math.sqrt(dx * dx + dy * dy);
+			}
+			function resolveFrameLoc(px, py) {
+				// 1) 命中元素在某一页的子树里（文字/图形）：用那一页
+				var el = document.elementFromPoint(px, py);
+				for (var cur = el; cur; cur = cur.parentElement) {
+					if (cur.classList && cur.classList.contains('typst-page')) {
+						var geo = pageBg(cur);
+						if (geo) return locIn(geo, px, py);
+						break;
+					}
+				}
+				// 2) 命中页背景 rect / 页间空白：按几何找包含该点（或最近）的页面
+				var best = null;
+				var bestD = Infinity;
+				var pages = document.querySelectorAll('.typst-page');
+				for (var i = 0; i < pages.length; i++) {
+					var g = pageBg(pages[i]);
+					if (!g) continue;
+					var d = rectDistance(g.r, px, py);
+					if (d === 0) { best = g; bestD = 0; break; }
+					if (d < bestD) { bestD = d; best = g; }
+				}
+				if (!best) return null;
+				return locIn(best, px, py);
 			}
 			function sendSrcPoint(fl) {
 				var cont = document.getElementById('typst-container');
@@ -280,9 +318,18 @@ function injection(opts) {
 			}
 			var cx = Number(m.x), cy = Number(m.y);
 			if (!isFinite(cx) || !isFinite(cy)) return;
+			var hit = document.elementFromPoint(cx, cy);
+			diag({ stage: 'recv', x: cx, y: cy, el: hit ? hit.tagName : null, cls: hit ? String(hit.className && hit.className.baseVal || hit.className || '').slice(0, 60) : null });
 			var loc = resolveFrameLoc(cx, cy);
-			if (loc && sendSrcPoint(loc)) return;
+			var contEl = document.getElementById('typst-container');
+			var sockEl = contEl && contEl.typstWebsocket;
+			diag({ stage: 'map', loc: loc, ws: sockEl ? sockEl.readyState : null, pages: document.querySelectorAll('.typst-page').length });
+			if (loc && sendSrcPoint(loc)) {
+				diag({ stage: 'sent', loc: loc });
+				return;
+			}
 			// 兜底：合成点击（同源页可用；跨源页多半不生效，但保持旧行为不更糟）
+			diag({ stage: 'fallback', loc: loc, ws: sockEl ? sockEl.readyState : null });
 			var el = document.elementFromPoint(cx, cy);
 			if (!el) { reply('error', 'agent-click: no element at ' + cx + ',' + cy); return; }
 			var base = { bubbles: true, cancelable: true, view: window, clientX: cx, clientY: cy, button: 0, pointerId: 7, isPrimary: true, pointerType: 'mouse' };
