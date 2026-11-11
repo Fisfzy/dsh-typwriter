@@ -278,6 +278,9 @@ export class LspHost {
           /* 非 JSON 帧：照常转发 */
         }
       }
+      if (body.includes('"window/showDocument"')) {
+        this.#log(`[lsp] <- showDocument ${body.slice(0, 260)}`);
+      }
       this.emit('typst:lsp:message', body);
       if (this.initialized && this.queue.length) this.#flushQueue();
     }
@@ -338,6 +341,9 @@ export class LspHost {
   /** 渲染端发来的裸 JSON 字符串 */
   send(json) {
     if (!this.child || typeof json !== 'string') return;
+    if (json.includes('"result":{"success"')) {
+      this.#log(`[lsp] -> showDocument reply ${json.slice(0, 200)}`);
+    }
     let head = null;
     if (json.length <= MAX_PARSE_BYTES) {
       try {

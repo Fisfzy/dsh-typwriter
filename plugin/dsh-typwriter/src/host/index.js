@@ -197,6 +197,7 @@ export default {
         });
         res.write(': typwriter events\n\n');
         clients.add(res);
+        logger.write(`[sse] client+ count=${clients.size} origin=${String(req.headers.origin || '')} ua=${String(req.headers['user-agent'] || '').slice(0, 50)}`);
         // 补发连接建立前缓存的下发
         if (pendingFrames.length) {
           const buffered = pendingFrames.splice(0, pendingFrames.length);
@@ -218,6 +219,7 @@ export default {
         req.on('close', () => {
           clearInterval(ping);
           clients.delete(res);
+          logger.write(`[sse] client- count=${clients.size}`);
         });
         return;
       }
