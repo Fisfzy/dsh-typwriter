@@ -281,29 +281,87 @@ function injection(opts) {
 				var dy = py < r.top ? r.top - py : py > r.bottom ? py - r.bottom : 0;
 				return Math.sqrt(dx * dx + dy * dy);
 			}
-			function resolveFrameLoc(px, py) {
-				// 1) 命中元素在某一页的子树里（文字/图形）：用那一页
+			// 命中点是否落在"有源码映射"的元素上（text/shape/image/tsel；page 只是容器）
+			function isSourceHit(el) {
+				for (var c = el; c; c = c.parentElement) {
+					if (!c.classList) break;
+					if (c.classList.contains('typst-page')) return false;
+					if (c.classList.contains('typst-text') || c.classList.contains('tsel') ||
+						c.classList.contains('typst-shape') || c.classList.contains('typst-image') ||
+						c.classList.contains('typst-group')) return true;
+				}
+				return false;
+			}
+			function pageOf(el) {
+				for (var c = el; c; c = c.parentElement) {
+					if (c.classList && c.classList.contains('typst-page')) return c;
+				}
+				return null;
+			}
+			// 角点吸附：框选的角几乎总落在页边/页间空白上，tinymist 对空白坐标解析不出源码
+			// （实测：同一页 margin x=67 无响应，x=74 命中正文就回 showDocument）。
+			// 所以命中不到源码元素时，把点吸附到本页里离它最近的源码元素上（text/shape/...）。
+			function snapToSource(px, py) {
 				var el = document.elementFromPoint(px, py);
-				for (var cur = el; cur; cur = cur.parentElement) {
-					if (cur.classList && cur.classList.contains('typst-page')) {
-						var geo = pageBg(cur);
-						if (geo) return locIn(geo, px, py);
-						break;
+				var pg = pageOf(el);
+				if (pg && isSourceHit(el)) return { page: pg, x: px, y: py };
+				var geo = pg ? pageBg(pg) : null;
+				if (!geo) {
+					var best = null;
+					var bestD = Infinity;
+					var pages = document.querySelectorAll('.typst-page');
+					for (var i = 0; i < pages.length; i++) {
+						var g = pageBg(pages[i]);
+						if (!g) continue;
+						var d = rectDistance(g.r, px, py);
+						if (d === 0) { best = g; bestD = 0; break; }
+						if (d < bestD) { bestD = d; best = g; }
 					}
+					if (!best) return null;
+					geo = best;
 				}
-				// 2) 命中页背景 rect / 页间空白：按几何找包含该点（或最近）的页面
-				var best = null;
-				var bestD = Infinity;
-				var pages = document.querySelectorAll('.typst-page');
-				for (var i = 0; i < pages.length; i++) {
-					var g = pageBg(pages[i]);
-					if (!g) continue;
-					var d = rectDistance(g.r, px, py);
-					if (d === 0) { best = g; bestD = 0; break; }
-					if (d < bestD) { bestD = d; best = g; }
+				// 首选 .tsel（字符级源码映射框）：它的中心一定落在可解析的字符上。
+				// 实测页边坐标（page x≈67）tinymist 不返回 showDocument，而最近 tsel 中心必然返回。
+				var tsels = geo.page.querySelectorAll('.tsel');
+				var nearT = null;
+				var nearTD = Infinity;
+				var tx = px;
+				var ty = py;
+				for (var k = 0; k < tsels.length; k++) {
+					var tr = tsels[k].getBoundingClientRect();
+					if (!tr.width && !tr.height) continue;
+					var tcx = (tr.left + tr.right) / 2;
+					var tcy = (tr.top + tr.bottom) / 2;
+					var tdx = px - tcx;
+					var tdy = py - tcy;
+					var tdd = tdx * tdx + tdy * tdy;
+					if (tdd < nearTD) { nearTD = tdd; nearT = tsels[k]; tx = tcx; ty = tcy; }
 				}
-				if (!best) return null;
-				return locIn(best, px, py);
+				if (nearT) return { page: geo.page, x: tx, y: ty };
+				var nodes = geo.page.querySelectorAll('.typst-text, .tsel, .typst-shape, .typst-image, .typst-group');
+				var near = null;
+				var nearD = Infinity;
+				var nx = px;
+				var ny = py;
+				for (var j = 0; j < nodes.length; j++) {
+					var r = nodes[j].getBoundingClientRect();
+					if (!r.width && !r.height) continue;
+					var cx = Math.min(Math.max(px, r.left), r.right);
+					var cy = Math.min(Math.max(py, r.top), r.bottom);
+					var dx = px - cx;
+					var dy = py - cy;
+					var dd = dx * dx + dy * dy;
+					if (dd < nearD) { nearD = dd; near = nodes[j]; nx = cx; ny = cy; }
+				}
+				if (!near) return { page: geo.page, x: px, y: py };
+				return { page: geo.page, x: nx, y: ny };
+			}
+			function resolveFrameLoc(px, py) {
+				var snapped = snapToSource(px, py);
+				if (!snapped) return null;
+				var geo = pageBg(snapped.page);
+				if (!geo) return null;
+				return locIn(geo, snapped.x, snapped.y);
 			}
 			function sendSrcPoint(fl) {
 				var cont = document.getElementById('typst-container');
