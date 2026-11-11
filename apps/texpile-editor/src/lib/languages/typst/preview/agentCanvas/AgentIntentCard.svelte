@@ -5,17 +5,23 @@
 	type Props = {
 		intent: string;
 		busy?: boolean;
+		/** 发送/定位失败的原因（卡内直接可见，而不是沉到底部细条） */
+		error?: string | null;
 		onBack: () => void;
 		onSend: () => void;
 	};
-	let { intent = $bindable(''), busy = false, onBack, onSend }: Props = $props();
+	let { intent = $bindable(''), busy = false, error = null, onBack, onSend }: Props = $props();
 </script>
 
 <div
 	class="bg-surface-50-950 border-surface-300-700 rounded-container absolute top-14 left-1/2 z-40 w-80 -translate-x-1/2 border p-3 shadow-lg"
 	style:pointer-events="auto"
 >
-	<p class="text-muted mb-1.5 text-[11px]">区域已定位到源码，写一句你想让 AI 做什么：</p>
+	{#if error}
+		<p class="text-error-ink mb-1.5 text-[11px] leading-relaxed">{error}</p>
+	{:else}
+		<p class="text-muted mb-1.5 text-[11px]">区域已定位到源码，写一句你想让 AI 做什么：</p>
+	{/if}
 	<textarea
 		class="border-surface-300-700 bg-surface-50-950 rounded-base h-16 w-full resize-none border p-2 text-sm"
 		bind:value={intent}

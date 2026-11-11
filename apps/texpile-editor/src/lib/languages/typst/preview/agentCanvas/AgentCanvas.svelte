@@ -368,6 +368,7 @@
 		<AgentIntentCard
 			bind:intent
 			busy={phase === 'resolving'}
+			{error}
 			onBack={() => (phase = 'collect')}
 			onSend={() => void submitIntent()}
 		/>
