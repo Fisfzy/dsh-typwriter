@@ -72,40 +72,74 @@ export class LspHost {
     try {
       const raw = readFileSync(this.pidFile, 'utf8');
       const arr = JSON.parse(raw);
-      return Array.isArray(arr) ? arr.filter((x) => Number.isFinite(x)) : [];
+      if (!Array.isArray(arr)) return [];
+      // 旧格式是裸 pid 数组；新格式 [{pid, owner}]，owner 是写账本的宿主进程。
+      // owner 用来避免多实例（desktop + dsh web + dev-server 共用 ~/.dsh）互相误杀。
+      return arr
+        .map((x) => (Number.isFinite(x) ? { pid: x, owner: null } : x))
+        .filter((x) => x && Number.isFinite(x.pid));
     } catch {
       return [];
     }
   }
 
-  #pidFileWrite(pids) {
+  #pidFileWrite(entries) {
     if (!this.pidFile) return;
     try {
-      writeFileSync(this.pidFile, JSON.stringify([...new Set(pids)]));
+      const seen = new Set();
+      const out = [];
+      for (const e of entries) {
+        const pid = typeof e === 'number' ? e : e?.pid;
+        if (!Number.isFinite(pid) || seen.has(pid)) continue;
+        seen.add(pid);
+        out.push(typeof e === 'number' ? { pid, owner: null } : { pid, owner: e.owner ?? null });
+      }
+      writeFileSync(this.pidFile, JSON.stringify(out));
     } catch {
       /* 账本写失败不影响协议 */
     }
   }
 
-  /** 按账本收割上一代宿主遗留的 LSP 孤儿（新宿主自己的进程不在此列） */
+  #alive(pid) {
+    try {
+      process.kill(pid, 0);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /** 按账本收割上一代宿主遗留的 LSP 孤儿（新宿主自己的进程不在此列）。
+   *  多实例共用一个 DSH_HOME 时，别的**活着的**宿主登记的进程绝不能杀——
+   *  实测旧逻辑会杀掉 dsh web 实例的 tinymist。 */
   #reapOrphans() {
-    for (const pid of this.#pidFileRead()) {
+    const keep = [];
+    for (const entry of this.#pidFileRead()) {
+      if (entry.pid === process.pid) continue;
+      if (entry.owner !== null && entry.owner !== undefined && this.#alive(entry.owner)) {
+        keep.push(entry); // 另一个活着的实例的进程：保留账本条目，不动进程
+        continue;
+      }
+      if (entry.owner === null || entry.owner === undefined) {
+        // 旧格式无法判断归属：保守起见不杀，只丢弃过期条目
+        continue;
+      }
       try {
-        process.kill(pid, 9);
-        this.#log(`[lsp] reaped orphan pid=${pid}`);
+        process.kill(entry.pid, 9);
+        this.#log(`[lsp] reaped orphan pid=${entry.pid} owner=${entry.owner}`);
       } catch {
         /* 已经不在了：正好 */
       }
     }
-    this.#pidFileWrite([]);
+    this.#pidFileWrite(keep);
   }
 
   #recordPid(pid) {
     if (!this.pidFile) return;
     try {
-      const pids = this.#pidFileRead();
-      pids.push(pid);
-      this.#pidFileWrite(pids);
+      const entries = this.#pidFileRead();
+      entries.push({ pid, owner: process.pid });
+      this.#pidFileWrite(entries);
     } catch {
       /* ignore */
     }
@@ -114,7 +148,7 @@ export class LspHost {
   #forgetPid(pid) {
     if (!this.pidFile) return;
     try {
-      this.#pidFileWrite(this.#pidFileRead().filter((x) => x !== pid));
+      this.#pidFileWrite(this.#pidFileRead().filter((x) => x.pid !== pid));
     } catch {
       /* ignore */
     }

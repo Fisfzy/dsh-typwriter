@@ -227,13 +227,65 @@ function injection(opts) {
 		else if (m.type === 'query') reply('status', status());
 		else if (m.type === 'invert') document.documentElement.classList.toggle('texpile-inverted', !!m.value);
 		else if (m.type === 'agent-click') {
-			// 画布圈选的合成点击：在框的角点派发一次完整点击序列，查看器自己的 click-to-jump
-			// 处理器会原路走 src-point → 数据面 → LSP 解析，宿主由此拿到该点的源码位置
-			var x = Number(m.x), y = Number(m.y);
-			if (!isFinite(x) || !isFinite(y)) return;
-			var el = document.elementFromPoint(x, y);
-			if (!el) { reply('error', 'agent-click: no element at ' + x + ',' + y); return; }
-			var base = { bubbles: true, cancelable: true, view: window, clientX: x, clientY: y, button: 0, pointerId: 7, isPrimary: true, pointerType: 'mouse' };
+			// 画布圈选的角点：直接按查看器自己的映射算出**页内坐标**，走数据面发 src-point，
+			// 由 tinymist 解析后经 LSP 回跳（画布角点就是这么来的）。
+			//
+			// 为什么不再只靠合成点击：合成事件在**跨源**预览页（桌面端 loopback 页）里不会
+			// 触发查看器的点击处理（实测：同源页成功、跨源页 10s 超时）。而这段桥脚本本身
+			// 就跑在预览页里，直接发数据面消息与页面来源无关——桌面端和 web 端同一套逻辑。
+			//
+			// 映射复刻查看器 installEditorJumpToHandler 的 resolveFrameLoc：
+			// elementFromPoint → 最近的 .typst-page → 往前找同页号的 .typst-page-inner 矩形
+			// → 归一化到 data-page-width/height；page_no 从 1 开始。
+			function resolveFrameLoc(px, py) {
+				var el = document.elementFromPoint(px, py);
+				if (!el) return null;
+				var pageEl = null;
+				for (var cur = el; cur; cur = cur.parentElement) {
+					if (cur.classList && cur.classList.contains('typst-page')) { pageEl = cur; break; }
+				}
+				if (!pageEl) return null;
+				var pageNumber = pageEl.getAttribute('data-page-number');
+				if (pageNumber === null) return null;
+				var bg = pageEl;
+				for (var sib = pageEl; sib; sib = sib.previousElementSibling) {
+					if (sib.classList && sib.classList.contains('typst-page-inner') && sib.getAttribute('data-page-number') === pageNumber) {
+						bg = sib;
+						break;
+					}
+				}
+				var r = bg.getBoundingClientRect();
+				if (!r.width || !r.height) return null;
+				var pw = parseFloat(pageEl.getAttribute('data-page-width'));
+				var ph = parseFloat(pageEl.getAttribute('data-page-height'));
+				if (!isFinite(pw) || !isFinite(ph)) return null;
+				var n = parseInt(pageNumber, 10);
+				if (!isFinite(n)) return null;
+				return {
+					page_no: n + 1,
+					x: ((px - r.left) / r.width) * pw,
+					y: ((py - r.top) / r.height) * ph
+				};
+			}
+			function sendSrcPoint(fl) {
+				var cont = document.getElementById('typst-container');
+				var ws = cont && cont.typstWebsocket;
+				if (!ws || ws.readyState !== 1) return false;
+				try {
+					ws.send('src-point ' + JSON.stringify(fl));
+					return true;
+				} catch (e) {
+					return false;
+				}
+			}
+			var cx = Number(m.x), cy = Number(m.y);
+			if (!isFinite(cx) || !isFinite(cy)) return;
+			var loc = resolveFrameLoc(cx, cy);
+			if (loc && sendSrcPoint(loc)) return;
+			// 兜底：合成点击（同源页可用；跨源页多半不生效，但保持旧行为不更糟）
+			var el = document.elementFromPoint(cx, cy);
+			if (!el) { reply('error', 'agent-click: no element at ' + cx + ',' + cy); return; }
+			var base = { bubbles: true, cancelable: true, view: window, clientX: cx, clientY: cy, button: 0, pointerId: 7, isPrimary: true, pointerType: 'mouse' };
 			try {
 				el.dispatchEvent(new PointerEvent('pointerdown', Object.assign({ buttons: 1 }, base)));
 				el.dispatchEvent(new MouseEvent('mousedown', Object.assign({ buttons: 1 }, base)));
