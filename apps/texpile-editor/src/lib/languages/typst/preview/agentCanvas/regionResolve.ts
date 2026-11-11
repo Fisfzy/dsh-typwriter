@@ -49,6 +49,19 @@ export function collectNextJump(timeoutMs = 10000): Promise<JumpCorner> {
 	});
 }
 
+/**
+ * 框选流程用：把一次跳转解析喂给等待中的单角收集（jumpHandler 在 consumeJump 之后调用）。
+ * 返回是否已消费——没有等待者时返回 false，调用方继续正常的跳转路由。
+ */
+export function deliverJump(jump: { filepath?: string; start?: [number, number] | null } | null): boolean {
+	if (!waiting || !jump?.filepath || !jump.start) return false;
+	const w = waiting;
+	waiting = null;
+	clearTimeout(w.timer);
+	w.resolve({ filepath: jump.filepath, line: jump.start[0], character: jump.start[1] });
+	return true;
+}
+
 /** 开启角点收集：接下来的两次真实预览点击依次作为区域的对角。 */
 export function startCornerCollection(onDone: (a: JumpCorner, b: JumpCorner) => void, onProgress?: (collected: number) => void): void {
 	cancelCornerCollection();

@@ -263,7 +263,17 @@ export function nativeSessionBridge(): AcpBridge | undefined {
 				};
 			});
 			try {
-				await session.prompt(sessionId, text);
+				// 网关 RPC 自身也可能不回答（网关挂死/连接停滞）：180s 的 done 兜底在
+				// await session.prompt 之后，够不着这一行——没有这层 race，发送按钮会永远转圈。
+				// 比 done 的时钟略长：正常路径优先由 assistant/message 或 done 放行。
+				const rpc: Promise<{ accepted: boolean }> = session.prompt(sessionId, text);
+				rpc.catch(() => {}); // 超时后迟到的拒绝不产生未处理异常
+				await Promise.race([
+					rpc,
+					new Promise<never>((_, reject) => {
+						setTimeout(() => reject(new Error('网关超时未应答（3 分钟）')), 185000);
+					})
+				]);
 				await done;
 				// 轮次结束：会话的 updatedAt 变了，重发 ready 让面板刷新历史列表（时间/排序跟上）
 				if (sessionId) {
