@@ -10,8 +10,6 @@
 		tool: Tool;
 		/** 已收集角点数（点击定位进度 0/1/2） */
 		collected: number;
-		/** 预览页已渲染 */
-		pageReady: boolean;
 		busy?: boolean;
 		onSwitch: (mode: Mode) => void;
 		onTool: (tool: Tool) => void;
