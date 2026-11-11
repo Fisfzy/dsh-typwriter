@@ -61,6 +61,8 @@
 	const CHANNEL = 'texpile-preview';
 
 	let frameUrl = $state<string | null>(null);
+	/** 预览页是否同源提供（web 宿主）——画布框选据此选择合成角点/点击定位 */
+	let sameOriginPreview = $state(false);
 	let error = $state<string | null>(null);
 	let zoom = $state<number | null>(null);
 	let frame = $state<HTMLIFrameElement | null>(null);
@@ -359,7 +361,13 @@
 			</ColorVisionFilter>
 			{#if agentCanvas.armed}
 				<!-- 圈选画布：接管指针（iframe 随之 pointer-events-none，点击都归画布） -->
-				<AgentCanvas pageReady={pageRendered} onDone={() => (agentCanvas.armed = false)} onDismiss={() => (agentCanvas.armed = false)} />
+				<AgentCanvas
+					pageReady={pageRendered}
+					sameOrigin={sameOriginPreview}
+					sendToFrame={(msg) => frame?.contentWindow?.postMessage({ channel: CHANNEL, ...msg }, '*')}
+					onDone={() => (agentCanvas.armed = false)}
+					onDismiss={() => (agentCanvas.armed = false)}
+				/>
 			{/if}
 			{#if noDocument}
 				<!-- a card, not bare text: the surround behind it is mid-grey in both themes, so bare

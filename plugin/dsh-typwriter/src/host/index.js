@@ -5,7 +5,8 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { Store, dshHome } from './state.js';
-import { createDispatch } from './rpc.js';
+import { createDispatch, setOriginHint } from './rpc.js';
+import { preparedPreviewHtml } from './previewPage.js';
 import { Terminals } from './term.js';
 import { LspHost } from './lsp.js';
 import { AcpHost } from './acp.js';
@@ -162,6 +163,25 @@ export default {
 		const url = new URL(req.url, 'http://127.0.0.1');
 		let p = url.pathname;
 
+		// 0) tinymist 预览页的注入版（web 宿主用同源页：画布框选的合成角点只在此页生效；
+		//    桌面宿主的原点不受 http 来源规则限制，rpc 层按 originHint 选 loopback）
+		if (p === `${BASE}/preview-page`) {
+			try {
+				const html = await preparedPreviewHtml({
+					host: url.searchParams.get('host') ?? '',
+					background: url.searchParams.get('bg') ?? '#ffffff',
+					foreground: url.searchParams.get('fg') ?? '#000000',
+					scrollbarThumb: url.searchParams.get('thumb') ?? '#888888',
+					scrollbarRadius: url.searchParams.get('radius') ?? '6',
+					dark: url.searchParams.get('dark') === '1'
+				});
+				res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-cache' });
+				return res.end(html);
+			} catch (e) {
+				return sendJson(res, 502, { error: String(e?.message || e) });
+			}
+		}
+
 		// 0) 原始字节（取代 texfile://）
       if (p === `${BASE}/api/file`) {
         return serveFileBytes(req, res, { allowedRoots });
@@ -212,6 +232,7 @@ export default {
         }
         const { fn, args = [], oneway } = body || {};
         try {
+          setOriginHint(req.headers.origin || '');
           // 把 claim 记进围栏，并在活动根变化时持久化
           if (fn === 'workspace:claim') claimedRoots.add(args[0]);
           const value = await dispatch.call(fn, args);

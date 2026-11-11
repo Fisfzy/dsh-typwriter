@@ -22,6 +22,33 @@ type Collector = {
 
 let collector: Collector | null = null;
 
+// ---- 框选（web 同源页）的单角等待：合成角点点击的解析按先后武装/消费 ----
+type Waiting = {
+	resolve: (corner: JumpCorner) => void;
+	reject: (e: Error) => void;
+	timer: ReturnType<typeof setTimeout>;
+};
+let waiting: Waiting | null = null;
+
+/**
+ * 框选流程用：等待下一个跳转解析结果（一个合成角点）。超时拒绝。
+ * 与角点收集互斥——框选期间不开启两次点击收集。
+ */
+export function collectNextJump(timeoutMs = 10000): Promise<JumpCorner> {
+	if (collector) collector = null;
+	if (waiting) waiting.reject(new Error('上一个角点还没回来'));
+	return new Promise<JumpCorner>((resolve, reject) => {
+		const timer = setTimeout(() => {
+			if (waiting?.reject === rejectRef) {
+				waiting = null;
+				reject(new Error('角点解析超时：预览页没响应这次点击'));
+			}
+		}, timeoutMs);
+		const rejectRef = reject;
+		waiting = { resolve, reject, timer };
+	});
+}
+
 /** 开启角点收集：接下来的两次真实预览点击依次作为区域的对角。 */
 export function startCornerCollection(onDone: (a: JumpCorner, b: JumpCorner) => void, onProgress?: (collected: number) => void): void {
 	cancelCornerCollection();

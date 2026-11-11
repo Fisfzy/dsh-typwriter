@@ -12,6 +12,12 @@ import { dshHome } from './state.js';
 import { preparedPreviewHtml } from './previewPage.js';
 
 /** 需要"真实现"的通道→实现表；其余走桩 */
+let originHint = '';
+/** index.js 在转发 /api/rpc 时回报 app 页面的 Origin（web=http://127.0.0.1:port，桌面=dsh-app://app）。 */
+export function setOriginHint(h) {
+	originHint = String(h ?? '');
+}
+
 export function createDispatch({ store, terminals, lsp, acp, appDir, binDir, clearPendingLsp, previewServer, pickDirectory, logger, watcher }) {
   // 选择器列出的是论文助手实际会看到的家目录：与 index.js 里 ACP 的 env() 同一规则
   const agentHome = async () => {
@@ -212,7 +218,22 @@ export function createDispatch({ store, terminals, lsp, acp, appDir, binDir, cle
 		const host = opts && typeof opts.host === 'string' ? opts.host : null;
 		if (!host) return { ok: false, error: 'missing preview host' };
 		if (!/^127\.0\.0\.1:\d+$/.test(host)) return { ok: false, error: 'refusing a non-loopback preview host' };
+		// web 宿主（app 原点是 http://127.0.0.1/localhost）优先同源页：画布框选的合成角点
+		// 只在同源页生效（loopback 跨源页不触发查看器点击处理，实测）。桌面宿主
+		// （dsh-app://app 原点）必须走 loopback（tinymist 校验 Origin，同源被断连）。
+		const preferSameOrigin = /https?:\/\/(127\.0\.0\.1|localhost)(:\d+)?$/.test(originHint || '');
 		try {
+			if (preferSameOrigin) {
+				const q = new URLSearchParams({
+					host,
+					bg: String(opts.background ?? '#ffffff'),
+					fg: String(opts.foreground ?? '#000000'),
+					thumb: String(opts.scrollbarThumb ?? '#888888'),
+					radius: String(opts.scrollbarRadius ?? 6),
+					dark: opts.dark ? '1' : '0'
+				});
+				return { ok: true, url: `/typwriter/preview-page?${q.toString()}`, sameOrigin: true };
+			}
 			const html = await preparedPreviewHtml({
 				host,
 				background: String(opts.background ?? '#ffffff'),

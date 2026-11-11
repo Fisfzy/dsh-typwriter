@@ -1,35 +1,46 @@
 <script lang="ts">
-	// 预览上的圈选层：两次真实点击定位区域（左上角 → 右下角），点选的解析走 tinymist
-	// 自己的"点击→src-point→LSP"链路（合成事件在 loopback 跨源页里不触发查看器——实测）。
-	// 画笔/箭头/文本是可选的辅助标注（纯视觉，画布此时才接管指针）。
-	// 两角齐 → 意图卡 → 连同源码行范围一起交给 AGENT。标注当轮即清，持久化 sidecar 是二期。
+	// 预览上的圈选层，两种定位方式并存：
+	//   框选（web 同源页）：画布接管指针画框，发送时两个角点经注入桥派发合成点击解析——
+	//   合成事件只在同源页生效（loopback 跨源页不触发查看器，实测）。
+	//   点击定位（桌面）：画布放行指针，真实点击经 tinymist 原生链路解析（桌面 LSP 通知可靠）。
+	// 画笔/箭头/文本是辅助标注（纯视觉）。两角定位后弹意图卡交给 AGENT。
 	import { onMount } from 'svelte';
-	import { Crosshair, Eraser, LoaderCircle, Send, Pencil, ArrowUpRight, Type, X } from '@lucide/svelte';
-	import { cancelCornerCollection, startCornerCollection } from './regionResolve';
+	import { Crosshair, SquareDashed } from '@lucide/svelte';
+	import AgentCanvasToolbar from './AgentCanvasToolbar.svelte';
+	import { cancelCornerCollection, collectNextJump, startCornerCollection } from './regionResolve';
 	import { sendRegionEdit, type RegionPayload } from './agentCanvasTurn';
+	import AgentIntentCard from './AgentIntentCard.svelte';
+	import { drawRegionBox, drawStroke, normRect, type Pt, type Stroke } from './canvasDraw';
 
 	type Props = {
-		/** 预览页已渲染（status.pages > 0）——点击定位的前提 */
+		/** 预览页已渲染（status.pages > 0）——两种定位的前提 */
 		pageReady: boolean;
+		/** 预览页是否同源提供（web 宿主）——决定框选的合成角点能否解析 */
+		sameOrigin: boolean;
+		/** 把消息转进预览 iframe（框选的合成角点从这里走） */
+		sendToFrame: (msg: Record<string, unknown>) => void;
 		/** 一轮送出后调用（父组件收起画布） */
 		onDone: () => void;
 		/** 收起画布模式 */
 		onDismiss: () => void;
 	};
-	let { pageReady, onDone, onDismiss }: Props = $props();
+	let { pageReady, sameOrigin, sendToFrame, onDone, onDismiss }: Props = $props();
 
-	type Mode = 'locate' | 'annotate';
+	type Mode = 'region' | 'locate' | 'annotate';
 	type Tool = 'pen' | 'arrow' | 'text';
-	type Pt = { x: number; y: number };
-	type Stroke = { kind: 'pen'; pts: Pt[] } | { kind: 'arrow'; from: Pt; to: Pt } | { kind: 'text'; at: Pt; text: string };
 
-	let mode = $state<Mode>('locate');
+	let mode = $state<Mode>(sameOrigin ? 'region' : 'locate');
+	// 用户点过工具条后不再自动切模式；sameOrigin 晚到（prepare 异步）时一次性补正默认
+	let modeTouched = $state(false);
+	$effect(() => {
+		if (sameOrigin && !modeTouched && mode !== 'region') mode = 'region';
+	});
 	let tool = $state<Tool>('pen');
 	let canvas = $state<HTMLCanvasElement | null>(null);
 	let host = $state<HTMLDivElement | null>(null);
 	let strokes = $state<Stroke[]>([]);
 	let draft = $state<Stroke | null>(null);
-	let phase = $state<'collect' | 'intent' | 'sending'>('collect');
+	let phase = $state<'collect' | 'resolving' | 'intent' | 'sending'>('collect');
 	let collected = $state(0);
 	let intent = $state('');
 	let error = $state<string | null>(null);
@@ -38,10 +49,9 @@
 
 	const busy = $derived(phase === 'sending');
 
-	// ---- 收集流程 ----
+	// ---- 点击定位的收集流程（仅 locate 模式） ----
 	$effect(() => {
-		// 挂载即开始收集（pageReady 未就绪时用户点了也解析不出——提示条会说明）
-		if (pageReady) beginCollect();
+		if (pageReady && mode === 'locate') beginCollect();
 		return () => cancelCornerCollection();
 	});
 
@@ -77,13 +87,58 @@
 
 	function switchMode(next: Mode): void {
 		if (mode === next) return;
+		modeTouched = true;
 		mode = next;
+		region = null;
+		error = null;
 		if (next === 'locate') {
-			// 回到定位：重新收集（之前的角点作废，状态条归零）
+			// 点击定位：重新收集（之前的角点作废，状态条归零）
 			if (pageReady) beginCollect();
 		} else {
-			// 进标注模式：暂停收集（标注点击不该被当角点）
+			// 框选/标注：暂停点击收集（框选的角点走合成点击，不走真实点击收集）
 			cancelCornerCollection();
+		}
+	}
+
+	// ---- 框选：画布画框 → 发送时两角合成点击解析 ----
+	let region = $state<{ x: number; y: number; w: number; h: number } | null>(null);
+
+	async function resolveRegion(): Promise<void> {
+		if (!region || region.w < 8 || region.h < 8) {
+			error = '先用框选工具圈一个区域';
+			return;
+		}
+		if (!pageReady) {
+			error = '预览还没渲染出来，等一下再发';
+			return;
+		}
+		error = null;
+		phase = 'resolving';
+		const inset = 2;
+		try {
+			// 先 arm 收集器再派点击：解析结果可能比 postMessage 的回执还快回来
+			const p1 = collectNextJump();
+			sendToFrame({ type: 'agent-click', x: region.x + inset, y: region.y + inset });
+			const a = await p1;
+			const p2 = collectNextJump();
+			sendToFrame({ type: 'agent-click', x: region.x + region.w - inset, y: region.y + region.h - inset });
+			const b = await p2;
+			function norm(s: string): string {
+				return s.replace(/\\/g, '/').toLowerCase();
+			}
+			if (norm(a.filepath) !== norm(b.filepath)) {
+				throw new Error('圈选横跨了两个文件，先分开圈');
+			}
+			pendingRegion = {
+				file: a.filepath,
+				fromLine: Math.min(a.line, b.line) + 1,
+				toLine: Math.max(a.line, b.line) + 1,
+				via: 'preview-box'
+			};
+			phase = 'intent';
+		} catch (e) {
+			phase = 'collect';
+			error = e instanceof Error ? e.message : String(e);
 		}
 	}
 
@@ -132,6 +187,7 @@
 		void height;
 		void strokes;
 		void draft;
+		void region;
 		redraw();
 	});
 
@@ -149,41 +205,10 @@
 		g.clearRect(0, 0, width, height);
 		const all = draft ? [...strokes, draft] : strokes;
 		for (const s of all) drawStroke(g, s);
+		if (region) drawRegionBox(g, region);
 	}
 
-	function drawStroke(g: CanvasRenderingContext2D, s: Stroke): void {
-		// 别名以通过 no-param-reassign（绘图就是要在 ctx 上设置属性）
-		const ctx = g;
-		ctx.strokeStyle = 'rgba(99,102,241,0.9)';
-		ctx.fillStyle = 'rgba(99,102,241,0.9)';
-		ctx.lineWidth = 2;
-		if (s.kind === 'pen') {
-			ctx.beginPath();
-			for (let i = 0; i < s.pts.length; i++) {
-				const p = s.pts[i];
-				if (i === 0) ctx.moveTo(p.x, p.y);
-				else ctx.lineTo(p.x, p.y);
-			}
-			ctx.stroke();
-		} else if (s.kind === 'arrow') {
-			ctx.beginPath();
-			ctx.moveTo(s.from.x, s.from.y);
-			ctx.lineTo(s.to.x, s.to.y);
-			ctx.stroke();
-			const ang = Math.atan2(s.to.y - s.from.y, s.to.x - s.from.x);
-			ctx.beginPath();
-			ctx.moveTo(s.to.x, s.to.y);
-			ctx.lineTo(s.to.x - 10 * Math.cos(ang - 0.45), s.to.y - 10 * Math.sin(ang - 0.45));
-			ctx.lineTo(s.to.x - 10 * Math.cos(ang + 0.45), s.to.y - 10 * Math.sin(ang + 0.45));
-			ctx.closePath();
-			ctx.fill();
-		} else if (s.kind === 'text') {
-			ctx.font = '13px ui-sans-serif, sans-serif';
-			ctx.fillText(s.text, s.at.x, s.at.y);
-		}
-	}
-
-	let drawing: { kind: Tool; start: Pt; last: Pt; pts: Pt[] } | null = null;
+	let drawing: { kind: 'region' | Tool; start: Pt; last: Pt; pts: Pt[] } | null = null;
 
 	function local(e: PointerEvent): Pt {
 		const r = canvas!.getBoundingClientRect();
@@ -191,8 +216,18 @@
 	}
 
 	function onDown(e: PointerEvent): void {
-		if (mode !== 'annotate') return;
+		if (mode !== 'annotate' && mode !== 'region') return;
 		const p = local(e);
+		if (mode === 'region') {
+			region = null;
+			try {
+				canvas?.setPointerCapture(e.pointerId);
+			} catch {
+				/* 合成事件没有活动指针，忽略 */
+			}
+			drawing = { kind: 'region', start: p, last: p, pts: [p] };
+			return;
+		}
 		if (tool === 'text') {
 			textDraft = { at: p, value: '' };
 			return;
@@ -210,6 +245,11 @@
 		if (!drawing) return;
 		const p = local(e);
 		drawing.last = p;
+		if (drawing.kind === 'region') {
+			region = normRect(drawing.start, p);
+			redraw();
+			return;
+		}
 		drawing.pts.push(p);
 		if (drawing.kind === 'pen') draft = { kind: 'pen', pts: [...drawing.pts] };
 		else if (drawing.kind === 'arrow') draft = { kind: 'arrow', from: drawing.start, to: p };
@@ -219,6 +259,10 @@
 		if (!drawing) return;
 		const d = drawing;
 		drawing = null;
+		if (d.kind === 'region') {
+			if (region && (region.w < 8 || region.h < 8)) region = null;
+			return;
+		}
 		if (d.kind === 'pen' && d.pts.length > 1) strokes = [...strokes, { kind: 'pen', pts: d.pts }];
 		else if (d.kind === 'arrow' && (Math.abs(d.last.x - d.start.x) > 6 || Math.abs(d.last.y - d.start.y) > 6))
 			strokes = [...strokes, { kind: 'arrow', from: d.start, to: d.last }];
@@ -244,8 +288,8 @@
 	<canvas
 		bind:this={canvas}
 		class="absolute inset-0 h-full w-full"
-		class:cursor-crosshair={mode === 'annotate'}
-		style:pointer-events={mode === 'annotate' ? 'auto' : 'none'}
+		class:cursor-crosshair={mode === 'annotate' || mode === 'region'}
+		style:pointer-events={mode === 'annotate' || mode === 'region' ? 'auto' : 'none'}
 		style:touch-action="none"
 		onpointerdown={onDown}
 		onpointermove={onMove}
@@ -253,75 +297,35 @@
 		onpointerleave={onUp}
 	></canvas>
 
-	<!-- 工具条 -->
-	<div
-		class="bg-surface-100-900 border-surface-300-700 rounded-container absolute top-2 left-1/2 z-40 flex -translate-x-1/2 items-center gap-0.5 border p-1 shadow-sm"
-		style:pointer-events="auto"
-	>
-		<button
-			class="btn-icon btn-icon-sm {mode === 'locate' ? 'preset-filled-primary-500' : ''}"
-			aria-label="点击定位"
-			title="点击定位：在预览上点区域的左上角、再点右下角"
-			onclick={() => switchMode('locate')}
+	<!-- 工具条（组件化：框选/点击定位/标注/清除/意图/退出） -->
+	<AgentCanvasToolbar
+		{mode}
+		{tool}
+		{collected}
+		{pageReady}
+		{busy}
+		onSwitch={switchMode}
+		onTool={(t) => (tool = t)}
+		onClear={clearAll}
+		onIntent={() => (mode === 'region' ? void resolveRegion() : (phase = 'intent'))}
+		onDismiss={dismiss}
+	/>
+
+	<!-- 框选模式状态条 -->
+	{#if mode === 'region'}
+		<div
+			class="bg-surface-100-900 border-surface-300-700 rounded-container absolute top-14 left-1/2 z-40 flex -translate-x-1/2 items-center gap-1.5 border px-2.5 py-1 text-xs"
+			style:pointer-events="none"
 		>
-			<Crosshair class="size-4" />
-		</button>
-		<span class="bg-surface-300-700 mx-0.5 h-4 w-px"></span>
-		<button
-			class="btn-icon btn-icon-sm {mode === 'annotate' && tool === 'pen' ? 'preset-filled-primary-500' : ''}"
-			aria-label="画笔标注"
-			title="画笔标注"
-			onclick={() => {
-				mode = 'annotate';
-				tool = 'pen';
-			}}
-		>
-			<Pencil class="size-4" />
-		</button>
-		<button
-			class="btn-icon btn-icon-sm {mode === 'annotate' && tool === 'arrow' ? 'preset-filled-primary-500' : ''}"
-			aria-label="箭头标注"
-			title="箭头标注"
-			onclick={() => {
-				mode = 'annotate';
-				tool = 'arrow';
-			}}
-		>
-			<ArrowUpRight class="size-4" />
-		</button>
-		<button
-			class="btn-icon btn-icon-sm {mode === 'annotate' && tool === 'text' ? 'preset-filled-primary-500' : ''}"
-			aria-label="文字标注"
-			title="文字标注"
-			onclick={() => {
-				mode = 'annotate';
-				tool = 'text';
-			}}
-		>
-			<Type class="size-4" />
-		</button>
-		<span class="bg-surface-300-700 mx-0.5 h-4 w-px"></span>
-		<button class="btn-icon btn-icon-sm" aria-label="清除标注" title="清除标注" onclick={clearAll}>
-			<Eraser class="size-4" />
-		</button>
-		<button
-			class="btn btn-sm preset-filled-primary-500 ml-1 gap-1 px-2 text-xs"
-			disabled={collected < 2 || busy}
-			onclick={() => (phase = 'intent')}
-			aria-label="查看圈选结果并填写意图"
-			title="查看圈选结果并填写意图"
-		>
-			{#if busy}
-				<LoaderCircle class="size-3.5 animate-spin" />
+			{#if !pageReady}
+				<span class="text-muted">等预览渲染出内容再框选</span>
+			{:else if !region}
+				<SquareDashed class="text-primary-ink size-3.5" /><span>在预览上<strong>拖一个框</strong>圈住要改的内容</span>
 			{:else}
-				<Send class="size-3.5" />
+				<SquareDashed class="text-primary-ink size-3.5" /><span>已圈选 ✓ 点<strong>意图</strong>写修改要求</span>
 			{/if}
-			意图
-		</button>
-		<button class="btn-icon btn-icon-sm ml-0.5" aria-label="退出圈选模式" title="退出圈选模式" onclick={dismiss}>
-			<X class="size-4" />
-		</button>
-	</div>
+		</div>
+	{/if}
 
 	<!-- 定位进度条 -->
 	{#if mode === 'locate'}
@@ -359,37 +363,15 @@
 
 	<!-- 意图卡：两角定位完成后填写修改意图 -->
 	{#if phase === 'intent'}
-		<div
-			class="bg-surface-50-950 border-surface-300-700 rounded-container absolute top-14 left-1/2 z-40 w-80 -translate-x-1/2 border p-3 shadow-lg"
-			style:pointer-events="auto"
-		>
-			<p class="text-muted mb-1.5 text-[11px]">区域已定位到源码，写一句你想让 AI 做什么：</p>
-			<textarea
-				class="border-surface-300-700 bg-surface-50-950 rounded-base h-16 w-full resize-none border p-2 text-sm"
-				bind:value={intent}
-				placeholder="例：把这个公式改成带编号的展示式，并补一句说明"></textarea>
-			<div class="mt-2 flex justify-end gap-1.5">
-				<button
-					class="btn btn-sm preset-tonal px-2 text-xs"
-					onclick={() => {
-						phase = 'collect';
-						if (mode === 'locate' && pageReady) beginCollect();
-					}}>返回</button
-				>
-				<button
-					class="btn btn-sm preset-filled-primary-500 gap-1 px-2 text-xs"
-					disabled={!intent.trim()}
-					onclick={() => void submitIntent()}
-				>
-					{#if busy}
-						<LoaderCircle class="size-3.5 animate-spin" />
-					{:else}
-						<Send class="size-3.5" />
-					{/if}
-					发送
-				</button>
-			</div>
-		</div>
+		<AgentIntentCard
+			bind:intent
+			{busy}
+			onBack={() => {
+				phase = 'collect';
+				if (mode === 'locate' && pageReady) beginCollect();
+			}}
+			onSend={() => void submitIntent()}
+		/>
 	{/if}
 
 	{#if error}

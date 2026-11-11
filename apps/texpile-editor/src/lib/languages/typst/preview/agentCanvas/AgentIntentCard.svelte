@@ -1,0 +1,34 @@
+<script lang="ts">
+	// 意图卡：两角定位完成后填写修改要求，连同源码行范围一起发送。
+	import { LoaderCircle, Send } from '@lucide/svelte';
+
+	type Props = {
+		intent: string;
+		busy?: boolean;
+		onBack: () => void;
+		onSend: () => void;
+	};
+	let { intent = $bindable(''), busy = false, onBack, onSend }: Props = $props();
+</script>
+
+<div
+	class="bg-surface-50-950 border-surface-300-700 rounded-container absolute top-14 left-1/2 z-40 w-80 -translate-x-1/2 border p-3 shadow-lg"
+	style:pointer-events="auto"
+>
+	<p class="text-muted mb-1.5 text-[11px]">区域已定位到源码，写一句你想让 AI 做什么：</p>
+	<textarea
+		class="border-surface-300-700 bg-surface-50-950 rounded-base h-16 w-full resize-none border p-2 text-sm"
+		bind:value={intent}
+		placeholder="例：把这个公式改成带编号的展示式，并补一句说明"></textarea>
+	<div class="mt-2 flex justify-end gap-1.5">
+		<button class="btn btn-sm preset-tonal px-2 text-xs" onclick={onBack}>返回</button>
+		<button class="btn btn-sm preset-filled-primary-500 gap-1 px-2 text-xs" disabled={!intent.trim() || busy} onclick={onSend}>
+			{#if busy}
+				<LoaderCircle class="size-3.5 animate-spin" />
+			{:else}
+				<Send class="size-3.5" />
+			{/if}
+			发送
+		</button>
+	</div>
+</div>
