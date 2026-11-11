@@ -12,7 +12,7 @@
 //     也会从追踪表里移除；stop/teardown 会杀掉所有遗留子进程。
 //   - initialize 消息不再用 8KB 长度猜：直接解析（≤1MB），请求内容大时也能正确重放。
 import { spawn } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const FRAME_HEADER = /Content-Length:\s*(\d+)/i;
@@ -29,10 +29,14 @@ export class LspHost {
    * @param emit   (channel, payload) => void  单向下发
    * @param logger 可选：{ write(line) } 宿主持久日志
    */
-  constructor(binDir, emit, logger) {
+  constructor(binDir, emit, logger, pidFile) {
     this.binDir = binDir;
     this.emit = emit;
     this.logger = logger;
+    /** 孤儿清理账本：宿主代际更替（进程被杀/重启）后，旧 LSP 子进程会成为无主孤儿——
+     *  编辑器重连只会开新进程，孤儿继续吃内存并让状态排查混乱。构造时按账本收割。 */
+    this.pidFile = pidFile ?? null;
+    this.#reapOrphans();
     this.child = null;
     this.root = null;
     this.buf = Buffer.alloc(0);
@@ -60,6 +64,59 @@ export class LspHost {
       this.logger?.write?.(line);
     } catch {
       /* 日志失败不影响协议 */
+    }
+  }
+
+  #pidFileRead() {
+    if (!this.pidFile) return [];
+    try {
+      const raw = readFileSync(this.pidFile, 'utf8');
+      const arr = JSON.parse(raw);
+      return Array.isArray(arr) ? arr.filter((x) => Number.isFinite(x)) : [];
+    } catch {
+      return [];
+    }
+  }
+
+  #pidFileWrite(pids) {
+    if (!this.pidFile) return;
+    try {
+      writeFileSync(this.pidFile, JSON.stringify([...new Set(pids)]));
+    } catch {
+      /* 账本写失败不影响协议 */
+    }
+  }
+
+  /** 按账本收割上一代宿主遗留的 LSP 孤儿（新宿主自己的进程不在此列） */
+  #reapOrphans() {
+    for (const pid of this.#pidFileRead()) {
+      try {
+        process.kill(pid, 9);
+        this.#log(`[lsp] reaped orphan pid=${pid}`);
+      } catch {
+        /* 已经不在了：正好 */
+      }
+    }
+    this.#pidFileWrite([]);
+  }
+
+  #recordPid(pid) {
+    if (!this.pidFile) return;
+    try {
+      const pids = this.#pidFileRead();
+      pids.push(pid);
+      this.#pidFileWrite(pids);
+    } catch {
+      /* ignore */
+    }
+  }
+
+  #forgetPid(pid) {
+    if (!this.pidFile) return;
+    try {
+      this.#pidFileWrite(this.#pidFileRead().filter((x) => x !== pid));
+    } catch {
+      /* ignore */
     }
   }
 
@@ -108,6 +165,7 @@ export class LspHost {
     this.gen += 1;
     const gen = this.gen;
     this.children.add(child);
+    this.#recordPid(child.pid);
     this.initialized = false;
     this.initReqId = null;
     this.initResult = null;
@@ -133,6 +191,7 @@ export class LspHost {
     });
     child.on('close', (code) => {
       this.children.delete(child);
+      this.#forgetPid(child.pid);
       // 只有"当前"进程退出才通知渲染端；被替换掉的旧进程退出发出的 exit
       // 会让渲染端误以为服务挂了，触发会话重建→再 start 的循环
       if (this.child !== child) {

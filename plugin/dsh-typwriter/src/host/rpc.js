@@ -221,7 +221,8 @@ export function createDispatch({ store, terminals, lsp, acp, appDir, binDir, cle
 		// web 宿主（app 原点是 http://127.0.0.1/localhost）优先同源页：画布框选的合成角点
 		// 只在同源页生效（loopback 跨源页不触发查看器点击处理，实测）。桌面宿主
 		// （dsh-app://app 原点）必须走 loopback（tinymist 校验 Origin，同源被断连）。
-		const preferSameOrigin = /https?:\/\/(127\.0\.0\.1|localhost)(:\d+)?$/.test(originHint || '');
+		// origin 由 shim 显式上报（同源 fetch 的 Origin 头可能缺省，不可靠）。
+		const preferSameOrigin = /https?:\/\/(127\.0\.0\.1|localhost)(:\d+)?$/.test(String(opts.origin || ''));
 		try {
 			if (preferSameOrigin) {
 				const q = new URLSearchParams({

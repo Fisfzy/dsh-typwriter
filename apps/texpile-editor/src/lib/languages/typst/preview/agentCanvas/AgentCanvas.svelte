@@ -261,6 +261,8 @@
 		drawing = null;
 		if (d.kind === 'region') {
 			if (region && (region.w < 8 || region.h < 8)) region = null;
+			// 框完即解析并弹意图卡：用户不用再去工具条找入口
+			if (region) void resolveRegion();
 			return;
 		}
 		if (d.kind === 'pen' && d.pts.length > 1) strokes = [...strokes, { kind: 'pen', pts: d.pts }];
@@ -361,15 +363,12 @@
 		/>
 	{/if}
 
-	<!-- 意图卡：两角定位完成后填写修改意图 -->
-	{#if phase === 'intent'}
+	<!-- 意图卡：框选完成后立即出现（解析中置灰），定位完成即可输入发送 -->
+	{#if phase === 'intent' || phase === 'resolving'}
 		<AgentIntentCard
 			bind:intent
-			{busy}
-			onBack={() => {
-				phase = 'collect';
-				if (mode === 'locate' && pageReady) beginCollect();
-			}}
+			busy={phase === 'resolving'}
+			onBack={() => (phase = 'collect')}
 			onSend={() => void submitIntent()}
 		/>
 	{/if}

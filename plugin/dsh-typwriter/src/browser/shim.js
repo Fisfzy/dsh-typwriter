@@ -681,6 +681,7 @@
     preparePreview: function (host, background, foreground, scrollbarThumb, scrollbarRadius, dark) {
       return invoke('typst:preview:prepare', {
         host: host,
+        origin: window.location.origin,
         background: background,
         foreground: foreground,
         scrollbarThumb: scrollbarThumb,

@@ -65,7 +65,7 @@ export default {
     const terminals = new Terminals(emit, BIN_DIR);
     // 外部改动（Agent / 其他编辑器写文件）→ 通知渲染端刷新树与缓冲区
     const watcher = new WorkspaceWatcher(emit, logger);
-    const lsp = new LspHost(BIN_DIR, emit, logger);
+    const lsp = new LspHost(BIN_DIR, emit, logger, join(dshHome(), 'typwriter', 'lsp-children.json'));
     // ACP：在 Texpile 面板里跑 DSH。工作区优先用设置里的 acpWorkspace，否则用当前论文目录
     const acpWorkspace = () => {
       const s = store.state?.settings || {};
