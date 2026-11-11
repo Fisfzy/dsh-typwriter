@@ -201,6 +201,16 @@ export function createDispatch({ store, terminals, lsp, acp, appDir, binDir, cle
     'toolchain:distros': () => [],
     'toolchain:dirForms': (entry) => dirForms(entry),
 
+    // ---- 诊断：页面/桥脚本把关键阶段写进宿主日志（桌面端没有 DevTools 时靠它定位） ----
+    'debug:log': (text) => {
+      try {
+        logger?.write?.('[app] ' + String(text).slice(0, 4000));
+      } catch {
+        /* ignore */
+      }
+      return null;
+    },
+
     // ---- tinymist LSP：补全/诊断/悬停，以及预览（点击跳转靠它） ----
     'typst:lsp:start': (root) => {
       if (typeof clearPendingLsp === 'function') clearPendingLsp();

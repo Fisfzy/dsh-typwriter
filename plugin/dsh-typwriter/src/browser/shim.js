@@ -8,6 +8,16 @@
 
   var RPC = '/typwriter/api/rpc';
 
+  // 诊断上报：把页面里的关键失败/阶段写到宿主日志（桌面端没有 DevTools，
+  // 这是唯一能看到 app 侧到底卡在哪一步的通道）。
+  function dbg(text) {
+    try {
+      send('debug:log', [String(text)]);
+    } catch (e) {
+      /* ignore */
+    }
+  }
+
   // ---- 单向 RPC（对应 ipcRenderer.send） ----
   function send(fn, args) {
     try {
@@ -837,6 +847,29 @@
     }
   };
 
+  // app 侧的 console.error / 未处理 rejection 也转到宿主日志：AGENT 桥失败只在这里露头
+  try {
+    var __ce = console.error.bind(console);
+    var __cw = console.warn.bind(console);
+    console.error = function () {
+      try {
+        dbg('console.error ' + Array.prototype.map.call(arguments, function (a) { return String((a && a.stack) || (a && a.message) || a); }).join(' ').slice(0, 1500));
+      } catch (e) {}
+      return __ce.apply(null, arguments);
+    };
+    console.warn = function () {
+      try {
+        dbg('console.warn ' + Array.prototype.map.call(arguments, function (a) { return String((a && a.message) || a); }).join(' ').slice(0, 800));
+      } catch (e) {}
+      return __cw.apply(null, arguments);
+    };
+    window.addEventListener('unhandledrejection', function (e) {
+      try { dbg('unhandledrejection ' + String((e && e.reason && e.reason.message) || (e && e.reason) || '?')); } catch (err) {}
+    });
+  } catch (e) {
+    /* ignore */
+  }
+
   // ================= window.texpileSession：DSH 原生会话（同源 Gateway） =================
   // DSH 本体的会话 API 就在同一个源上：POST /api/<endpoint>（client-request 信封）+
   // WS /api/remote.mux（follow 流）。AGENT 面板由此直接说 DSH 原生协议——会话即工作区
@@ -847,34 +880,96 @@
     var rpcSeq = 0;
     function call(endpoint, args) {
       var rpcId = 'tw-' + (++rpcSeq);
+      var t0 = Date.now();
+      // 15s 上限：没有它，桌面端一旦请求挂住，画布的「发送」就永远转圈，界面无法自解释
+      var ctrl = typeof AbortController === 'function' ? new AbortController() : null;
+      var timer = ctrl ? setTimeout(function () { ctrl.abort(); }, 15000) : null;
+      dbg('session ' + endpoint + ' ->');
       return fetch('/api/' + endpoint, {
         method: 'POST',
         credentials: 'same-origin',
         headers: { 'content-type': 'application/json' },
+        signal: ctrl ? ctrl.signal : undefined,
         body: JSON.stringify({ type: 'client-request', rpcId: rpcId, method: endpoint, payload: { args: args || {} } })
       })
-        .then(function (r) { return r.json(); })
-        .then(function (env) {
+        .then(function (r) {
+          return r.text().then(function (t) { return { status: r.status, text: t }; });
+        })
+        .then(function (x) {
+          var env;
+          try { env = JSON.parse(x.text); } catch (e) {
+            throw new Error('gateway ' + endpoint + ' 非 JSON 响应（HTTP ' + x.status + '）: ' + String(x.text).slice(0, 140));
+          }
           var res = env && env.result;
-          if (res && res.ok) return res.value;
+          if (res && res.ok) {
+            dbg('session ' + endpoint + ' ok ' + (Date.now() - t0) + 'ms');
+            return res.value;
+          }
           throw new Error((res && res.error && res.error.message) || 'gateway error: ' + endpoint);
-        });
+        })
+        .catch(function (e) {
+          var msg = String((e && e.message) || e);
+          if (e && e.name === 'AbortError') msg = 'gateway 超时 15s: ' + endpoint;
+          dbg('session ' + endpoint + ' FAIL ' + (Date.now() - t0) + 'ms ' + msg.slice(0, 300));
+          throw new Error(msg);
+        })
+        .finally(function () { if (timer) clearTimeout(timer); });
     }
 
     // ---- WS mux：一条 /api/remote.mux 承载任意多条逻辑流（follow/control）----
     var ws = null;
     var wsReady = null;
     var streams = Object.create(null); // streamId -> { onFrame, onDone, onError }
+    // mux 地址：web 下用页面自身 host；桌面端页面是 dsh-app://app，location.host 是 'app'，
+    // ws://app/... 永远连不上（DNS 失败/超时），AGENT 会话 follow 就卡死。
+    // 外壳（同源父窗口）在 __DSH_TRANSPORT__.streamBaseUrl 里给了它真正拥有的 Host origin，
+    // 用它拼 ws://127.0.0.1:<port>/api/remote.mux（鉴权 cookie 由 Electron 会话带去）。
+    function muxUrl() {
+      var base = null;
+      try {
+        var t = (window.parent && window.parent !== window ? window.parent.__DSH_TRANSPORT__ : null) || globalThis.__DSH_TRANSPORT__;
+        if (t && typeof t.streamBaseUrl === 'string' && t.streamBaseUrl) base = t.streamBaseUrl;
+      } catch (e) {
+        /* 跨源父窗口：读不到就按同源处理 */
+      }
+      var u = new URL('/api/remote.mux', base || location.href);
+      u.protocol = u.protocol === 'https:' ? 'wss:' : 'ws:';
+      return u.href;
+    }
     function ensureWs() {
       if (ws && ws.readyState <= 1) return wsReady;
       wsReady = new Promise(function (resolve, reject) {
-        var sock = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/api/remote.mux');
+        var url = muxUrl();
+        dbg('mux connect ' + url);
+        var sock;
+        try {
+          sock = new WebSocket(url);
+        } catch (e) {
+          dbg('mux construct FAIL ' + String((e && e.message) || e));
+          reject(new Error('WS mux 地址无效: ' + url));
+          return;
+        }
         var settled = false;
-        sock.onopen = function () { settled = true; resolve(sock); };
+        var timer = setTimeout(function () {
+          if (settled) return;
+          settled = true;
+          ws = null; wsReady = null;
+          dbg('mux timeout 12s ' + url);
+          try { sock.close(); } catch (e) {}
+          reject(new Error('WS /api/remote.mux 连接超时（12s）: ' + url));
+        }, 12000);
+        sock.onopen = function () { settled = true; clearTimeout(timer); dbg('mux open ' + url); resolve(sock); };
         sock.onerror = function () {
-          if (!settled) { settled = true; reject(new Error('WS /api/remote.mux 连接失败')); }
+          if (!settled) {
+            settled = true;
+            clearTimeout(timer);
+            dbg('mux fail ' + url);
+            reject(new Error('WS /api/remote.mux 连接失败: ' + url));
+          }
         };
         sock.onclose = function () {
+          clearTimeout(timer);
+          dbg('mux close ' + url);
           ws = null; wsReady = null;
           var ids = Object.keys(streams);
           var orphans = ids.map(function (id) { return streams[id]; });
@@ -945,10 +1040,90 @@
         return call('session/selectModel', { request: Object.assign({ sessionId: sessionId }, selection || {}) });
       },
       // 事件流：初始 snapshot（含历史 records）+ 增量 event / assistant-stream 帧
+      // 事件流：优先 WS mux（实时流）；桌面端 dsh-app 源连不上 loopback WS（鉴权 cookie 不随
+      // 跨站 WS 发送，实测 403），2.5s 内没连上就退回 HTTP 轮询 session/page。
+      // 轮询拿不到逐 token 增量，但 user/assistant 消息、工具卡片、标题都会到，
+      // 关键是「发送」不会永远转圈：assistant/message 一到就放行。
       follow: function (sessionId, handlers) {
-        return openStream('session/follow', {
+        var cancelled = false;
+        var timer = null;
+        function page() {
+          return call('session/page', {
+            request: { address: { kind: 'session', sessionId: sessionId }, maxMessages: 200 }
+          });
+        }
+        function flatten(rec) {
+          return rec && rec.event ? rec.event : rec;
+        }
+        function pollMode() {
+          var lastSeq = -1;
+          var seen = Object.create(null);
+          function emit(ev) {
+            if (!ev || typeof ev !== 'object') return;
+            if (typeof ev.seq === 'number') {
+              if (ev.seq <= lastSeq) return;
+              lastSeq = ev.seq;
+            } else {
+              var key = JSON.stringify(ev).slice(0, 200);
+              if (seen[key]) return;
+              seen[key] = 1;
+            }
+            handlers.onFrame && handlers.onFrame({ type: 'event', event: ev });
+          }
+          function tick() {
+            if (cancelled) return;
+            page().then(function (v) {
+              if (cancelled) return;
+              var recs = (v && v.records) || [];
+              for (var i = 0; i < recs.length; i++) emit(flatten(recs[i]));
+            }).catch(function (e) {
+              if (!cancelled && handlers.onError) handlers.onError(new Error('跟随会话失败: ' + ((e && e.message) || e)));
+            }).finally(function () {
+              if (!cancelled) timer = setTimeout(tick, 900);
+            });
+          }
+          return page().then(function (v) {
+            if (cancelled) return function () {};
+            var recs = (v && v.records) || [];
+            var events = recs.map(flatten);
+            for (var i = 0; i < events.length; i++) {
+              if (events[i] && typeof events[i].seq === 'number' && events[i].seq > lastSeq) lastSeq = events[i].seq;
+            }
+            handlers.onFrame && handlers.onFrame({ type: 'snapshot', records: events });
+            timer = setTimeout(tick, 900);
+            return function cancel() {
+              cancelled = true;
+              if (timer) clearTimeout(timer);
+            };
+          }, function (e) {
+            if (handlers.onError) handlers.onError(new Error('打开会话失败: ' + ((e && e.message) || e)));
+            return function () {};
+          });
+        }
+        var mux = openStream('session/follow', {
           request: { address: { kind: 'session', sessionId: sessionId }, assistantStream: true }
         }, handlers);
+        var settled = false;
+        return new Promise(function (resolve) {
+          mux.then(function (cancelMux) {
+            if (settled) {
+              try { cancelMux(); } catch (e) {}
+              return;
+            }
+            settled = true;
+            resolve(cancelMux);
+          }, function () {
+            if (settled) return;
+            settled = true;
+            resolve(pollMode());
+          });
+          setTimeout(function () {
+            if (settled) return;
+            settled = true;
+            try { mux.then(function (c) { try { c(); } catch (e) {} }, function () {}); } catch (e) {}
+            resolve(pollMode());
+          }, 2500);
+        });
       }
     };
   })();
