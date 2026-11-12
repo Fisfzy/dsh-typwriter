@@ -123,6 +123,34 @@ export function failAgentActivity(message: string): void {
 	showAgentPanel();
 }
 
+/** 越界修改告警：常驻，带「回退本轮」，避免 agent 改到选区外后无声无息 */
+export function warnScopeViolation(message: string, onRevert: () => void | Promise<void>): void {
+	try {
+		toaster.dismiss('typwriter-scope-violation');
+		toaster.create({
+			id: 'typwriter-scope-violation',
+			type: 'warning',
+			title: 'AGENT 修改超出圈选范围',
+			description: String(message || '').slice(0, 160),
+			duration: 0,
+			closable: true,
+			action: {
+				label: '回退本轮',
+				onClick: () => {
+					void onRevert();
+					try {
+						toaster.dismiss('typwriter-scope-violation');
+					} catch {
+						/* ignore */
+					}
+				}
+			}
+		});
+	} catch {
+		/* ignore */
+	}
+}
+
 // turn/end 由 nativeBridge 在会话流里看到后转发过来；一轮也可能被用户取消
 try {
 	if (typeof window !== 'undefined') {

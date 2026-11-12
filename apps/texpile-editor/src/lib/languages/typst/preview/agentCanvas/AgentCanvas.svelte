@@ -384,8 +384,12 @@
 	{#if phase === 'intent' || phase === 'resolving'}
 		<AgentIntentCard
 			bind:intent
+			range={pendingRegion}
 			busy={phase === 'resolving'}
 			{error}
+			onRangeChange={(from, to) => {
+				if (pendingRegion) pendingRegion = { ...pendingRegion, fromLine: from, toLine: to };
+			}}
 			onBack={() => (phase = 'collect')}
 			onSend={() => void submitIntent()}
 		/>

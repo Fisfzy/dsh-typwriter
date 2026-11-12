@@ -5,7 +5,8 @@ import { agentHost } from '$lib/ai/agentPanel/agentHost.svelte';
 import { armTurnScope } from '$lib/ai/agentPanel/turnScope';
 import { fileService } from '$lib/files/service/fileService';
 import { workspaceRoot } from '$lib/workspace/workspaceStore';
-import { beginAgentActivity, failAgentActivity, finishAgentActivity } from '$lib/ai/agentPanel/agentActivity.svelte';
+import { beginAgentActivity, failAgentActivity, finishAgentActivity, warnScopeViolation } from '$lib/ai/agentPanel/agentActivity.svelte';
+import { outOfRange } from '$lib/ai/agentPanel/scopeGuard';
 
 export type RegionPayload = {
 	/** 绝对路径（tinymist 解析原样给出） */
@@ -25,10 +26,13 @@ export function buildRegionPrompt(r: RegionPayload, intent: string): string {
 		`[AG-EDIT] ${uri}`,
 		`[方式] ${via}`,
 		`[意图] ${intent.trim()}`,
-		'请读取上述范围的源码，按意图直接修改它（只动这个范围，除非意图明确要求牵连别处）。',
-		'若改动删除了带 <label> 的块或引入了新标签，必须同时修正文档中被引用的 @ref 引用（即使它在选区之外），保证文档仍可编译；不确定时先指出风险。'
+		'只允许修改上述行范围内的源码：不要新增原文没有的信息、解释或修饰；不要重写标题/图注/表格/公式（除非意图明确要求）。',
+		'不得编辑该文件范围外的内容，也不得改动其他文件。若意图必须涉及范围外改动，或删除/新增 <label> 需要修 @ref 引用，不要直接改，也不要在本轮调用提问/等待确认的工具；直接在回复正文说明需要改哪里，等用户下一条消息确认。唯一例外是删除引用后为保持可编译必须做的最小 @ref 修复。',
+		'意图不明确时按最小、最保守的改动执行，并在回复里说明你的假设；不要调用 ask_user_question 等提问工具。'
 	].join('\n');
 }
+
+let detachScopeGuard: (() => void) | null = null;
 
 /** 把 agent 落盘的改动拉回打开的缓冲（写同内容经 fileService 触发 syncBuffers，编辑器即刻可见） */
 async function refreshChangedBuffers(paths: string[]): Promise<void> {
@@ -67,6 +71,42 @@ export async function sendRegionEdit(r: RegionPayload, intent: string): Promise<
 	// 轻量活动条：不抢主视图；用户点「查看」或设置里开启自动打开时才展开 AGENT 面板。
 	// 需要用户作答（permission）或发送失败时例外，那些会强制打开。
 	beginAgentActivity({ file: r.file, fromLine: r.fromLine, toLine: r.toLine, intent });
+	// 越界守卫：轮次前留底，轮次真正结束（turn/end）后比对；改到圈选范围外就告警并可一键回退
+	let beforeText: string | null = null;
+	try {
+		beforeText = await fileServiceRead(r.file);
+	} catch {
+		beforeText = null;
+	}
+	if (detachScopeGuard) detachScopeGuard();
+	const targetSession = agentSession.chat;
+	function onTurnEnd(event: Event): void {
+		const detail = (event as CustomEvent<{ sessionId?: string }>).detail;
+		if (detail?.sessionId && targetSession && detail.sessionId !== targetSession) return;
+		detachScopeGuard?.();
+		detachScopeGuard = null;
+		if (beforeText === null) return;
+		const before = beforeText;
+		void (async () => {
+			const after = await fileServiceRead(r.file);
+			if (after === null) return;
+			const violation = outOfRange(before, after, r.fromLine, r.toLine);
+			if (!violation) return;
+			const name = r.file.split(/[\\/]/).pop() || r.file;
+			const oldLo = Math.min(violation.oldStart, violation.oldEnd);
+			const oldHi = Math.max(violation.oldStart, violation.oldEnd);
+			const where = violation.oldStart <= violation.oldEnd ? `L${oldLo}–${oldHi}` : `在第 ${violation.newStart} 行附近`;
+			const message = `${name} 在圈选范围 L${r.fromLine}–${r.toLine} 之外（${where}）被改动`;
+			async function revert(): Promise<void> {
+				await agentHost.current?.writeText(r.file, before);
+			}
+			window.dispatchEvent(new CustomEvent('typwriter:scope-violation', { detail: { message, revert } }));
+			warnScopeViolation(message, revert);
+		})();
+	}
+	window.addEventListener('typwriter:agent-turn-end', onTurnEnd);
+	detachScopeGuard = () => window.removeEventListener('typwriter:agent-turn-end', onTurnEnd);
+
 	// nativeBridge.send() 在**第一个** assistant/message 就返回（不是整轮结束），
 	// 活动条只能等 DSH 的 turn/end 事件（nativeBridge 会转发）再收；ACP 桥没有该事件，按 send 返回兜底。
 	const nativeSession = typeof (globalThis as { texpileSession?: unknown }).texpileSession !== 'undefined';

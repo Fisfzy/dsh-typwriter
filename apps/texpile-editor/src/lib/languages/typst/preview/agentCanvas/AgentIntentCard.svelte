@@ -4,13 +4,29 @@
 
 	type Props = {
 		intent: string;
+		/** 已解析出的源码范围：显示出来并允许微调，避免用户不知道 agent 会改哪几行 */
+		range?: { file: string; fromLine: number; toLine: number } | null;
 		busy?: boolean;
 		/** 发送/定位失败的原因（卡内直接可见，而不是沉到底部细条） */
 		error?: string | null;
+		onRangeChange?: (from: number, to: number) => void;
 		onBack: () => void;
 		onSend: () => void;
 	};
-	let { intent = $bindable(''), busy = false, error = null, onBack, onSend }: Props = $props();
+	let { intent = $bindable(''), range = null, busy = false, error = null, onRangeChange, onBack, onSend }: Props = $props();
+
+	const fileName = $derived(range ? (range.file.split(/[\\/]/).pop() ?? range.file) : '');
+
+	function setFrom(value: string): void {
+		if (!range || !onRangeChange) return;
+		const n = Math.max(1, Math.floor(Number(value) || 1));
+		onRangeChange(n, Math.max(n, range.toLine));
+	}
+	function setTo(value: string): void {
+		if (!range || !onRangeChange) return;
+		const n = Math.max(range.fromLine, Math.floor(Number(value) || range.fromLine));
+		onRangeChange(range.fromLine, n);
+	}
 </script>
 
 <div
@@ -21,6 +37,29 @@
 		<p class="text-error-ink mb-1.5 text-[11px] leading-relaxed">{error}</p>
 	{:else}
 		<p class="text-muted mb-1.5 text-[11px]">区域已定位到源码，写一句你想让 AI 做什么：</p>
+	{/if}
+	{#if range}
+		<div class="text-muted mb-1.5 flex items-center gap-1 text-[11px]">
+			<span class="min-w-0 flex-1 truncate font-mono" title={range.file}>{fileName}</span>
+			<span>L</span>
+			<input
+				type="number"
+				min="1"
+				class="border-surface-300-700 bg-surface-50-950 rounded-base h-6 w-12 border px-1 text-center text-[11px]"
+				value={range.fromLine}
+				onchange={(e) => setFrom(e.currentTarget.value)}
+				aria-label="起始行"
+			/>
+			<span>–</span>
+			<input
+				type="number"
+				min="1"
+				class="border-surface-300-700 bg-surface-50-950 rounded-base h-6 w-12 border px-1 text-center text-[11px]"
+				value={range.toLine}
+				onchange={(e) => setTo(e.currentTarget.value)}
+				aria-label="结束行"
+			/>
+		</div>
 	{/if}
 	<textarea
 		class="border-surface-300-700 bg-surface-50-950 rounded-base h-16 w-full resize-none border p-2 text-sm"

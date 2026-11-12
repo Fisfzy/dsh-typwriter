@@ -197,7 +197,7 @@ export function nativeSessionBridge(): AcpBridge | undefined {
 			// 一轮真正的结束：画布的活动条据此收起（assistant/message 在中间步骤就会到，不能用它判断）
 			if (f.event.type === 'turn/end' || f.event.type === 'turn/error' || f.event.type === 'turn/aborted') {
 				try {
-					window.dispatchEvent(new CustomEvent('typwriter:agent-turn-end', { detail: { type: f.event.type } }));
+					window.dispatchEvent(new CustomEvent('typwriter:agent-turn-end', { detail: { type: f.event.type, sessionId } }));
 				} catch {
 					/* ignore */
 				}

@@ -196,6 +196,19 @@
 		return `编译失败：${name}:${first.line} — ${first.message}${more}`;
 	});
 
+	// 越界修改横幅：agent 改到圈选范围外时由画布发窗口事件，预览上方常驻提示 + 一键回退。
+	// 不走 toast（toast 在不同窗口/布局下可能不可见），组件自己维护状态最可靠。
+	let scopeWarning = $state<{ message: string; revert: () => void | Promise<void> } | null>(null);
+	$effect(() => {
+		function onScopeViolation(event: Event): void {
+			const detail = (event as CustomEvent<{ message?: string; revert?: () => void | Promise<void> }>).detail;
+			if (!detail?.message) return;
+			scopeWarning = { message: detail.message, revert: detail.revert ?? (() => {}) };
+		}
+		window.addEventListener('typwriter:scope-violation', onScopeViolation);
+		return () => window.removeEventListener('typwriter:scope-violation', onScopeViolation);
+	});
+
 	/** null once it is rendering; otherwise the reason it is not. */
 	const stall = $derived.by(() => {
 		if (!frameUrl || error || !status || status.pages > 0) return null;
@@ -384,6 +397,26 @@
 					onerror={() => (error = m.typst_preview_frame_failed())}
 				></iframe>
 			</ColorVisionFilter>
+			{#if scopeWarning}
+				<div class="pointer-events-auto absolute inset-x-2 top-2 z-30">
+					<div
+						class="bg-surface-100-900 border-surface-300-700 rounded-container flex items-start gap-2 border px-3 py-2 text-xs shadow-sm"
+					>
+						<span class="text-error-ink min-w-0 flex-1 leading-relaxed">{scopeWarning.message}</span>
+						<button
+							type="button"
+							class="btn btn-xs preset-filled-primary-500 shrink-0 px-2"
+							onclick={async () => {
+								await scopeWarning?.revert();
+								scopeWarning = null;
+							}}>回退本轮</button
+						>
+						<button type="button" class="btn-icon btn-icon-xs shrink-0" aria-label="关闭越界提示" onclick={() => (scopeWarning = null)}
+							>×</button
+						>
+					</div>
+				</div>
+			{/if}
 			{#if compileErrorText}
 				<div class="pointer-events-none absolute inset-x-2 bottom-2 z-20">
 					<div
