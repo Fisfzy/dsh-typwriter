@@ -25,6 +25,7 @@
 	import { scrollbarRadius, textColour, themeColour } from './themeColour';
 	import { askForProgram, tinymistMissing } from '$lib/modals/window/missingProgram/missingProgram.svelte';
 	import { m } from '$lib/paraglide/messages';
+	import { addTypstDiagnosticsListener } from '../intellisense/lspClient';
 
 	type Props = {
 		/** `host:port` of the running preview server, or null while it is still starting */
@@ -169,6 +170,30 @@
 		}
 		win.addEventListener('message', onMessage);
 		return () => win.removeEventListener('message', onMessage);
+	});
+
+	// Typst 编译错误：tinymist 只推送成功的渲染，编译失败时预览页会保持旧内容或空白，
+	// 用户会以为"没刷新/编译不出来"。这里把 LSP 诊断里的 error 直接提到预览上。
+	let compileErrors = $state<{ path: string; line: number; message: string }[]>([]);
+	$effect(() => {
+		const perFile = new Map<string, { path: string; line: number; message: string }[]>();
+		return addTypstDiagnosticsListener((path, diags) => {
+			const errors = (diags ?? [])
+				.filter((d) => d.severity === 1)
+				.map((d) => ({ path, line: (d.range?.start?.line ?? 0) + 1, message: d.message }));
+			if (errors.length) perFile.set(path, errors);
+			else perFile.delete(path);
+			const all: { path: string; line: number; message: string }[] = [];
+			for (const list of perFile.values()) all.push(...list);
+			compileErrors = all;
+		});
+	});
+	const compileErrorText = $derived.by(() => {
+		if (!compileErrors.length) return null;
+		const first = compileErrors[0];
+		const name = first.path.split(/[\\/]/).pop() ?? first.path;
+		const more = compileErrors.length > 1 ? `（共 ${compileErrors.length} 个错误）` : '';
+		return `编译失败：${name}:${first.line} — ${first.message}${more}`;
 	});
 
 	/** null once it is rendering; otherwise the reason it is not. */
@@ -359,6 +384,15 @@
 					onerror={() => (error = m.typst_preview_frame_failed())}
 				></iframe>
 			</ColorVisionFilter>
+			{#if compileErrorText}
+				<div class="pointer-events-none absolute inset-x-2 bottom-2 z-20">
+					<div
+						class="bg-surface-100-900 border-surface-300-700 text-error-ink rounded-container max-h-24 overflow-auto border px-3 py-2 text-xs shadow-sm"
+					>
+						{compileErrorText}
+					</div>
+				</div>
+			{/if}
 			{#if agentCanvas.armed}
 				<!-- 圈选画布：接管指针（iframe 随之 pointer-events-none，点击都归画布） -->
 				<AgentCanvas

@@ -24,7 +24,8 @@ export function buildRegionPrompt(r: RegionPayload, intent: string): string {
 		`[AG-EDIT] ${uri}`,
 		`[方式] ${via}`,
 		`[意图] ${intent.trim()}`,
-		'请读取上述范围的源码，按意图直接修改它（只动这个范围，除非意图明确要求牵连别处）。'
+		'请读取上述范围的源码，按意图直接修改它（只动这个范围，除非意图明确要求牵连别处）。',
+		'若改动删除了带 <label> 的块或引入了新标签，必须同时修正文档中被引用的 @ref 引用（即使它在选区之外），保证文档仍可编译；不确定时先指出风险。'
 	].join('\n');
 }
 
@@ -62,9 +63,11 @@ export async function sendRegionEdit(r: RegionPayload, intent: string): Promise<
 	// 先落盘（快照要拿到"轮次前"的真实内容），再快照，再发
 	await agentHost.current?.flushPendingSave();
 	await armTurnScope([r.file]);
+	// AGENT 面板先于整轮结束弹出来：否则桌面端只有画布转圈，用户看不到任何进展
+	window.dispatchEvent(new CustomEvent('typwriter:agent-show'));
 	await agentSession.send(buildRegionPrompt(r, intent), [], []);
 	// agent 把改动写在了磁盘上：拉回打开的缓冲，编辑器/预览即刻可见（回退按钮不依赖这步）
 	await refreshChangedBuffers([r.file]);
-	// 打开 AGENT 面板看过程：右栏优先拉起，底部 dock 切到 agent 页（两边都设，谁在用谁响应）
+	// 面板在发送时已经拉起；这里再发一次是兜底（面板可能被用户中途关掉）
 	window.dispatchEvent(new CustomEvent('typwriter:agent-show'));
 }

@@ -5,7 +5,7 @@
 	//   点击定位（桌面）：画布放行指针，真实点击经 tinymist 原生链路解析（桌面 LSP 通知可靠）。
 	// 画笔/箭头/文本是辅助标注（纯视觉）。两角定位后弹意图卡交给 AGENT。
 	import { onMount } from 'svelte';
-	import { Crosshair, SquareDashed } from '@lucide/svelte';
+	import { Crosshair, LoaderCircle, SquareDashed } from '@lucide/svelte';
 	import AgentCanvasToolbar from './AgentCanvasToolbar.svelte';
 	import { cancelCornerCollection, collectNextJump, startCornerCollection } from './regionResolve';
 	import { sendRegionEdit, type RegionPayload } from './agentCanvasTurn';
@@ -320,8 +320,18 @@
 		onDismiss={dismiss}
 	/>
 
+	<!-- 发送中：整轮 agent 可能持续一两分钟，画布只转圈会显得卡住 -->
+	{#if phase === 'sending'}
+		<div
+			class="bg-surface-100-900 border-surface-300-700 rounded-container absolute top-14 left-1/2 z-50 flex -translate-x-1/2 items-center gap-1.5 border px-2.5 py-1 text-xs shadow-sm"
+			style:pointer-events="none"
+		>
+			<LoaderCircle class="size-3.5 animate-spin" /><span>AGENT 正在修改，完成后画布自动关闭（进度见 AGENT 面板）</span>
+		</div>
+	{/if}
+
 	<!-- 框选模式状态条 -->
-	{#if mode === 'region'}
+	{#if mode === 'region' && phase !== 'sending'}
 		<div
 			class="bg-surface-100-900 border-surface-300-700 rounded-container absolute top-14 left-1/2 z-40 flex -translate-x-1/2 items-center gap-1.5 border px-2.5 py-1 text-xs"
 			style:pointer-events="none"
