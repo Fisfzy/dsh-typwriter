@@ -151,11 +151,19 @@ export function savedMainFileRel(root: string): string | null {
 	return getFolder(root).main ?? null;
 }
 
+/** a main file must be a .tex or .typ: the extension is what chooses the typesetter */
+export function isMainFileCandidate(path: string | null): path is string {
+	return !!path && /\.(tex|typ)$/i.test(path);
+}
+
 /** remembers (or clears) the chosen main file for a folder, and updates the live store. */
 export function setMainFile(root: string, path: string | null): void {
-	mainFile.current = path;
+	// 防御：.texpile/config.json 可能被外部工具写进一个非 .tex/.typ 的 main（实测有 JSON），
+	// 那会让整个项目被当成 LaTeX 去跑 latexmk，永远编不出 PDF。
+	const chosen = path && isMainFileCandidate(path) ? path : null;
+	mainFile.current = chosen;
 	updateFolder(root, (draft) => {
-		if (path) draft.main = relInRoot(root, path);
+		if (chosen) draft.main = relInRoot(root, chosen);
 		else delete draft.main;
 	});
 }

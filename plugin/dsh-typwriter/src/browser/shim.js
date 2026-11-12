@@ -501,6 +501,14 @@
         return null;
       });
     },
+    // 全局 snippets 文件：Electron 版有独立文件；插件版没有这个入口。返回空实现，
+    // 否则调用方的 ?.readGlobal() 会在 bridge 存在但方法缺失时抛 TypeError（host.log 里刷屏）。
+    readGlobal: function () {
+      return Promise.resolve(null);
+    },
+    onGlobalChanged: function () {
+      return function () {};
+    },
     getSettings: function () {
       return invoke('settings:get');
     },

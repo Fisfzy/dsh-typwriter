@@ -102,6 +102,18 @@ function cleanChecks(v: unknown): Record<string, boolean> | undefined {
  * A field that fails its check is treated as not written, never "corrected" back into the file -
  * the file self-heals on the next settings save, which rebuilds it from adopted state.
  */
+/** the file names a main that is not a root-relative .tex/.typ (external tools wrote e.g. JSON) */
+export async function projectConfigMainIsInvalid(root: string): Promise<boolean> {
+	try {
+		const parsed: unknown = JSON.parse(await fileService.readText(configPath(root)));
+		const main = (parsed as { main?: unknown } | null)?.main;
+		if (typeof main !== 'string' || main === '') return false;
+		return !isSafeRel(main) || !/\.(tex|typ)$/i.test(main);
+	} catch {
+		return false;
+	}
+}
+
 export async function readProjectConfig(root: string): Promise<ProjectConfig | null> {
 	try {
 		const parsed: unknown = JSON.parse(await fileService.readText(configPath(root)));

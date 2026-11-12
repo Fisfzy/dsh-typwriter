@@ -19,6 +19,8 @@ import {
 	mainFile,
 	detectedMainFile,
 	savedMainFile,
+	isMainFileCandidate,
+	setMainFile,
 	addRecentFolder
 } from '$lib/workspace/workspaceStore';
 import { detectMainFile, gatherProjectMacros } from '$lib/workspace/project';
@@ -157,15 +159,27 @@ export class FolderLifecycle {
 			/* leave files empty */
 		}
 		const saved = savedMainFile(root);
-		const savedExists = !!(saved && files.some((f) => samePath(f.path, saved)));
-		const main = savedExists ? saved : files.length === 1 ? files[0].path : null;
+		// 只有 .tex/.typ 能当 main；scan 里还有 .md/.bib 等，不能拿它们凑数（也不能让
+		// 外部工具写进 config 的 JSON main 把项目带进 LaTeX lane）。
+		const candidates = files.filter((f) => isMainFileCandidate(f.path));
+		const savedExists = !!(saved && isMainFileCandidate(saved) && candidates.some((f) => samePath(f.path, saved)));
+		let main = savedExists ? saved : candidates.length === 1 ? candidates[0].path : null;
+		let adoptedTypst = false;
+		if (!main && candidates.length > 1 && candidates.every((f) => /\.typ$/i.test(f.path))) {
+			// 全是 .typ 的工程：Typst 任意 .typ 都能编译，检测结果（优先 main.typ）直接采用
+			main = (await detectMainFile(candidates)) ?? candidates[0].path;
+			adoptedTypst = true;
+		}
 		if (workspaceRoot.current !== root) return; // folder changed under us
 		// a folder whose main file was never explicitly chosen asks once before the first compile
-		// (single-file folders have nothing to choose)
-		d.setMainConfirmed(savedExists || files.length <= 1);
-		mainFile.current = main;
+		// (single-candidate folders have nothing to choose)
+		d.setMainConfirmed(savedExists || candidates.length <= 1 || adoptedTypst);
+		// 单一候选 / 仅 Typst 的工程：把 main 落盘（同时清掉配置里可能残留的非法 JSON main）。
+		// 不落盘的话 savedMainFile() 仍是旧值，pipeline 的 lane 判断会继续走 LaTeX。
+		if (main && (savedExists || candidates.length <= 1 || adoptedTypst)) setMainFile(root, main);
+		else mainFile.current = main;
 		detectedMainFile.current = null;
-		if (!main) void detectMainFile(files).then((found) => workspaceRoot.current === root && (detectedMainFile.current = found));
+		if (!main) void detectMainFile(candidates).then((found) => workspaceRoot.current === root && (detectedMainFile.current = found));
 		d.loadExistingPdf(); // show an already-compiled PDF for this folder without a recompile
 		d.setProjectMacros(main ? await gatherProjectMacros(main, root) : '');
 	}

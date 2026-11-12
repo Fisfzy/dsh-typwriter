@@ -17,6 +17,7 @@ import {
 	savedMainFile,
 	savedMainFileRel,
 	setMainFile,
+	isMainFileCandidate,
 	effectiveCompileFormat,
 	mainFile,
 	isCommandTrusted,
@@ -27,7 +28,13 @@ import { joinPath } from '$lib/workspace/fileSystem';
 import { ensureTexpileIgnore } from '$lib/workspace/texpileDir';
 import { folderKey } from '$lib/storage/workspaces';
 import { readMigrationStash, writeMigrationStash } from '$lib/migration/migrate';
-import { hasProjectConfig, readProjectConfig, writeProjectConfig, type ProjectConfig } from '$lib/workspace/projectConfig';
+import {
+	hasProjectConfig,
+	projectConfigMainIsInvalid,
+	readProjectConfig,
+	writeProjectConfig,
+	type ProjectConfig
+} from '$lib/workspace/projectConfig';
 import { GUEST_ROOT } from '$lib/collab/sessionProvider';
 import type { SpellLanguage } from '$lib/editor/spellcheck/languages/spellLanguages';
 
@@ -111,8 +118,16 @@ export class ProjectConfigSync {
 		// waiting for the next settings change to write one
 		void ensureTexpileIgnore(root);
 		// back to absolute: setMainFile takes a real path and re-relativises it against the root.
-		// This is also what settles the typesetter - the extension decides it.
-		if (cfg.main !== undefined) setMainFile(root, cfg.main ? joinPath(root, cfg.main) : null);
+		// This is also what settles the typesetter - the extension decides it. A config main that
+		// is not .tex/.typ (an external tool wrote a JSON path once) is ignored, not adopted:
+		// adopting it puts the project in the LaTeX lane with no .tex, so nothing can compile.
+		if (cfg.main !== undefined) {
+			const main = cfg.main ? joinPath(root, cfg.main) : null;
+			if (main === null || isMainFileCandidate(main)) setMainFile(root, main);
+		}
+		// readProjectConfig() 会静默丢掉非法的 main（比如外部工具写进去的 JSON 路径）；
+		// 不重写的话它会一直留在文件里，每次打开都误导一次。按已采纳状态重写一遍（自愈）。
+		if (await projectConfigMainIsInvalid(root)) void this.save(root);
 
 		// pending is computed into a local and assigned ONCE at the end: this runs on every save
 		// (the fs watcher reports our own writes), and clearing the field up front made the
@@ -251,7 +266,7 @@ export class ProjectConfigSync {
 		const state = compileConfig.current;
 		const cfg: ProjectConfig = { v: 1 };
 		const main = savedMainFileRel(root);
-		if (main) cfg.main = main.replace(/\\/g, '/');
+		if (main && isMainFileCandidate(main)) cfg.main = main.replace(/\\/g, '/');
 		if (!state.completionMarker) cfg.completionMarker = false;
 		for (const lane of ['latex', 'typst'] as const) {
 			const local = state[lane].command ?? undefined;
