@@ -69,6 +69,22 @@
 		queryInput?.select();
 	}
 
+	/** 打开替换行并聚焦替换输入框（Ctrl+H 用；替换行原本只能点箭头展开） */
+	export function focusReplace(): void {
+		showReplace = true;
+		setTimeout(() => replaceInput?.focus(), 0);
+	}
+
+	function onExternalReplace(): void {
+		focusReplace();
+	}
+
+	// 源码编辑器的 Ctrl+H 走 CodeMirror keymap，拿不到这里的组件引用：用窗口事件请它展开替换行
+	$effect(() => {
+		window.addEventListener('texpile:find-replace', onExternalReplace);
+		return () => window.removeEventListener('texpile:find-replace', onExternalReplace);
+	});
+
 	function toggleReplaceRow(): void {
 		showReplace = !showReplace;
 		if (showReplace) setTimeout(() => replaceInput?.focus(), 0);

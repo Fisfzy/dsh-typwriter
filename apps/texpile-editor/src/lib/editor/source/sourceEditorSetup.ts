@@ -21,6 +21,7 @@ import { cmSyntaxHighlight } from '$lib/editor/source/cmHighlight';
 import { languages as cmlangdata } from '@codemirror/language-data';
 import { searchKeymap } from '@codemirror/search';
 import { closeSearchPanelAnimated, texpileSearch, toggleSearchPanel } from '$lib/editor/source/extensions/search-panel/searchPanel.svelte';
+import { openSearchPanel, searchPanelOpen } from '@codemirror/search';
 import { latexAutocomplete, latexIntellisense } from '$lib/languages/latex/intellisense/intellisense';
 import { foldMarkerDom, foldMarkerTheme } from '$lib/languages/latex/intellisense/fold';
 import { mdSourceShortcuts } from '$lib/languages/markdown/source/sourceExtensions';
@@ -99,6 +100,13 @@ function pasteDialectOf(fileFor: string): PasteDialect | null {
 	if (/\.tex$/i.test(fileFor)) return 'latex';
 	if (/\.typ$/i.test(fileFor)) return 'typst';
 	return /\.(md|markdown)$/i.test(fileFor) ? 'markdown' : null;
+}
+
+/** Mod-h: 打开查找面板并展开替换行（面板挂载后再请 FindBar 聚焦替换框） */
+function openFindReplace(view: EditorView): boolean {
+	if (!searchPanelOpen(view.state)) openSearchPanel(view);
+	setTimeout(() => window.dispatchEvent(new CustomEvent('texpile:find-replace')), 30);
+	return true;
 }
 
 export function buildSourceExtensions(deps: SourceSetupDeps): Extension[] {
@@ -217,6 +225,7 @@ export function buildSourceExtensions(deps: SourceSetupDeps): Extension[] {
 		texpileSearch(),
 		keymap.of([
 			{ key: 'Mod-f', run: toggleSearchPanel },
+			{ key: 'Mod-h', run: openFindReplace },
 			{ key: 'Escape', run: closeSearchPanelAnimated },
 			...defaultKeymap,
 			// the file's history, which the visual editor and the disk share; a view with no text binding is read-only

@@ -27,6 +27,12 @@
 			display.current = !display.current;
 			setTimeout(() => bar?.focusQuery(), 0);
 		}
+		// Ctrl/Cmd+H: 查找 + 替换（与 VS Code / Word 一致），替换行默认展开并聚焦
+		if (e.key.toLowerCase() === 'h' && (e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey) {
+			e.preventDefault();
+			display.current = true;
+			setTimeout(() => bar?.focusReplace(), 0);
+		}
 		if (e.key === 'Escape' && display.current) closeBar();
 	}
 
