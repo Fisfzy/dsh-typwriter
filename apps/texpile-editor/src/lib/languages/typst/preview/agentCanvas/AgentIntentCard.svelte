@@ -1,11 +1,14 @@
 <script lang="ts">
 	// 意图卡：两角定位完成后填写修改要求，连同源码行范围一起发送。
 	import { LoaderCircle, Send } from '@lucide/svelte';
+	import type { RangeDescription } from './describeRange';
 
 	type Props = {
 		intent: string;
 		/** 已解析出的源码范围：显示出来并允许微调，避免用户不知道 agent 会改哪几行 */
 		range?: { file: string; fromLine: number; toLine: number } | null;
+		/** 范围的内容特征（正文/几级标题/图表…），发送前让用户确认 */
+		details?: RangeDescription | null;
 		busy?: boolean;
 		/** 发送/定位失败的原因（卡内直接可见，而不是沉到底部细条） */
 		error?: string | null;
@@ -13,7 +16,7 @@
 		onBack: () => void;
 		onSend: () => void;
 	};
-	let { intent = $bindable(''), range = null, busy = false, error = null, onRangeChange, onBack, onSend }: Props = $props();
+	let { intent = $bindable(''), range = null, details = null, busy = false, error = null, onRangeChange, onBack, onSend }: Props = $props();
 
 	const fileName = $derived(range ? (range.file.split(/[\\/]/).pop() ?? range.file) : '');
 
@@ -59,6 +62,13 @@
 				onchange={(e) => setTo(e.currentTarget.value)}
 				aria-label="结束行"
 			/>
+		</div>
+	{/if}
+	{#if details}
+		<div class="text-muted mb-1.5 space-y-0.5 text-[11px] leading-relaxed">
+			<div class="truncate" title={details.title}>内容：{details.title}</div>
+			{#if details.firstLine}<div class="truncate" title={details.firstLine}>首行：{details.firstLine}</div>{/if}
+			{#if details.lastLine}<div class="truncate" title={details.lastLine}>末行：{details.lastLine}</div>{/if}
 		</div>
 	{/if}
 	<textarea

@@ -9,6 +9,8 @@
 	import AgentCanvasToolbar from './AgentCanvasToolbar.svelte';
 	import { cancelCornerCollection, collectNextJump, startCornerCollection } from './regionResolve';
 	import { sendRegionEdit, type RegionPayload } from './agentCanvasTurn';
+	import { describeRange, type RangeDescription } from './describeRange';
+	import { fileService } from '$lib/files/service/fileService';
 	import AgentIntentCard from './AgentIntentCard.svelte';
 	import { drawRegionBox, drawStroke, normRect, type Pt, type Stroke } from './canvasDraw';
 
@@ -102,6 +104,17 @@
 
 	// ---- 框选：画布画框 → 发送时两角合成点击解析 ----
 	let region = $state<{ x: number; y: number; w: number; h: number } | null>(null);
+	/** 解析出的范围"内容特征"：正文/几级标题/图表/公式…让用户在发送前确认 */
+	let rangeInfo = $state<RangeDescription | null>(null);
+
+	async function refreshRangeInfo(r: RegionPayload): Promise<void> {
+		try {
+			const text = await fileService.readText(r.file);
+			rangeInfo = describeRange(text, r.fromLine, r.toLine);
+		} catch {
+			rangeInfo = null;
+		}
+	}
 
 	async function resolveRegion(): Promise<void> {
 		if (!region || region.w < 8 || region.h < 8) {
@@ -118,10 +131,11 @@
 		try {
 			// 先 arm 收集器再派点击：解析结果可能比 postMessage 的回执还快回来
 			const p1 = collectNextJump();
-			sendToFrame({ type: 'agent-click', x: region.x + inset, y: region.y + inset });
+			const box = { x: region.x, y: region.y, w: region.w, h: region.h };
+			sendToFrame({ type: 'agent-click', x: region.x + inset, y: region.y + inset, region: box });
 			const a = await p1;
 			const p2 = collectNextJump();
-			sendToFrame({ type: 'agent-click', x: region.x + region.w - inset, y: region.y + region.h - inset });
+			sendToFrame({ type: 'agent-click', x: region.x + region.w - inset, y: region.y + region.h - inset, region: box });
 			const b = await p2;
 			function norm(s: string): string {
 				return s.replace(/\\/g, '/').toLowerCase();
@@ -136,8 +150,10 @@
 				via: 'preview-box'
 			};
 			phase = 'intent';
+			void refreshRangeInfo(pendingRegion);
 		} catch (e) {
 			phase = 'collect';
+			rangeInfo = null;
 			error = e instanceof Error ? e.message : String(e);
 		}
 	}
@@ -385,10 +401,14 @@
 		<AgentIntentCard
 			bind:intent
 			range={pendingRegion}
+			details={rangeInfo}
 			busy={phase === 'resolving'}
 			{error}
 			onRangeChange={(from, to) => {
-				if (pendingRegion) pendingRegion = { ...pendingRegion, fromLine: from, toLine: to };
+				if (pendingRegion) {
+					pendingRegion = { ...pendingRegion, fromLine: from, toLine: to };
+					void refreshRangeInfo(pendingRegion);
+				}
 			}}
 			onBack={() => (phase = 'collect')}
 			onSend={() => void submitIntent()}

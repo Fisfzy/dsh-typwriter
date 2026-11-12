@@ -363,6 +363,43 @@ function injection(opts) {
 				if (!geo) return null;
 				return locIn(geo, snapped.x, snapped.y);
 			}
+			// 框感知解析：角点不再只吸附"离它最近的字符"，而是优先取**落在框内**的字符框。
+			// 起始角选框内最上/最左的字符框，结束角选最下/最右——标题紧贴正文时，
+			// 标题字符不在框内就不会被抢走（旧逻辑只看角点最近字符，会吸到相邻标题）。
+			function resolveFrameLocInRegion(px, py, region) {
+				if (!region || !(region.w > 4) || !(region.h > 4)) return null;
+				var rl = region.x, rt = region.y, rr = region.x + region.w, rb = region.y + region.h;
+				var isStart = py < (rt + rb) / 2 || (py <= (rt + rb) / 2 && px < (rl + rr) / 2);
+				var candidates = [];
+				var pages = document.querySelectorAll('.typst-page');
+				for (var i = 0; i < pages.length; i++) {
+					var geo = pageBg(pages[i]);
+					if (!geo) continue;
+					// 页面矩形须与框有交集，避免跨页时拿别页字符比较 y
+					if (geo.r.right < rl || geo.r.left > rr || geo.r.bottom < rt || geo.r.top > rb) continue;
+					var tsels = pages[i].querySelectorAll('.tsel');
+					for (var j = 0; j < tsels.length; j++) {
+						var tr = tsels[j].getBoundingClientRect();
+						if (!tr.width || !tr.height) continue;
+						var ccx = tr.left + tr.width / 2, ccy = tr.top + tr.height / 2;
+						if (ccx < rl || ccx > rr || ccy < rt || ccy > rb) continue;
+						candidates.push({ cx: ccx, cy: ccy, page: pages[i] });
+					}
+				}
+				if (!candidates.length) return null;
+				var chosen = candidates[0];
+				for (var k = 1; k < candidates.length; k++) {
+					var c = candidates[k];
+					if (isStart) {
+						if (c.cy < chosen.cy - 0.5 || (Math.abs(c.cy - chosen.cy) <= 0.5 && c.cx < chosen.cx)) chosen = c;
+					} else if (c.cy > chosen.cy + 0.5 || (Math.abs(c.cy - chosen.cy) <= 0.5 && c.cx > chosen.cx)) {
+						chosen = c;
+					}
+				}
+				var cgeo = pageBg(chosen.page);
+				if (!cgeo) return null;
+				return locIn(cgeo, chosen.cx, chosen.cy);
+			}
 			function sendSrcPoint(fl) {
 				var cont = document.getElementById('typst-container');
 				var ws = cont && cont.typstWebsocket;
@@ -378,10 +415,17 @@ function injection(opts) {
 			if (!isFinite(cx) || !isFinite(cy)) return;
 			var hit = document.elementFromPoint(cx, cy);
 			diag({ stage: 'recv', x: cx, y: cy, el: hit ? hit.tagName : null, cls: hit ? String(hit.className && hit.className.baseVal || hit.className || '').slice(0, 60) : null });
-			var loc = resolveFrameLoc(cx, cy);
+			var region = m.region && typeof m.region === 'object' ? m.region : null;
+			var loc = (region && resolveFrameLocInRegion(cx, cy, region)) || resolveFrameLoc(cx, cy);
 			var contEl = document.getElementById('typst-container');
 			var sockEl = contEl && contEl.typstWebsocket;
-			diag({ stage: 'map', loc: loc, ws: sockEl ? sockEl.readyState : null, pages: document.querySelectorAll('.typst-page').length });
+			diag({
+				stage: 'map',
+				region: region ? [region.x, region.y, region.w, region.h] : null,
+				loc: loc,
+				ws: sockEl ? sockEl.readyState : null,
+				pages: document.querySelectorAll('.typst-page').length
+			});
 			if (loc && sendSrcPoint(loc)) {
 				diag({ stage: 'sent', loc: loc });
 				return;
