@@ -3,6 +3,7 @@
 	// 「开新对话」另起一条全新会话（当前会话保留，DSH 侧栏同步可见可管理）。
 	import { Check, MessageSquarePlus } from '@lucide/svelte';
 	import { agentSession, restartAgentSession } from '../agentSession.svelte';
+	import { agentAutoOpen, setAgentAutoOpen } from '../agentActivity.svelte';
 
 	type Props = {
 		/** a popover closes itself after a pick; the empty state has nowhere to close */
@@ -71,5 +72,14 @@
 			<p class="text-muted px-2 py-3 text-center text-xs">还没有历史对话</p>
 		{/each}
 	</div>
+	<label class="text-muted flex cursor-pointer items-center gap-1.5 px-1 text-[11px]">
+		<input
+			type="checkbox"
+			class="checkbox scale-75"
+			checked={agentAutoOpen()}
+			onchange={(e) => setAgentAutoOpen(e.currentTarget.checked)}
+		/>
+		圈选发送后自动打开 AGENT 面板
+	</label>
 	<p class="text-muted px-1 text-[11px] leading-relaxed">接续会回放历史消息与工具步骤，上下文延续；这些会话与 DSH 侧栏完全同步。</p>
 </div>

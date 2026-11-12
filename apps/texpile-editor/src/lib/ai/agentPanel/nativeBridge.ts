@@ -39,6 +39,43 @@ function pinSession(root: string, id: string): void {
 // 已知标题：session/title 事件 + 本地首条消息种子。session/list 不带标题，DSH 只在 follow 流里发
 const knownTitles = new Map<string, string>();
 
+// 本地可读标题（只存在 Typwriter 的 localStorage，不写回 DSH）：圈选会话的 DSH 标题
+// 会是 "[AG-EDIT] file:///..."，列表里完全没法认；这里改成 "main.typ L11–15 · 意图"。
+const LOCAL_TITLES_KEY = 'texpile:agent-chat-titles';
+const localTitles = new Map<string, string>();
+try {
+	const saved = JSON.parse(localStorage.getItem(LOCAL_TITLES_KEY) ?? '{}') as Record<string, string>;
+	for (const [id, title] of Object.entries(saved)) if (typeof title === 'string' && title) localTitles.set(id, title);
+} catch {
+	/* 损坏的本地标题不影响会话 */
+}
+
+function saveLocalTitles(): void {
+	try {
+		localStorage.setItem(LOCAL_TITLES_KEY, JSON.stringify(Object.fromEntries(localTitles)));
+	} catch {
+		/* 隐私模式：仅内存有效 */
+	}
+}
+
+/** 把 prompt 变成列表里认得出的标题；圈选 prompt 解析文件/行范围/意图，其它取首行 */
+export function readableChatTitle(text: string): string {
+	const m = /\[AG-EDIT\]\s*file:\/\/(.+?)#L(\d+):(\d+)/.exec(text);
+	if (m) {
+		const file = decodeURIComponent(m[1]).split(/[\\/]/).pop() ?? m[1];
+		const intent = /\[意图\]\s*([^\n]+)/.exec(text)?.[1]?.trim() ?? '';
+		const range = `L${m[2]}\u2013${m[3]}`;
+		return intent ? `${file} ${range} \u00b7 ${intent.slice(0, 28)}` : `${file} ${range}`;
+	}
+	return text.trim().split('\n')[0].slice(0, 48);
+}
+
+function setLocalTitle(sessionId: string, title: string): void {
+	if (!title) return;
+	localTitles.set(sessionId, title);
+	saveLocalTitles();
+}
+
 function api(): SessionApi | undefined {
 	return (globalThis as { texpileSession?: SessionApi }).texpileSession;
 }
@@ -157,6 +194,14 @@ export function nativeSessionBridge(): AcpBridge | undefined {
 			return;
 		}
 		if (f.type === 'event' && f.event) {
+			// 一轮真正的结束：画布的活动条据此收起（assistant/message 在中间步骤就会到，不能用它判断）
+			if (f.event.type === 'turn/end' || f.event.type === 'turn/error' || f.event.type === 'turn/aborted') {
+				try {
+					window.dispatchEvent(new CustomEvent('typwriter:agent-turn-end', { detail: { type: f.event.type } }));
+				} catch {
+					/* ignore */
+				}
+			}
 			// 工具调用：tool/call（挂起）→ tool/result（完成/失败），按 callId 配对成步骤卡片
 			if (f.event.type === 'tool/call' || f.event.type === 'tool/result') {
 				const tool = toolUpdate(f.event);
@@ -248,9 +293,11 @@ export function nativeSessionBridge(): AcpBridge | undefined {
 				.filter((r) => r && (r.uri || r.text))
 				.map((r) => `[选中内容] ${r.uri ?? ''}\n<<<\n${r.text ?? ''}\n>>>`);
 			const text = [words, ...picks].filter(Boolean).join('\n\n');
-			// 首条消息先当标题种子（session/list 不带标题；DSH 的 session/title 事件到了会覆盖）
-			if (sessionId && !knownTitles.has(sessionId) && text) {
-				knownTitles.set(sessionId, text.trim().split('\n')[0].slice(0, 40));
+			// 首条消息生成可读标题（本地面板列表用这个；DSH 的 session/title 只在 follow 流里到）
+			if (sessionId && text) {
+				const title = readableChatTitle(text);
+				if (!localTitles.has(sessionId)) setLocalTitle(sessionId, title);
+				if (!knownTitles.has(sessionId)) knownTitles.set(sessionId, title);
 			}
 			const requestId = 'native-req-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6);
 			ownRpcIds.add(requestId);
@@ -297,16 +344,21 @@ export function nativeSessionBridge(): AcpBridge | undefined {
 			/* 原生会话没有 ACP config 表面 */
 		},
 		async chats(): Promise<ChatInfo[]> {
-			const root = workspaceRoot.current;
-			return (await session.list())
-				.filter((c) => (c.cwd ?? '').replace(/\\/g, '/').toLowerCase() === (root ?? '').replace(/\\/g, '/').toLowerCase())
-				.sort((a, b) => b.updatedAt - a.updatedAt)
-				.map((c) => ({
-					id: c.sessionId,
-					// 标题：follow 流里见过的 session/title，或本地首条消息种子；session/list 本身不带
-					title: knownTitles.get(c.sessionId) ?? null,
-					updatedAt: new Date(c.updatedAt).toISOString()
-				}));
+			const root = (workspaceRoot.current ?? '').replace(/\\/g, '/').toLowerCase();
+			const list = await session.list();
+			return (
+				list
+					// 只看当前项目；空白会话（建了没发消息）只在它是当前/粘住的会话时保留
+					.filter((c) => (c.cwd ?? '').replace(/\\/g, '/').toLowerCase() === root)
+					.filter((c) => !c.blank || c.sessionId === sessionId || c.sessionId === pinnedSessionId)
+					.sort((a, b) => b.updatedAt - a.updatedAt)
+					.map((c) => ({
+						id: c.sessionId,
+						// 标题优先级：本地面板起的可读标题 > DSH session/title > 无（UI 用 id 前 8 位兜底）
+						title: localTitles.get(c.sessionId) ?? knownTitles.get(c.sessionId) ?? null,
+						updatedAt: new Date(c.updatedAt).toISOString()
+					}))
+			);
 		},
 		async openChat(id) {
 			try {

@@ -5,6 +5,7 @@ import { agentHost } from '$lib/ai/agentPanel/agentHost.svelte';
 import { armTurnScope } from '$lib/ai/agentPanel/turnScope';
 import { fileService } from '$lib/files/service/fileService';
 import { workspaceRoot } from '$lib/workspace/workspaceStore';
+import { beginAgentActivity, failAgentActivity, finishAgentActivity } from '$lib/ai/agentPanel/agentActivity.svelte';
 
 export type RegionPayload = {
 	/** 绝对路径（tinymist 解析原样给出） */
@@ -63,11 +64,19 @@ export async function sendRegionEdit(r: RegionPayload, intent: string): Promise<
 	// 先落盘（快照要拿到"轮次前"的真实内容），再快照，再发
 	await agentHost.current?.flushPendingSave();
 	await armTurnScope([r.file]);
-	// AGENT 面板先于整轮结束弹出来：否则桌面端只有画布转圈，用户看不到任何进展
-	window.dispatchEvent(new CustomEvent('typwriter:agent-show'));
-	await agentSession.send(buildRegionPrompt(r, intent), [], []);
-	// agent 把改动写在了磁盘上：拉回打开的缓冲，编辑器/预览即刻可见（回退按钮不依赖这步）
-	await refreshChangedBuffers([r.file]);
-	// 面板在发送时已经拉起；这里再发一次是兜底（面板可能被用户中途关掉）
-	window.dispatchEvent(new CustomEvent('typwriter:agent-show'));
+	// 轻量活动条：不抢主视图；用户点「查看」或设置里开启自动打开时才展开 AGENT 面板。
+	// 需要用户作答（permission）或发送失败时例外，那些会强制打开。
+	beginAgentActivity({ file: r.file, fromLine: r.fromLine, toLine: r.toLine, intent });
+	// nativeBridge.send() 在**第一个** assistant/message 就返回（不是整轮结束），
+	// 活动条只能等 DSH 的 turn/end 事件（nativeBridge 会转发）再收；ACP 桥没有该事件，按 send 返回兜底。
+	const nativeSession = typeof (globalThis as { texpileSession?: unknown }).texpileSession !== 'undefined';
+	try {
+		await agentSession.send(buildRegionPrompt(r, intent), [], []);
+		// agent 把改动写在了磁盘上：拉回打开的缓冲，编辑器/预览即刻可见（回退按钮不依赖这步）
+		await refreshChangedBuffers([r.file]);
+		if (!nativeSession) finishAgentActivity();
+	} catch (e) {
+		failAgentActivity(e instanceof Error ? e.message : String(e));
+		throw e;
+	}
 }

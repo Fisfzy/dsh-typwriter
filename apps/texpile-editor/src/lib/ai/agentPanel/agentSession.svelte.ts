@@ -115,6 +115,12 @@ export class AgentSession {
 			else if (e.update.sessionUpdate !== 'user_message_chunk' || this.replaying) this.items = applyUpdate(this.items, e.update);
 		} else if (e.type === 'permission') {
 			this.asks = [...this.asks, { id: e.id, title: toolTitle(e.toolCall?.title ?? ''), options: e.options }];
+			// 需要用户作答：这是唯一必须抢视图的情况，否则一轮会一直等在这里
+			try {
+				window.dispatchEvent(new CustomEvent('typwriter:agent-show'));
+			} catch {
+				/* ignore */
+			}
 		} else {
 			this.asks = this.asks.filter((a) => a.id !== e.id);
 		}
