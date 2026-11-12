@@ -192,7 +192,7 @@
 <div class="border-surface-200-800 flex items-start justify-between gap-6 border-b py-4">
 	<div class="min-w-0">
 		<div class="text-sm">代理工作区</div>
-		<div class="text-muted text-xs">论文助手读写哪个文件夹；会话也按这个目录归档。</div>
+		<div class="text-muted text-xs">论文助手读写哪个文件夹；会话会绑定到该目录对应的 DSH 工作区（DSH 侧栏可见）。自定义目录须已存在。</div>
 	</div>
 	<div class="flex shrink-0 flex-col items-end gap-2">
 		<div class="flex gap-1">

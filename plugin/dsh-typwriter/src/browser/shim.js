@@ -1005,11 +1005,36 @@
       });
     }
 
+    // 目录 -> DSH Workspace：先 workspace/create（幂等），再用 workspaceId 建会话。
+    // 只传 cwd 的会话"拥有目录"但不属于任何 Workspace，DSH 侧栏永远看不到（孤儿会话）。
+    var workspaceIds = Object.create(null);
+    function workspaceFor(cwd) {
+      var key = String(cwd).toLowerCase();
+      if (workspaceIds[key]) return Promise.resolve(workspaceIds[key]);
+      return call('workspace/create', { request: { path: cwd } }).then(function (v) {
+        var w = v && v.workspace;
+        if (!w || !w.workspaceId) throw new Error('workspace/create 未返回 workspaceId');
+        workspaceIds[key] = w.workspaceId;
+        return w.workspaceId;
+      });
+    }
+
     return {
       available: function () { return true; },
-      // 会话生命周期：建在指定目录（= DSH 工作区原生会话）；不传 sessionId 则服务端新建
+      // 会话生命周期：绑定到"指定目录对应的 DSH Workspace"；不传 sessionId 则服务端新建。
+      // workspace/create 失败（目录不可用等）时回退旧的 cwd 方式，至少会话还能用。
       create: function (opts) {
-        return call('session/create', { request: { cwd: opts && opts.cwd, sessionId: opts && opts.sessionId } });
+        var cwd = opts && opts.cwd;
+        var sid = opts && opts.sessionId;
+        if (!cwd) return call('session/create', { request: { sessionId: sid } });
+        return workspaceFor(cwd)
+          .then(function (workspaceId) {
+            return call('session/create', { request: { workspaceId: workspaceId, sessionId: sid } });
+          })
+          .catch(function (e) {
+            dbg('session workspace/create FAIL -> cwd fallback: ' + String((e && e.message) || e).slice(0, 200));
+            return call('session/create', { request: { cwd: cwd, sessionId: sid } });
+          });
       },
       prompt: function (sessionId, text) {
         return call('session/prompt', {

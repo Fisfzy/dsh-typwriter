@@ -4,7 +4,7 @@ import type { AcpEvent, ChatInfo, PromptResult, StartResult } from './agentPanel
 export type AcpBridge = {
 	detect(): Promise<Record<string, boolean>>;
 	/** fresh：开一条全新空白会话（「开新对话」）；省略时按桥自己的粘性/接续规则选会话 */
-	start(opts?: { fresh?: boolean }): Promise<StartResult>;
+	start(opts?: { fresh?: boolean; cwd?: string }): Promise<StartResult>;
 	prompt(blocks: unknown[]): Promise<PromptResult>;
 	cancel(): void;
 	answer(id: string, optionId: string | null): void;

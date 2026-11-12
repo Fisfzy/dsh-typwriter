@@ -9,6 +9,7 @@ import { collectTurnChanges, armTurnScope, releaseTurnScope, turnScopeArmed } fr
 import { agentHost } from './agentHost.svelte';
 import { settings, updateSettingsSettled } from '$lib/settings';
 import { workspaceRoot } from '$lib/workspace/workspaceStore';
+import { resolveAgentWorkspace } from './agentWorkspace';
 import { agentUnavailable } from './agentAvailability';
 import { attachedBlocks } from './attach/attached';
 import { imageBlocks } from './attach/pastedImages';
@@ -61,6 +62,10 @@ export class AgentSession {
 	private replaying = false;
 	/** a Stop pressed while the save before a turn runs, when main has no turn yet to stop */
 	private stopAsked = false;
+	/** AGENT 实际绑定的目录（= DSH Workspace 路径）；自定义代理工作区不可用时回退论文文件夹 */
+	agentWorkspace = $state<string | null>(null);
+	/** 回退原因（仅用于面板提示） */
+	agentWorkspaceNote = $state('');
 
 	// 原生优先：DSH 宿主里 window.texpileSession 在（同源 Gateway），会话即 DSH 工作区
 	// 原生会话——侧栏互通、免 acp 子进程冷启动；不在（独立 dev 页）时回落 ACP 子进程
@@ -86,7 +91,12 @@ export class AgentSession {
 		this.chat = null;
 		this.usage = null;
 		this.state = 'starting';
-		const r = await bridge.start(opts);
+		// 先解析代理工作区：默认论文文件夹，设置里 custom 且目录有效时用自定义目录。
+		// 会话用这个目录对应的 DSH Workspace 创建，DSH 侧栏才能看到。
+		const workspace = await resolveAgentWorkspace(root);
+		this.agentWorkspace = workspace.path;
+		this.agentWorkspaceNote = workspace.fallback ? (workspace.reason ?? '') : '';
+		const r = await bridge.start({ ...opts, cwd: workspace.path });
 		if (conversation !== this.conversation) return;
 		if (r.ok) this.agent = r.agent;
 		else {

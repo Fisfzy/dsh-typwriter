@@ -81,5 +81,11 @@
 		/>
 		圈选发送后自动打开 AGENT 面板
 	</label>
+	{#if agentSession.agentWorkspace}
+		<p class="text-muted truncate px-1 text-[11px]" title={agentSession.agentWorkspace}>AGENT 工作区：{agentSession.agentWorkspace}</p>
+	{/if}
+	{#if agentSession.agentWorkspaceNote}
+		<p class="text-warning-ink px-1 text-[11px]">{agentSession.agentWorkspaceNote}（已回退论文文件夹）</p>
+	{/if}
 	<p class="text-muted px-1 text-[11px] leading-relaxed">接续会回放历史消息与工具步骤，上下文延续；这些会话与 DSH 侧栏完全同步。</p>
 </div>

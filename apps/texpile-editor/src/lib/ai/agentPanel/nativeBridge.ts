@@ -22,6 +22,8 @@ type SessionApi = {
 // 会话粘性：面板开合 / 页面重载后仍回到"当前正在用的那个"会话，而不是永远吸附最新。
 // 模块级 + localStorage 双层：前者管面板开合，后者管整页刷新。换工作区由 cwd 校验拦下。
 const PIN_KEY = 'texpile:agent-session-pin';
+/** 本次面板实际使用的 AGENT 目录（= 会话 cwd / DSH Workspace 路径）；start 时设置 */
+let activeRoot = '';
 let pinnedSessionId: string | null = null;
 try {
 	pinnedSessionId = JSON.parse(localStorage.getItem(PIN_KEY) ?? 'null') as string | null;
@@ -233,8 +235,7 @@ export function nativeSessionBridge(): AcpBridge | undefined {
 		cancelFollow = null;
 		sessionId = id;
 		streamedLen = 0;
-		const root = (workspaceRoot.current ?? '').replace(/\\/g, '/');
-		if (root) pinSession(root, id);
+		if (activeRoot) pinSession(activeRoot, id);
 		// takesSelection：视觉/源码编辑器的划选以 pill 跟随消息（native 侧序列化进文本，见 prompt）
 		emit?.({
 			type: 'state',
@@ -254,10 +255,11 @@ export function nativeSessionBridge(): AcpBridge | undefined {
 
 	const bridge: AcpBridge = {
 		detect: async () => ({ dsh: true }),
-		async start(opts?: { fresh?: boolean }) {
+		async start(opts?: { fresh?: boolean; cwd?: string }) {
 			// 统一成正斜杠：workspaceRoot 给的是 Windows 反斜杠路径，而 DSH 的会话 cwd 幂等
 			// 采纳按字面比对——斜杠方向不一致会被当成"别人的目录"拒绝（实测报 belongs to）
-			const root = (workspaceRoot.current ?? '').replace(/\\/g, '/');
+			const root = (opts?.cwd ?? workspaceRoot.current ?? '').replace(/\\/g, '/');
+			activeRoot = root;
 			if (!root) return { ok: false as const, reason: 'no-folder' as const };
 			try {
 				const mine = (await session.list()).filter((c) => (c.cwd ?? '').replace(/\\/g, '/').toLowerCase() === root.toLowerCase());
@@ -344,7 +346,7 @@ export function nativeSessionBridge(): AcpBridge | undefined {
 			/* 原生会话没有 ACP config 表面 */
 		},
 		async chats(): Promise<ChatInfo[]> {
-			const root = (workspaceRoot.current ?? '').replace(/\\/g, '/').toLowerCase();
+			const root = (activeRoot || (workspaceRoot.current ?? '')).replace(/\\/g, '/').toLowerCase();
 			const list = await session.list();
 			return (
 				list
