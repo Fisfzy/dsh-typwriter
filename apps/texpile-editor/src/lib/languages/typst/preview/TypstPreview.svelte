@@ -186,6 +186,23 @@
 				toaster.error({ title: typeof d.value === 'string' ? d.value : '复制为源码失败', duration: 5000 });
 			} else if (d.type === 'copy-source-sent' && d.value && typeof d.value === 'object') {
 				copySelectionText = typeof d.value.text === 'string' ? d.value.text : '';
+			} else if (d.type === 'copy-request' && d.value && typeof d.value === 'object') {
+				// Ctrl+C：预览页已经用 ClipboardItem(promise) 占住剪贴板，这里解析源码后回填
+				const id = typeof d.value.id === 'string' ? d.value.id : '';
+				copySelectionText = typeof d.value.text === 'string' ? d.value.text : '';
+				startCopyCollection(
+					async (a, b) => {
+						let source = '';
+						try {
+							source = await copySourceText(a, b);
+						} catch {
+							source = copySelectionText.trim() ? `$${copySelectionText.trim()}$` : '';
+						}
+						frame?.contentWindow?.postMessage({ channel: CHANNEL, type: 'copy-result', value: { id, text: source } }, '*');
+					},
+					() => frame?.contentWindow?.postMessage({ channel: CHANNEL, type: 'copy-result', value: { id, text: '' } }, '*'),
+					6000
+				);
 			}
 		}
 		win.addEventListener('message', onMessage);
@@ -318,16 +335,21 @@
 	}
 
 	/** 两个源码端点夹出的源码片段：公式自动补 `$…$`，粘贴回可视编辑器就会变成公式节点 */
+	async function copySourceText(a: JumpCorner, b: JumpCorner): Promise<string> {
+		if (a.filepath !== b.filepath) throw new Error('选区跨越了文件');
+		const text = await fileService.readText(a.filepath);
+		const start = Math.min(copyOffset(text, a), copyOffset(text, b));
+		const end = Math.max(copyOffset(text, a), copyOffset(text, b));
+		let clip = text.slice(start, end);
+		if (!clip.trim() || clip.length > 2000) clip = copySelectionText.trim();
+		if (!clip) throw new Error('没有选中可复制的内容');
+		if (insideMath(text, start) && !clip.trim().startsWith('$')) clip = `$${clip}$`;
+		return clip;
+	}
+
 	async function copySourceRange(a: JumpCorner, b: JumpCorner): Promise<void> {
 		try {
-			if (a.filepath !== b.filepath) throw new Error('选区跨越了文件');
-			const text = await fileService.readText(a.filepath);
-			const start = Math.min(copyOffset(text, a), copyOffset(text, b));
-			const end = Math.max(copyOffset(text, a), copyOffset(text, b));
-			let clip = text.slice(start, end);
-			if (!clip.trim() || clip.length > 2000) clip = copySelectionText.trim();
-			if (!clip) throw new Error('没有选中可复制的内容');
-			if (insideMath(text, start) && !clip.trim().startsWith('$')) clip = `$${clip}$`;
+			const clip = await copySourceText(a, b);
 			if (!(await writeClipboardText(clip))) throw new Error('剪贴板不可写');
 			toaster.info({
 				title: '已复制源码，粘贴到正文会按 Typst 解析（公式保留上下标）',

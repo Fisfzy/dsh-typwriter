@@ -226,6 +226,41 @@ function injection(opts) {
 		clearTimeout(wheelZoomReport);
 		wheelZoomReport = setTimeout(function () { reply('zoom', zoomPercent()); }, 50);
 	}, { capture: true, passive: true });
+	// Ctrl+C 复制：预览里选中的是渲染字形，默认剪贴板只有视觉文本。这里把选区两端映射回
+	// 源码（复用 agent-click 通道），再用 clipboard.write(ClipboardItem(promise)) 异步替换为
+	// 源码；权限不可用时保留浏览器默认的纯文本，不至于更糟。
+	var pendingCopy = Object.create(null);
+	var copySeq = 0;
+	document.addEventListener('copy', function (e) {
+		try {
+			var sel = window.getSelection();
+			if (!sel || sel.rangeCount === 0 || sel.isCollapsed) return;
+			var rects = Array.prototype.slice.call(sel.getRangeAt(0).getClientRects()).filter(function (r) {
+				return r.width > 1 && r.height > 1;
+			});
+			if (!rects.length) return;
+			var rendered = sel.toString();
+			if (!rendered.trim()) return;
+			try { e.clipboardData && e.clipboardData.setData('text/plain', rendered); } catch (err) {}
+			e.preventDefault();
+			var first = rects[0], last = rects[rects.length - 1];
+			var sx = first.left + Math.min(2, first.width / 2), sy = first.top + first.height / 2;
+			var ex = last.right - Math.min(2, last.width / 2), ey = last.top + last.height / 2;
+			var id = 'copy-' + ++copySeq;
+			var settle = null;
+			var promise = new Promise(function (resolve) { settle = resolve; });
+			pendingCopy[id] = { resolve: function (text) { settle(text ? new Blob([text], { type: 'text/plain' }) : new Blob([rendered], { type: 'text/plain' })); if (pendingCopy[id]) delete pendingCopy[id]; } };
+			try {
+				if (navigator.clipboard && navigator.clipboard.write && typeof ClipboardItem !== 'undefined') {
+					navigator.clipboard.write([new ClipboardItem({ 'text/plain': promise })]).catch(function () {});
+				}
+			} catch (err) {}
+			parent.postMessage({ channel: CHANNEL, type: 'copy-request', value: { id: id, text: rendered } }, '*');
+			setTimeout(function () { window.postMessage({ channel: CHANNEL, type: 'agent-click', x: sx, y: sy }, '*'); }, 120);
+			setTimeout(function () { window.postMessage({ channel: CHANNEL, type: 'agent-click', x: ex, y: ey }, '*'); }, 260);
+			setTimeout(function () { if (pendingCopy[id]) pendingCopy[id].resolve(rendered); }, 4000);
+		} catch (err) {}
+	}, true);
 	window.addEventListener('message', function (e) {
 		var m = e.data;
 		if (!m || typeof m !== 'object' || m.channel !== CHANNEL) return;
@@ -234,6 +269,13 @@ function injection(opts) {
 		else if (m.type === 'freeze') jumpFreezeUntil = Date.now() + (typeof m.value === 'number' ? m.value : 1500);
 		else if (m.type === 'query') reply('status', status());
 		else if (m.type === 'invert') document.documentElement.classList.toggle('texpile-inverted', !!m.value);
+		else if (m.type === 'copy-result') {
+			var pend = pendingCopy[String(m.value && m.value.id)];
+			if (pend) {
+				delete pendingCopy[String(m.value.id)];
+				pend.resolve(String((m.value && m.value.text) || ''));
+			}
+		}
 		else if (m.type === 'copy-source') {
 			// 「复制为源码」：选区端点先换算成查看器页内坐标，再借 agent-click 的同一条
 			// 映射链发两个 src-point；LSP 回来的源码位置由 app 侧消费（不跳编辑器）。
