@@ -8,6 +8,7 @@ import type { SelectionFormatButton } from '$lib/editor/selectionToolbarRow';
 import { settings } from '$lib/settings';
 import { observe } from '$lib/runes/observe.svelte';
 import { selectionToolbarRow } from '$lib/editor/selectionToolbarRow';
+import { agentEditService } from '$lib/ai/agentSelectionEdit.svelte';
 import type { CommentAnchor } from '$lib/comments/anchor';
 import { visibleBox } from '../visibleBox';
 import { setPmCommentPending, type SourceAnchorFn } from './pmComments';
@@ -110,7 +111,8 @@ export function pmSelectionToolbar(onAdd: (anchor: CommentAnchor | null) => void
 				const formatting = false;
 				// turned off in Preferences: only the comment half goes
 				const commenting = settings.current.commentPill !== false;
-				if ((!formatting && !commenting) || !(sel instanceof TextSelection) || sel.empty) {
+				const agent = !!agentEditService.current?.available();
+				if ((!formatting && !commenting && !agent) || !(sel instanceof TextSelection) || sel.empty) {
 					hide();
 					return;
 				}

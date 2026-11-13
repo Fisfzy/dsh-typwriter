@@ -17,20 +17,33 @@ export type RegionPayload = {
 	toLine: number;
 	/** 圈选来源：预览框选 / 视觉编辑器划选 */
 	via: 'preview-box' | 'visual-selection';
+	/** 编辑器划选时的精确字符范围（0 基，[fromChar,toChar)），有它就能只改选中的片段 */
+	fromChar?: number;
+	toChar?: number;
+	/** 选中原文，直接给 AGENT，省掉 read/grep，也钉死"只替换这段" */
+	quote?: string;
 };
 
 /** 面板既有两种机器可读上下文的合体：file://#L 行范围（attachedBlocks）+ 明确的修改指令 */
 export function buildRegionPrompt(r: RegionPayload, intent: string): string {
 	const uri = `file://${r.file.replace(/\\/g, '/')}#L${r.fromLine}:${r.toLine}`;
 	const via = r.via === 'preview-box' ? '预览框选' : '视觉划选';
-	return [
-		`[AG-EDIT] ${uri}`,
-		`[方式] ${via}`,
-		`[意图] ${intent.trim()}`,
-		'只允许修改上述行范围内的源码：不要新增原文没有的信息、解释或修饰；不要重写标题/图注/表格/公式（除非意图明确要求）。',
+	const lines = [`[AG-EDIT] ${uri}`, `[方式] ${via}`, `[意图] ${intent.trim()}`];
+	if (r.fromChar !== undefined && r.toChar !== undefined) {
+		lines.push(`[字符范围] 上述行内第 ${r.fromChar}..${r.toChar} 个字符（0 基，左闭右开）`);
+	}
+	if (r.quote) {
+		lines.push('[选中原文]', '<<<', r.quote, '>>>');
+	}
+	lines.push(
+		r.fromChar !== undefined
+			? '只允许替换 <<< >>> 内的这段字符；即使选中的只是一整个标题或段落的一小部分，也不要重写整行/整段。'
+			: '只允许修改上述行范围内的源码：不要新增原文没有的信息、解释或修饰；不要重写标题/图注/表格/公式（除非意图明确要求）。',
+		'选中原文和上下文已经给出：不要调用 read/grep 重新读取该文件；直接调用一次 edit 完成修改，不要额外验证或重复读取，以便尽快返回。',
 		'不得编辑该文件范围外的内容，也不得改动其他文件。若意图必须涉及范围外改动，或删除/新增 <label> 需要修 @ref 引用，不要直接改，也不要在本轮调用提问/等待确认的工具；直接在回复正文说明需要改哪里，等用户下一条消息确认。唯一例外是删除引用后为保持可编译必须做的最小 @ref 修复。',
 		'意图不明确时按最小、最保守的改动执行，并在回复里说明你的假设；不要调用 ask_user_question 等提问工具。'
-	].join('\n');
+	);
+	return lines.join('\n');
 }
 
 let detachScopeGuard: (() => void) | null = null;
@@ -94,12 +107,28 @@ export async function sendRegionEdit(r: RegionPayload, intent: string, highlight
 			const after = await fileServiceRead(r.file);
 			if (after === null) return;
 			const violation = outOfRange(before, after, r.fromLine, r.toLine);
-			if (!violation) return;
+			// 有精确字符范围时再按字符检查：标题/整段被整行重写也会在这里被抓到
+			let charOut = false;
+			if (r.fromChar !== undefined && r.toChar !== undefined) {
+				let p = 0;
+				while (p < before.length && p < after.length && before[p] === after[p]) p++;
+				let sfx = 0;
+				while (sfx < before.length - p && sfx < after.length - p && before[before.length - 1 - sfx] === after[after.length - 1 - sfx])
+					sfx++;
+				const changedFrom = p;
+				const changedTo = before.length - sfx;
+				charOut = changedFrom < r.fromChar || changedTo > r.toChar;
+			}
+			if (!violation && !charOut) return;
 			const name = r.file.split(/[\\/]/).pop() || r.file;
-			const oldLo = Math.min(violation.oldStart, violation.oldEnd);
-			const oldHi = Math.max(violation.oldStart, violation.oldEnd);
-			const where = violation.oldStart <= violation.oldEnd ? `L${oldLo}–${oldHi}` : `在第 ${violation.newStart} 行附近`;
-			const message = `${name} 在圈选范围 L${r.fromLine}–${r.toLine} 之外（${where}）被改动`;
+			const message = charOut
+				? `${name} 的改动超出了选中的第 ${r.fromChar}..${r.toChar} 个字符（整行/整段被重写）`
+				: (() => {
+						const oldLo = Math.min(violation!.oldStart, violation!.oldEnd);
+						const oldHi = Math.max(violation!.oldStart, violation!.oldEnd);
+						const where = violation!.oldStart <= violation!.oldEnd ? `L${oldLo}–${oldHi}` : `在第 ${violation!.newStart} 行附近`;
+						return `${name} 在圈选范围 L${r.fromLine}–${r.toLine} 之外（${where}）被改动`;
+					})();
 			async function revert(): Promise<void> {
 				await agentHost.current?.writeText(r.file, before);
 			}

@@ -4,6 +4,7 @@ import type { Extension } from '@codemirror/state';
 import { settings } from '$lib/settings';
 import { observe } from '$lib/runes/observe.svelte';
 import { selectionToolbarRow, type SelectionToolbarRow } from '$lib/editor/selectionToolbarRow';
+import { agentEditService } from '$lib/ai/agentSelectionEdit.svelte';
 import { visibleBox } from '../visibleBox';
 
 /** the row fades in rather than flashing under the pointer for every drag it passes through */
@@ -78,8 +79,9 @@ export function cmSelectionToolbar(onAdd: (from: number, to: number) => void, la
 					key: 'cm-comment-add',
 					read: (view) => {
 						const sel = view.state.selection.main;
-						// turned off in Preferences: the row never appears
-						if (settings.current.commentPill === false || sel.empty) return null;
+						// 批注被关掉时仍然要给「交给 AGENT 修改」留位置；两者都没有才不出现
+						if (settings.current.commentPill === false && !agentEditService.current?.available()) return null;
+						if (sel.empty) return null;
 						if (this.added && this.added.from === sel.from && this.added.to === sel.to) return null;
 						const a = view.coordsAtPos(sel.from);
 						const b = view.coordsAtPos(sel.to);

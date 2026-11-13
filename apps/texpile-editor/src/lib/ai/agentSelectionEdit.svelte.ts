@@ -14,6 +14,9 @@ export type AgentEditCardState = {
 	snippet: string;
 	/** 选区在屏幕上的外接矩形（待修改区域动效用） */
 	rect: AgentRegionRect;
+	/** 可视化编辑器里的 PM 位置：源码 offset ≠ PM pos，装饰器要用这一对 */
+	pmFrom: number;
+	pmTo: number;
 };
 
 export type AgentSelectionEditService = {

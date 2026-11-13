@@ -83,7 +83,7 @@ export function selectionToolbarRow(
 			}
 			commentButton.hidden = off.hidden = !parts.comment;
 			// 只有 Typst 可视化文档、非 guest、有 AGENT 桥时才出现
-			agentEdit.hidden = !parts.comment || !agentEditService.current?.available();
+			agentEdit.hidden = !agentEditService.current?.available();
 			agentEdit.disabled = !!agentEditService.current?.busy();
 			commentButton.classList.toggle('cm-comment-add-gap', parts.format && format.length > 0);
 			dom.classList.toggle('cm-comment-add-card', parts.format && format.length > 0);

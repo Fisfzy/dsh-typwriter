@@ -21,6 +21,7 @@ import { cmSyntaxHighlight } from '$lib/editor/source/cmHighlight';
 import { languages as cmlangdata } from '@codemirror/language-data';
 import { searchKeymap } from '@codemirror/search';
 import { closeSearchPanelAnimated, texpileSearch, toggleSearchPanel } from '$lib/editor/source/extensions/search-panel/searchPanel.svelte';
+import { agentEditHighlightField } from '$lib/editor/source/extensions/agentEditHighlight';
 import { openSearchPanel, searchPanelOpen } from '@codemirror/search';
 import { latexAutocomplete, latexIntellisense } from '$lib/languages/latex/intellisense/intellisense';
 import { foldMarkerDom, foldMarkerTheme } from '$lib/languages/latex/intellisense/fold';
@@ -223,6 +224,7 @@ export function buildSourceExtensions(deps: SourceSetupDeps): Extension[] {
 		synctexFlash(), // flash the line jumped to by SyncTeX inverse search / Find-in-Files
 		// compact find/replace widget, floated top-right (styles in SourceEditor)
 		texpileSearch(),
+		agentEditHighlightField,
 		keymap.of([
 			{ key: 'Mod-f', run: toggleSearchPanel },
 			{ key: 'Mod-h', run: openFindReplace },

@@ -6,6 +6,7 @@ import { Fragment, Slice, type Node as PmNode } from 'prosemirror-model';
 import { typstToProseMirror } from './convert/converter';
 import { typstCopyPlugin } from './clipboard';
 import { parseCarryPlugin } from '$lib/editor/visual/parseCarry';
+import { agentEditHighlightPlugin } from '$lib/editor/visual/extensions/agentEditHighlight';
 import { labelRenameUndo } from '$lib/editor/visual/repointRefs';
 import { createSuggestPlugin } from '$lib/editor/visual/extensions/suggest/suggestPlugin';
 import { selectAllScoped } from '$lib/editor/visual/selectAllScoped';
@@ -276,6 +277,7 @@ export function typstEditorPlugins(setup: TypstEditorSetup): Plugin[] {
 		spellLanguage
 	} = setup;
 	return [
+		agentEditHighlightPlugin,
 		parseCarryPlugin,
 		labelRenameUndo,
 		...pluginEditorPlugins('atStart'),
