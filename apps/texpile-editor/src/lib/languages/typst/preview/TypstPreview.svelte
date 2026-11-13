@@ -9,7 +9,16 @@
 	// channel between us is postMessage, and the bridge on the far side is one we injected. That is
 	// what lets the zoom control below drive a viewer we cannot otherwise touch.
 	import { tip } from '$lib/components/tooltip.svelte';
-	import { ZoomIn, ZoomOut, Crosshair, FileOutput, PictureInPicture2, RefreshCw, SquareDashedMousePointer } from '@lucide/svelte';
+	import {
+		ZoomIn,
+		ZoomOut,
+		Crosshair,
+		FileOutput,
+		PictureInPicture2,
+		RefreshCw,
+		SquareDashedMousePointer,
+		ClipboardCopy
+	} from '@lucide/svelte';
 	import { typstExport } from '../export/dialog/typstExportState.svelte';
 	import type { Snippet } from 'svelte';
 	import PreviewToolbar, { type PreviewToolbarPlace } from '$lib/preview/PreviewToolbar.svelte';
@@ -26,6 +35,9 @@
 	import { askForProgram, tinymistMissing } from '$lib/modals/window/missingProgram/missingProgram.svelte';
 	import { m } from '$lib/paraglide/messages';
 	import { addTypstDiagnosticsListener } from '../intellisense/lspClient';
+	import { fileService } from '$lib/files/service/fileService';
+	import { toaster } from '$lib/modals/toaster-svelte';
+	import { startCopyCollection, cancelCopyCollection, type JumpCorner } from './agentCanvas/regionResolve';
 
 	type Props = {
 		/** `host:port` of the running preview server, or null while it is still starting */
@@ -148,6 +160,8 @@
 		zoom: number | null;
 	};
 	let status = $state<FrameStatus | null>(null);
+	/** 复制为源码时，预览页回传的纯文本选区（源码映射失败时兜底用） */
+	let copySelectionText = '';
 	// 模板里的 `status` 是同名 snippet，脚本里另起别名给画布判断"页面已渲染"
 	const pageRendered = $derived(!!status && status.pages > 0);
 
@@ -167,6 +181,12 @@
 				status = d.value as FrameStatus;
 				if (typeof status.zoom === 'number') zoom = status.zoom;
 			} else if (d.type === 'error' && typeof d.value === 'string') error = d.value;
+			else if (d.type === 'copy-source-error') {
+				cancelCopyCollection();
+				toaster.error({ title: typeof d.value === 'string' ? d.value : '复制为源码失败', duration: 5000 });
+			} else if (d.type === 'copy-source-sent' && d.value && typeof d.value === 'object') {
+				copySelectionText = typeof d.value.text === 'string' ? d.value.text : '';
+			}
 		}
 		win.addEventListener('message', onMessage);
 		return () => win.removeEventListener('message', onMessage);
@@ -267,6 +287,73 @@
 		if (guestJumpFreezeTick.current === 0) return;
 		frame?.contentWindow?.postMessage({ channel: CHANNEL, type: 'freeze', value: 1500 }, '*');
 	});
+
+	/** LSP 0 基 line/character -> 文本偏移 */
+	function copyOffset(text: string, pos: { line: number; character: number }): number {
+		let offset = 0;
+		for (let line = 0; line < pos.line; line++) {
+			const nl = text.indexOf('\n', offset);
+			if (nl < 0) return text.length;
+			offset = nl + 1;
+		}
+		return Math.min(text.length, offset + pos.character);
+	}
+
+	/** 选区起点是否落在 `$…$` 数学里（数前面未转义的 $，奇数即在数学内） */
+	function insideMath(text: string, offset: number): boolean {
+		let count = 0;
+		for (let i = 0; i < offset; i++) {
+			if (text[i] === '$' && text[i - 1] !== '\\') count++;
+		}
+		return count % 2 === 1;
+	}
+
+	async function writeClipboardText(text: string): Promise<boolean> {
+		try {
+			await navigator.clipboard.writeText(text);
+			return true;
+		} catch {
+			return false;
+		}
+	}
+
+	/** 两个源码端点夹出的源码片段：公式自动补 `$…$`，粘贴回可视编辑器就会变成公式节点 */
+	async function copySourceRange(a: JumpCorner, b: JumpCorner): Promise<void> {
+		try {
+			if (a.filepath !== b.filepath) throw new Error('选区跨越了文件');
+			const text = await fileService.readText(a.filepath);
+			const start = Math.min(copyOffset(text, a), copyOffset(text, b));
+			const end = Math.max(copyOffset(text, a), copyOffset(text, b));
+			let clip = text.slice(start, end);
+			if (!clip.trim() || clip.length > 2000) clip = copySelectionText.trim();
+			if (!clip) throw new Error('没有选中可复制的内容');
+			if (insideMath(text, start) && !clip.trim().startsWith('$')) clip = `$${clip}$`;
+			if (!(await writeClipboardText(clip))) throw new Error('剪贴板不可写');
+			toaster.info({
+				title: '已复制源码，粘贴到正文会按 Typst 解析（公式保留上下标）',
+				description: clip.slice(0, 120),
+				duration: 7000
+			});
+		} catch (e) {
+			const fallback = copySelectionText.trim();
+			if (fallback && (await writeClipboardText(`$${fallback}$`))) {
+				toaster.warning({ title: '源码映射失败，已把选中文字按行内公式复制', duration: 7000 });
+				return;
+			}
+			toaster.error({ title: `复制为源码失败：${e instanceof Error ? e.message : String(e)}`, duration: 6000 });
+		}
+	}
+
+	function copySource(): void {
+		if (!frame) return;
+		copySelectionText = '';
+		startCopyCollection(
+			(a, b) => void copySourceRange(a, b),
+			() => toaster.warning({ title: '复制失败：没解析到选中内容的源码位置', duration: 6000 }),
+			8000
+		);
+		frame.contentWindow?.postMessage({ channel: CHANNEL, type: 'copy-source' }, '*');
+	}
 </script>
 
 <div class="flex h-full w-full flex-col bg-(--pdf-page-area-bg)">
@@ -358,6 +445,18 @@
 			<SquareDashedMousePointer size={16} />
 		</button>
 	{/snippet}
+	{#snippet copySourceButton(place: PreviewToolbarPlace)}
+		<button
+			class:menu-item={place === 'menu'}
+			onclick={() => copySource()}
+			disabled={!frameUrl || !pageRendered}
+			use:tip={'复制选中内容为源码（保留公式格式）'}
+			aria-label="复制选中内容为源码"
+		>
+			<ClipboardCopy size={16} />
+			{#if place === 'menu'}复制为源码{/if}
+		</button>
+	{/snippet}
 	{#snippet popout()}
 		<button onclick={() => onPopout?.()} use:tip={m.wsview_popout_preview()} aria-label={m.wsview_popout_preview()}>
 			<PictureInPicture2 size={16} />
@@ -371,6 +470,7 @@
 			...(controls ? [{ id: 'status', pinned: !!error || !!stall, foldsFirst: true, render: status }] : []),
 			{ id: 'zoom', render: zoomGroup },
 			{ id: 'refresh', render: refreshCompile },
+			{ id: 'copySource', render: copySourceButton },
 			{ id: 'follow', render: follow },
 			{ id: 'agentEdit', render: agentEditToggle },
 			{ id: 'invert', inMenu: true, render: invert },

@@ -83,6 +83,44 @@ export function collectedCount(): number {
 	return collector ? collector.corners.length : 0;
 }
 
+// ---- 复制选中的渲染内容为源码：预览里选中文字后，用两个 src-point 把选区
+// 映射成源码位置，再读源码片段放进剪贴板（公式的上下标/命令因此不丢）。
+type CopyCollector = {
+	corners: JumpCorner[];
+	onDone: (a: JumpCorner, b: JumpCorner) => void;
+	onFail?: () => void;
+	timer: ReturnType<typeof setTimeout>;
+};
+let copyCollector: CopyCollector | null = null;
+
+export function startCopyCollection(onDone: (a: JumpCorner, b: JumpCorner) => void, onFail?: () => void, timeoutMs = 8000): void {
+	cancelCopyCollection();
+	const timer = setTimeout(() => {
+		if (!copyCollector) return;
+		copyCollector = null;
+		onFail?.();
+	}, timeoutMs);
+	copyCollector = { corners: [], onDone, onFail, timer };
+}
+
+export function cancelCopyCollection(): void {
+	if (copyCollector) clearTimeout(copyCollector.timer);
+	copyCollector = null;
+}
+
+/** jumpHandler 里在画布收集之后调用：复制流程优先消费两次跳转，不让编辑器跟着跳。 */
+export function consumeCopyJump(jump: { filepath?: string; start?: [number, number] | null } | null): boolean {
+	if (!copyCollector || !jump?.filepath || !jump.start) return false;
+	copyCollector.corners.push({ filepath: jump.filepath, line: jump.start[0], character: jump.start[1] });
+	if (copyCollector.corners.length < 2) return true;
+	const [a, b] = copyCollector.corners;
+	const done = copyCollector.onDone;
+	clearTimeout(copyCollector.timer);
+	copyCollector = null;
+	done(a, b);
+	return true;
+}
+
 /** jumpHandler 最先调用：收集开启时点击解析归画布（返回 true，调用方不再路由去跳编辑器）。 */
 export function consumeJump(jump: { filepath?: string; start?: [number, number] | null } | null): boolean {
 	if (!collector || !jump?.filepath || !jump.start) return false;

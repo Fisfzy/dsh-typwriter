@@ -24,7 +24,7 @@ import {
 import { startTypstPreview, killTypstPreview, scrollTypstPreview } from './previewCommands';
 import { typstProblemsLog } from './previewProblems';
 import { noteFollowScroll } from './followSignal';
-import { consumeJump, deliverJump } from './agentCanvas/regionResolve';
+import { consumeCopyJump, consumeJump, deliverJump } from './agentCanvas/regionResolve';
 import { m } from '$lib/paraglide/messages';
 
 export type TypstPreviewHooks = {
@@ -348,6 +348,8 @@ export class TypstPreviewController {
 				// 画布圈选的角点收集最优先：框选发 intent 时两个合成点击的解析结果归画布，
 				// 不跳编辑器（否则点一下角整个视图就跳走，圈选体验全毁）
 				if (consumeJump(jump)) return;
+				// 「复制为源码」的两个端点也走同一跳转通道，消费后不跳编辑器
+				if (consumeCopyJump(jump)) return;
 				const key = `${jump.filepath}:${jump.start[0]}:${jump.start[1]}`;
 				// 框选的单角交付排在 800ms 去重之前：两个角点可能解析到同一源位，去重会吞掉第二角；
 				// 消费时记入去重账本，同一角点经两通道的重复投递仍被去重拦下

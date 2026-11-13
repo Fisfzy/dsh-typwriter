@@ -234,6 +234,33 @@ function injection(opts) {
 		else if (m.type === 'freeze') jumpFreezeUntil = Date.now() + (typeof m.value === 'number' ? m.value : 1500);
 		else if (m.type === 'query') reply('status', status());
 		else if (m.type === 'invert') document.documentElement.classList.toggle('texpile-inverted', !!m.value);
+		else if (m.type === 'copy-source') {
+			// 「复制为源码」：选区端点先换算成查看器页内坐标，再借 agent-click 的同一条
+			// 映射链发两个 src-point；LSP 回来的源码位置由 app 侧消费（不跳编辑器）。
+			var sel = window.getSelection();
+			if (!sel || sel.rangeCount === 0 || sel.isCollapsed) {
+				reply('copy-source-error', '请先在预览里选中要复制的文字');
+				return;
+			}
+			var rects = Array.prototype.slice.call(sel.getRangeAt(0).getClientRects()).filter(function (r) {
+				return r.width > 1 && r.height > 1;
+			});
+			if (!rects.length) {
+				reply('copy-source-error', '没拿到选区位置');
+				return;
+			}
+			var first = rects[0], last = rects[rects.length - 1];
+			var sx = first.left + Math.min(2, first.width / 2);
+			var sy = first.top + first.height / 2;
+			var ex = last.right - Math.min(2, last.width / 2);
+			var ey = last.top + last.height / 2;
+			reply('copy-source-sent', { text: sel.toString().slice(0, 4000) });
+			// 合成消息复用自己的 agent-click 映射，避免复制逻辑和圈选逻辑各写一份坐标换算
+			window.postMessage({ channel: CHANNEL, type: 'agent-click', x: sx, y: sy }, '*');
+			setTimeout(function () {
+				window.postMessage({ channel: CHANNEL, type: 'agent-click', x: ex, y: ey }, '*');
+			}, 220);
+		}
 		else if (m.type === 'agent-click') {
 			// 画布圈选的角点：直接按查看器自己的映射算出**页内坐标**，走数据面发 src-point，
 			// 由 tinymist 解析后经 LSP 回跳（画布角点就是这么来的）。
