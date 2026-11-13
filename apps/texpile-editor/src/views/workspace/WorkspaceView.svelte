@@ -31,6 +31,7 @@
 	} from '$lib/workspace/editorCommands';
 	import { WorkspaceComments } from './workspaceComments.svelte';
 	import { wireRefiner } from './workspaceRefiner.svelte';
+	import { wireAgentSelectionEdit } from './workspaceAgentEdit.svelte';
 	import { WorkspaceFiles } from './workspaceFiles.svelte';
 	import { WorkspaceDoc } from './workspaceDoc.svelte';
 	import { WorkspaceEditFlow } from './workspaceEditFlow.svelte';
@@ -103,6 +104,7 @@
 	});
 	const commentsCtl = commentsW.ctl;
 	wireRefiner({ comments: commentsW, doc, modes, kind: () => kind, guest: () => guest });
+	wireAgentSelectionEdit({ comments: commentsW, doc, modes, kind: () => kind, guest: () => guest });
 	unsaved.onDiscard = (path) => commentsW.discarded(path);
 	editFlow.installWriteHooks(
 		{

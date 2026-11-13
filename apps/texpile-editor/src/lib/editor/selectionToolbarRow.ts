@@ -8,6 +8,8 @@ import { agentName, refiner } from '$lib/ai/selectionRefiner';
 import { refineAgentsOffered } from '$lib/ai/refineAgents.svelte';
 import { openRefineCard } from '$lib/ai/refineCardState.svelte';
 import { openPreferencesAt } from '$lib/stores/dialogStore';
+import { agentEditService } from '$lib/ai/agentSelectionEdit.svelte';
+import { toaster } from '$lib/modals/toaster-svelte';
 
 function svgIcon(body: string) {
 	return `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${body}</svg>`;
@@ -17,6 +19,10 @@ const REFINE_ICON = svgIcon(
 	'<path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/><path d="M20 3v4"/><path d="M22 5h-4"/><path d="M4 17v2"/><path d="M5 18H3"/>'
 );
 const X_ICON = svgIcon('<path d="M18 6 6 18"/><path d="m6 6 12 12"/>');
+// 魔棒 + 箭头：把选中的内容交给 AGENT 按提示修改
+const AGENT_ICON = svgIcon(
+	'<path d="m12 3 1.9 5.8L20 10.7l-6.1 1.9L12 18.4l-1.9-5.8L4 10.7l6.1-1.9Z"/><path d="M5 19h6"/><path d="m16 17 3 3"/><path d="m19 17-3 3"/>'
+);
 
 export type SelectionFormatButton = { label: string; svg: string; run: () => void; active: () => boolean };
 
@@ -56,6 +62,11 @@ export function selectionToolbarRow(
 	}
 	const format = formatting.map((f) => ({ f, b: button(f.label, f.svg, '', () => f.run()) }));
 	const commentButton = button(commentLabel, COMMENT_ICON, '', comment);
+	const agentEdit = button('交给 AGENT 修改', AGENT_ICON, '', (b) => {
+		if (!agentEditService.current?.start(b.getBoundingClientRect())) {
+			toaster.warning({ title: '这段选区无法映射到源码，请重新划选后再试', duration: 5000 });
+		}
+	});
 	const refine = button('', REFINE_ICON, '', (b) =>
 		refiner.current?.needsAgent ? openPreferencesAt('ai') : openRefineCard(b.getBoundingClientRect())
 	);
@@ -71,6 +82,9 @@ export function selectionToolbarRow(
 				b.setAttribute('aria-pressed', String(parts.format && f.active()));
 			}
 			commentButton.hidden = off.hidden = !parts.comment;
+			// 只有 Typst 可视化文档、非 guest、有 AGENT 桥时才出现
+			agentEdit.hidden = !parts.comment || !agentEditService.current?.available();
+			agentEdit.disabled = !!agentEditService.current?.busy();
 			commentButton.classList.toggle('cm-comment-add-gap', parts.format && format.length > 0);
 			dom.classList.toggle('cm-comment-add-card', parts.format && format.length > 0);
 			const r = refiner.current;
