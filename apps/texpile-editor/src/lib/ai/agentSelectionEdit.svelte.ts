@@ -3,6 +3,8 @@
 import { box } from '$lib/runes/box.svelte';
 import type { RegionPayload } from '$lib/languages/typst/preview/agentCanvas/agentCanvasTurn';
 
+import type { AgentRegionRect } from './agentRegion.svelte';
+
 export type AgentEditCardState = {
 	/** 按钮的屏幕矩形：卡片放在它旁边 */
 	anchor: DOMRect;
@@ -10,6 +12,8 @@ export type AgentEditCardState = {
 	region: RegionPayload;
 	/** 选中的源码片段（卡片里给一眼确认） */
 	snippet: string;
+	/** 选区在屏幕上的外接矩形（待修改区域动效用） */
+	rect: AgentRegionRect;
 };
 
 export type AgentSelectionEditService = {

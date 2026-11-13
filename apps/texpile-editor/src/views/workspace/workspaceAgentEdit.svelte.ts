@@ -5,6 +5,7 @@ import { editorViewStore } from '$lib/stores/editorStore';
 import { sourceAnchorFor } from '$lib/editor/visual/extensions/pmComments';
 import { sendRegionEdit, type RegionPayload } from '$lib/languages/typst/preview/agentCanvas/agentCanvasTurn';
 import { agentEditService, agentEditCard, type AgentSelectionEditService } from '$lib/ai/agentSelectionEdit.svelte';
+import { beginAgentRegion, finishAgentRegion } from '$lib/ai/agentRegion.svelte';
 
 type Wiring = SpanDeps & { guest: () => boolean };
 
@@ -46,16 +47,35 @@ export function wireAgentSelectionEdit(d: Wiring): void {
 			if (!available()) return false;
 			const got = regionFromSelection();
 			if (!got) return false;
-			agentEditCard.current = { anchor, region: got.region, snippet: got.snippet.trim() };
-			return true;
+			const view = editorViewStore.current;
+			const sel = view?.state.selection;
+			if (!view || !sel) return false;
+			try {
+				const a = view.coordsAtPos(sel.from);
+				const b = view.coordsAtPos(sel.to);
+				const left = Math.min(a.left, b.left);
+				const top = Math.min(a.top, b.top);
+				const rect = {
+					left,
+					top,
+					width: Math.max(a.right, b.right) - left,
+					height: Math.max(a.bottom, b.bottom) - top
+				};
+				agentEditCard.current = { anchor, region: got.region, snippet: got.snippet.trim(), rect };
+				return true;
+			} catch {
+				return false;
+			}
 		},
 		async send(prompt) {
-			const region = agentEditCard.current?.region;
-			if (!region) return '没有可发送的选区';
+			const card = agentEditCard.current;
+			if (!card) return '没有可发送的选区';
+			beginAgentRegion('visual', card.rect);
 			try {
-				await sendRegionEdit(region, prompt);
+				await sendRegionEdit(card.region, prompt);
 				return null;
 			} catch (e) {
+				finishAgentRegion('failed');
 				return e instanceof Error ? e.message : String(e);
 			}
 		},

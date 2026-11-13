@@ -10,6 +10,7 @@
 	import { cancelCornerCollection, collectNextJump, startCornerCollection } from './regionResolve';
 	import { sendRegionEdit, type RegionPayload } from './agentCanvasTurn';
 	import { describeRange, type RangeDescription } from './describeRange';
+	import { finishAgentRegion } from '$lib/ai/agentRegion.svelte';
 	import { fileService } from '$lib/files/service/fileService';
 	import AgentIntentCard from './AgentIntentCard.svelte';
 	import { drawRegionBox, drawStroke, normRect, type Pt, type Stroke } from './canvasDraw';
@@ -164,10 +165,12 @@
 		phase = 'sending';
 		error = null;
 		try {
+			const cr = canvas?.getBoundingClientRect();
+			const highlight = cr && region ? { left: cr.left + region.x, top: cr.top + region.y, width: region.w, height: region.h } : undefined;
 			// AGENT 会话启动/发送可能迟迟不返回（DSH 侧冷启动或桥不可用）：给一个上限，
 			// 到点把错误显式抛回画布，避免"发送"按钮永远转圈。
 			await Promise.race([
-				sendRegionEdit(pendingRegion, intent),
+				sendRegionEdit(pendingRegion, intent, highlight),
 				new Promise((_, reject) =>
 					setTimeout(() => reject(new Error('发送超时：AGENT 会话 60 秒内没有响应，请重试或查看 AGENT 面板')), 60000)
 				)
@@ -181,6 +184,7 @@
 			onDone();
 		} catch (e) {
 			phase = 'intent';
+			finishAgentRegion('failed');
 			error = e instanceof Error ? e.message : String(e);
 		}
 	}

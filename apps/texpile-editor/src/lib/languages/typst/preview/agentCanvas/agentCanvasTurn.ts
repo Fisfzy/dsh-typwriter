@@ -7,6 +7,7 @@ import { fileService } from '$lib/files/service/fileService';
 import { workspaceRoot } from '$lib/workspace/workspaceStore';
 import { beginAgentActivity, failAgentActivity, finishAgentActivity, warnScopeViolation } from '$lib/ai/agentPanel/agentActivity.svelte';
 import { outOfRange } from '$lib/ai/agentPanel/scopeGuard';
+import { beginAgentRegion, type AgentRegionRect } from '$lib/ai/agentRegion.svelte';
 
 export type RegionPayload = {
 	/** 绝对路径（tinymist 解析原样给出） */
@@ -59,7 +60,7 @@ async function fileServiceRead(path: string): Promise<string | null> {
 /**
  * 圈选 → AI 修改主入口。抛错时由调用方把消息显示回画布/选区卡上。
  */
-export async function sendRegionEdit(r: RegionPayload, intent: string): Promise<void> {
+export async function sendRegionEdit(r: RegionPayload, intent: string, highlight?: AgentRegionRect): Promise<void> {
 	if (!intent.trim()) throw new Error('先写一句你想让 AI 做什么');
 	const root = workspaceRoot.current;
 	if (!root) throw new Error('没有打开的工作区');
@@ -68,6 +69,8 @@ export async function sendRegionEdit(r: RegionPayload, intent: string): Promise<
 	// 先落盘（快照要拿到"轮次前"的真实内容），再快照，再发
 	await agentHost.current?.flushPendingSave();
 	await armTurnScope([r.file]);
+	// 待修改区域动效：可视化页/预览页共用，只做 opacity 环，轮次结束由 agentRegion 清理
+	if (highlight) beginAgentRegion('preview', highlight);
 	// 轻量活动条：不抢主视图；用户点「查看」或设置里开启自动打开时才展开 AGENT 面板。
 	// 需要用户作答（permission）或发送失败时例外，那些会强制打开。
 	beginAgentActivity({ file: r.file, fromLine: r.fromLine, toLine: r.toLine, intent });

@@ -143,6 +143,7 @@
 	import ContextMenuHost from '$lib/menus/ContextMenuHost.svelte';
 	import RefineCard from '$lib/ai/RefineCard.svelte';
 	import AgentEditCard from '$lib/ai/AgentEditCard.svelte';
+	import AgentRegionHighlight from '$lib/ai/AgentRegionHighlight.svelte';
 	import MissingProgramDialog from '$lib/modals/window/missingProgram/MissingProgramDialog.svelte';
 </script>
 
@@ -179,6 +180,7 @@
 <TooltipHost />
 <RefineCard />
 <AgentEditCard />
+<AgentRegionHighlight />
 <MissingProgramDialog />
 <ContextMenuHost />
 
