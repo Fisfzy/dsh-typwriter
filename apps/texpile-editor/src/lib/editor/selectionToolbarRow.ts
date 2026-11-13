@@ -88,7 +88,7 @@ export function selectionToolbarRow(
 			commentButton.classList.toggle('cm-comment-add-gap', parts.format && format.length > 0);
 			dom.classList.toggle('cm-comment-add-card', parts.format && format.length > 0);
 			const r = refiner.current;
-			refine.hidden = !parts.comment || (!r?.available && !r?.needsAgent);
+			refine.hidden = !r?.available && !r?.needsAgent;
 			refine.disabled = !!r?.busy;
 			// named for its agent; without one, for the way to pick it
 			const offered = refineAgentsOffered();

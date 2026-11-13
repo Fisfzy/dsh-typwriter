@@ -111,7 +111,7 @@ export function cmSelectionToolbar(onAdd: (from: number, to: number) => void, la
 							this.hide();
 							return;
 						}
-						this.row.sync();
+						this.row.sync({ format: false, comment: settings.current.commentPill !== false });
 						this.row.dom.style.display = 'flex';
 						const half = (box.width || this.row.dom.offsetWidth || 48) / 2;
 						this.row.dom.style.top = `${box.top}px`;
