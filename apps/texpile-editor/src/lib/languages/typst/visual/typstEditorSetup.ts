@@ -1,6 +1,6 @@
 // plugin stack, autoformat rules, paste handling, and node views for the Typst visual editor;
 // TypstEditorView.svelte mounts it
-import { Plugin } from 'prosemirror-state';
+import { Plugin, type EditorState } from 'prosemirror-state';
 import type { EditorProps, EditorView } from 'prosemirror-view';
 import { Fragment, Slice, type Node as PmNode } from 'prosemirror-model';
 import { typstToProseMirror } from './convert/converter';
@@ -140,6 +140,100 @@ function pasteTypstSource(view: EditorView, text: string): boolean {
 	}
 }
 
+// 在公式里 Ctrl+C：MathLive 默认只复制它自己的文字，粘到别处就成了纯文本。
+// 捕获阶段拦截，复制整条公式的 Typst 源码 `$…$`；粘贴时 pasteTypstSource 会把它还原成公式节点。
+function inlineMathAt(state: EditorState): PmNode | null {
+	const { $from, from, to } = state.selection;
+	for (let depth = $from.depth; depth >= 0; depth--) {
+		const node = $from.node(depth);
+		if (node.type.name === 'inline_math') return node;
+	}
+	// 点进 MathLive 时选区常常停在节点边界（atom 没有内部光标），看两侧
+	if ($from.nodeAfter?.type.name === 'inline_math') return $from.nodeAfter;
+	if ($from.nodeBefore?.type.name === 'inline_math') return $from.nodeBefore;
+	let found: PmNode | null = null;
+	state.doc.nodesBetween(from, to, (node) => {
+		if (found) return false;
+		if (node.type.name === 'inline_math') {
+			found = node;
+			return false;
+		}
+		return undefined;
+	});
+	return found;
+}
+
+const inlineMathClipboardPlugin = new Plugin({
+	view(view) {
+		function mathNodeFromDom(element: Element | null): PmNode | null {
+			const span = element?.closest('.inline-math') ?? null;
+			if (!span) return null;
+			const pos = view.posAtDOM(span, 0);
+			for (const at of [pos, pos - 1, pos + 1]) {
+				if (at < 0 || at > view.state.doc.content.size) continue;
+				const node = view.state.doc.nodeAt(at);
+				if (node?.type.name === 'inline_math') return node;
+			}
+			return null;
+		}
+
+		function onCopy(event: ClipboardEvent): void {
+			// MathLive 的 copy 发生在它自己的 shadow DOM 里，event.target 会被重定向到 math-field，
+			// 不能靠 target.closest('.inline-math') 判断；先用活动元素映射回 DOM 节点，再退回选区。
+			const target = event.target instanceof Element ? event.target : null;
+			const active = document.activeElement instanceof Element ? document.activeElement : null;
+			const inside = (target !== null && view.dom.contains(target)) || (active !== null && view.dom.contains(active));
+			const math = mathNodeFromDom(active) ?? mathNodeFromDom(target) ?? (inside ? inlineMathAt(view.state) : null);
+			if (!math) return;
+			const source = math.textContent;
+			if (!source.trim()) return;
+			event.preventDefault();
+			// 只写 text/plain：粘贴时走高优先的 Typst 源码解析（带 text/html 会被 ProseMirror 的 HTML 路径接管）
+			event.clipboardData?.setData('text/plain', `$${source}$`);
+		}
+		// MathLive 的 Ctrl+C 不一定派发 copy 事件（它可能直接写剪贴板），所以 keydown 也要拦：
+		// 捕获阶段阻止它，自己找一个复制事件把 `$…$` 写进去。
+		function copyMathNode(): boolean {
+			const active = document.activeElement instanceof Element ? document.activeElement : null;
+			const math = mathNodeFromDom(active);
+			if (!math) return false;
+			const source = math.textContent;
+			if (!source.trim()) return false;
+			function onCopyEvent(ev: ClipboardEvent): void {
+				ev.preventDefault();
+				ev.stopPropagation();
+				ev.clipboardData?.setData('text/plain', `$${source}$`);
+			}
+			document.addEventListener('copy', onCopyEvent, true);
+			try {
+				document.execCommand('copy');
+			} catch {
+				/* 没有 execCommand 时让异步剪贴板兜底 */
+			}
+			document.removeEventListener('copy', onCopyEvent, true);
+			void navigator.clipboard?.writeText(`$${source}$`).catch(() => {});
+			return true;
+		}
+		function onKeyDown(event: KeyboardEvent): void {
+			if (!(event.ctrlKey || event.metaKey) || event.altKey || event.shiftKey) return;
+			if (event.key.toLowerCase() !== 'c') return;
+			const active = document.activeElement instanceof Element ? document.activeElement : null;
+			if (!active?.closest('.inline-math')) return;
+			if (!copyMathNode()) return;
+			event.preventDefault();
+			event.stopImmediatePropagation();
+		}
+		document.addEventListener('copy', onCopy, true);
+		document.addEventListener('keydown', onKeyDown, true);
+		return {
+			destroy() {
+				document.removeEventListener('copy', onCopy, true);
+				document.removeEventListener('keydown', onKeyDown, true);
+			}
+		};
+	}
+});
+
 // html-flavored pastes keep ProseMirror's own path; smart paste reads a code editor's copy itself
 const pasteTypstPlugin = new Plugin({
 	props: {
@@ -201,6 +295,7 @@ export function typstEditorPlugins(setup: TypstEditorSetup): Plugin[] {
 		crossBlockEdits,
 		visualSmartPaste('typst', typSchema, pasteTypstSource),
 		pasteTypstPlugin,
+		inlineMathClipboardPlugin,
 		// flat-list's clipboard plugin is left out: Texpile's own copy (visualSmartPaste) writes lists as it did
 		createListEventPlugin(),
 		createListRenderingPlugin(),
