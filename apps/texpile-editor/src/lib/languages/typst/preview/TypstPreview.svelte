@@ -192,7 +192,7 @@
 				copySelectionText = typeof d.value.text === 'string' ? d.value.text : '';
 				startCopyCollection(
 					async (a, b) => {
-						let source = '';
+						let source: string;
 						try {
 							source = await copySourceText(a, b);
 						} catch {

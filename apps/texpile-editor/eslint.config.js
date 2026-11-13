@@ -329,6 +329,12 @@ export default ts.config(
 			'no-restricted-exports': ['warn', { restrictDefaultExports: { direct: true, named: true } }]
 		}
 	},
+	// Typst 预览框架：视图/工具栏/复制源码桥接/越界横幅都在这一组件里，与 iframe 生命周期绑定；
+	// 拆分会把 postMessage 状态机切碎，按行数拆没有收益
+	{
+		files: ['src/lib/languages/typst/preview/TypstPreview.svelte'],
+		rules: { 'max-lines': 'off' }
+	},
 	// curated/vendored completion data: tables, not logic - line count is not a smell there
 	{
 		files: ['src/lib/languages/latex/intellisense/data/**'],
