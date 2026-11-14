@@ -1,0 +1,77 @@
+\documentclass[11pt,twocolumn]{article}
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath,amssymb,mathtools,physics}
+\usepackage{graphicx}
+\usepackage{booktabs,tabularx,longtable}
+\usepackage{tikz}
+\usepackage{tcolorbox}
+\usepackage{algorithm2e}
+\usepackage{siunitx}
+\usepackage[numbers]{natbib}
+\usepackage{hyperref}
+\usepackage{xeCJK}
+\setCJKmainfont{SimSun}
+
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\norm}[1]{\left\lVert #1 \right\rVert}
+\DeclareMathOperator*{\argmin}{arg\,min}
+\newenvironment{note}{\begin{tcolorbox}[colback=gray!5]}{\end{tcolorbox}}
+
+\begin{document}
+\title{复杂排版论文样例}
+\author{Test}
+\maketitle
+
+\section{引言}
+本文讨论范数 $\norm{x}_2$ 与集合 $x \in \R^n$ 的关系，参考 \cite{ref1}。
+行内还有一个 \(a^2+b^2=c^2\) 的写法。
+
+\input{sections/body}
+
+\begin{equation}
+  \label{eq:main}
+  \argmin_{\theta} \frac{1}{2}\norm{y - X\theta}_2^2 + \lambda \norm{\theta}_1
+  \tag{1}
+\end{equation}
+
+\begin{align}
+  a &= b + c \label{eq:a}\\
+  d &= e - f \label{eq:b}
+\end{align}
+
+\begin{note}
+这是一个 tcolorbox 装饰框。
+\end{note}
+
+\begin{figure}[h]
+  \centering
+  \begin{tikzpicture}
+    \draw (0,0) -- (1,1);
+  \end{tikzpicture}
+  \caption{一个 TikZ 图}
+\end{figure}
+
+\begin{table}[h]
+  \centering
+  \begin{tabular}{lcc}
+    \toprule
+    参数 & 取值 & 单位 \\
+    \midrule
+    $\alpha$ & \SI{9.81}{\meter\per\second\squared} & -- \\
+    \bottomrule
+  \end{tabular}
+  \caption{参数表}
+\end{table}
+
+\begin{algorithm2e}
+  \KwIn{数据 $X$}
+  \KwOut{参数 $\theta$}
+  初始化 $\theta_0$ \;
+  \For{$t=1$ \KwTo $T$}{
+    更新 $\theta_t$ \;
+  }
+\end{algorithm2e}
+
+\bibliographystyle{plain}
+\bibliography{refs}
+\end{document}

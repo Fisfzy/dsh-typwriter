@@ -1,0 +1,31 @@
+\documentclass{article}
+\usepackage{graphicx}
+\begin{document}
+\section{Floats}
+
+Body text before the float, referring to Figure~\ref{fig:a} and
+Table~\ref{tab:a}.
+
+\begin{figure}[htbp]
+\centering
+\rule{4cm}{2cm}
+\caption{A test figure.}
+\label{fig:a}
+\end{figure}
+
+\begin{table}[htbp]
+\centering
+\caption{A test table.}
+\label{tab:a}
+\begin{tabular}{lrr}
+\hline
+Item & Qty & Price \\
+\hline
+Alpha & 10 & 3.20 \\
+Beta & 200 & 0.15 \\
+\hline
+\end{tabular}
+\end{table}
+
+After the floats, \autoref{fig:a} and \autoref{tab:a} again.
+\end{document}

@@ -1,0 +1,48 @@
+% 中文全要素：摘要、关键词、参考文献、定理环境都必须是中文措辞
+\documentclass[UTF8]{ctexart}
+\usepackage{amsmath,amsthm}
+
+\newtheorem{theorem}{定理}
+\newtheorem{lemma}[theorem]{引理}
+
+\begin{document}
+
+\title{含完整中文结构的稿件}
+\author{张三 \and 李四}
+\date{}
+
+\begin{abstract}
+本文检查中文稿件里摘要、关键词与参考文献的措辞是否跟随稿件语言，
+而不是一律印成英文标题。
+\end{abstract}
+
+\keywords{拉泰赫转Word，公式对象，中文排版}
+
+\section{引言}
+\label{sec:cntro}
+
+这是一个中文段落，用来验证正文排版。行内公式 $a+b$ 与行间公式如下：
+
+\begin{equation}
+\int_{0}^{1} f(x)\,\mathrm{d}x = F(1) - F(0)
+\label{eq:cnint}
+\end{equation}
+
+\begin{theorem}
+\label{thm:cn}
+中文定理环境应当显示中文名。
+\end{theorem}
+
+\begin{lemma}
+\label{lem:cn}
+与定理共用计数器的引理。
+\end{lemma}
+
+见第~\ref{sec:cntro} 节、式~\eqref{eq:cnint} 与定理~\ref{thm:cn}。
+
+\begin{thebibliography}{9}
+\bibitem{zk1} 王五. 中文文献条目一. 2020.
+\bibitem{zk2} 赵六. 中文文献条目二. 2021.
+\end{thebibliography}
+
+\end{document}

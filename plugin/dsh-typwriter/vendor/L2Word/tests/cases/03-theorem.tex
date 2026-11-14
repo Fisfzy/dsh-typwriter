@@ -1,0 +1,33 @@
+\documentclass{article}
+\usepackage{amsmath,amsthm}
+\newtheorem{theorem}{Theorem}
+\newtheorem{proposition}{Proposition}
+\newtheorem{lemma}{Lemma}
+\newtheorem{definition}{Definition}
+\begin{document}
+\section{Theorems}
+
+\begin{theorem}[Main]
+For every $\varepsilon > 0$ there is $\delta > 0$ such that $|x| < \delta$
+implies $|f(x)| < \varepsilon$.
+\label{thm:main}
+\end{theorem}
+
+\begin{proposition}
+The set $A$ is closed and bounded.
+\label{prop:one}
+\end{proposition}
+
+\begin{lemma}
+If $A$ is compact then $f(A)$ is compact.
+\end{lemma}
+
+\begin{definition}
+A map $f$ is continuous at $x_{0}$ if $\lim_{x \to x_{0}} f(x) = f(x_{0})$.
+\end{definition}
+
+\begin{proof}
+Take $\delta = \varepsilon/2$. Then by Theorem~\ref{thm:main} the claim
+follows, and Proposition~\ref{prop:one} gives boundedness.
+\end{proof}
+\end{document}

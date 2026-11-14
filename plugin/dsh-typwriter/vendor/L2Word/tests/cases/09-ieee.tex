@@ -1,0 +1,46 @@
+% IEEEtran 风格：摘要用命令形式、关键词用环境、页眉用 \markboth、定理环境自定义
+\documentclass[conference]{IEEEtran}
+\usepackage{amsmath,amsthm}
+
+\newtheorem{theorem}{Theorem}
+\newtheorem{lemma}[theorem]{Lemma}
+
+\begin{document}
+
+\title{An IEEE Style Manuscript}
+\author{Alice Chan and Bob Lee}
+\markboth{IEEE Transactions on Testing, Vol.~1}{Chan and Lee}
+
+\abstract{This abstract is written with the command form, which the LaTeX
+reader drops entirely unless it is extracted first. It must survive.}
+
+\begin{IEEEkeywords}
+latex to word, mathtype, equation object
+\end{IEEEkeywords}
+
+\section{Introduction}
+\label{sec:intro}
+
+See Section~\ref{sec:intro}. The governing relation is
+
+\begin{equation}
+\sigma = E \varepsilon
+\label{eq:hooke}
+\end{equation}
+
+\begin{theorem}
+\label{thm:first}
+Every well formed statement is numbered.
+\end{theorem}
+
+\begin{lemma}
+\label{lem:first}
+A lemma sharing the theorem counter follows it.
+\end{lemma}
+
+\begin{thebibliography}{9}
+\bibitem{k1} A.~Author, \emph{A Book}, 2020.
+\bibitem{k2} B.~Writer, ``A paper,'' \emph{Journal}, 2021.
+\end{thebibliography}
+
+\end{document}

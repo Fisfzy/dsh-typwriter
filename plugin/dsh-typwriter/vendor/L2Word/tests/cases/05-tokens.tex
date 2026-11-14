@@ -1,0 +1,22 @@
+\documentclass{article}
+\usepackage{amsmath,amssymb}
+\begin{document}
+\section{MathType 边界写法}
+
+这些是实测会让 MathType 的 Toggle TeX 静默失败、或把命令印成文字的写法。
+
+纯 token 串（必须能过）：$ab$, $kT$, $H'$, $2T$, $abc$.
+
+空心字母与重音（必须能过）：$\mathbb{R}^{2n}$, $\tilde{x}$, $\bar{x}$, $\hat{H}$.
+
+不支持的宏（S2 应改写成支持的写法）：
+$\widetilde{x} + \overrightarrow{AB}$ 与 $a \allowbreak b$.
+
+\begin{equation}
+\delta := \liminf_{x \to 0} 2 N(x) \left\| x \right\|^{-2}
+\end{equation}
+
+\begin{equation}
+\int_{0}^{T} \left[ \frac{1}{2} \left( \Lambda_{0}^{-1} u, u \right) + N^{*}(-u) \right] dt
+\end{equation}
+\end{document}

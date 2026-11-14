@@ -19,6 +19,8 @@
 		typstProject: boolean;
 		/** the main file is Typst and tinymist can export it (see languages/typst/export) */
 		canExportTypst: boolean;
+		/** the main file is Typst: the Word (MathType) export drives the AGENT panel with a prompt */
+		canExportWord: boolean;
 		canOpenFolder: boolean;
 		canSaveAsTemplate: boolean;
 		canClone?: boolean;
@@ -38,6 +40,7 @@
 		canNewFile,
 		typstProject,
 		canExportTypst,
+		canExportWord = false,
 		canOpenFolder,
 		canSaveAsTemplate,
 		canClone = false,
@@ -142,6 +145,10 @@
 				{/if}
 				{#if canExportTypst}
 					<Menu.Item value="export-typst" class={menuBarItemClass}><Menu.ItemText>{m.typst_export_menu()}</Menu.ItemText></Menu.Item>
+				{/if}
+				{#if canExportWord}
+					<!-- AGENT 驱动：点击后打开 AGENT 面板并预填驱动指令（L2Word 五阶段，公式落地 MathType） -->
+					<Menu.Item value="export-word" class={menuBarItemClass}><Menu.ItemText>导出 Word (MathType)…</Menu.ItemText></Menu.Item>
 				{/if}
 				<!-- under File, where Word and Google Docs keep version history and writers look first -->
 				{#if canLocalHistory}

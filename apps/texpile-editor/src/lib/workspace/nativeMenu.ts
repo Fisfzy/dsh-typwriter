@@ -67,6 +67,8 @@ export type MenuStateInput = {
 	typstProject: boolean;
 	/** File > Export… for a Typst main file */
 	canExportTypst: boolean;
+	/** File > Export Word (MathType): drives the AGENT panel with an L2Word prompt */
+	canExportWord?: boolean;
 	canInsertImage: boolean;
 	insertParts?: { label: string; items: { value: string; label: string }[] }[];
 	canOpenFolder: boolean;

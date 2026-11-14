@@ -8,6 +8,7 @@
 	import { tip } from '$lib/components/tooltip.svelte';
 	import { acpBridge } from '$lib/ai/agentPanel/acpBridge';
 	import { panelTabOff } from '$lib/ai/agentPanel/agentOffer.svelte';
+	import { pendingAgentPrompt } from '$lib/ai/agentPanel/pendingPrompt.svelte';
 
 	type Props = {
 		panes: PaneLayout;
@@ -23,6 +24,11 @@
 	const divided = $derived(!isDesktop() || buttonsAtEnd);
 	// the AGENT pane can run here: the bridge exists and AI is not turned off (same gate as LayoutMenu's items)
 	const agentOn = $derived(!panelTabOff() && !!acpBridge());
+	// 外部入口（文件菜单「导出 Word」等）注入预填指令时，面板没开就先开——注入的文本由
+	// AgentPromptBox 自己消费；这里只负责把门打开
+	$effect(() => {
+		if (pendingAgentPrompt.current && agentOn && !props.panes.agentPaneOpen) props.panes.setAgentPane(true);
+	});
 </script>
 
 {#if props.project}

@@ -1,0 +1,29 @@
+\documentclass[UTF8]{ctexart}
+\usepackage{amsmath}
+\begin{document}
+\section{中文排版}
+
+这是一个中文段落，用来检查正文首行缩进、行距和字体是否符合中文排版习惯。
+行内公式 $a+b$ 与行间公式如下：
+
+\begin{equation}
+\int_{0}^{1} f(x)\,\mathrm{d}x = F(1) - F(0)
+\label{eq:cn}
+\end{equation}
+
+\begin{table}[htbp]
+\centering
+\caption{中文表格测试}
+\label{tab:cn}
+\begin{tabular}{lrr}
+\hline
+项目 & 数量 & 单价 \\
+\hline
+甲 & 10 & 3.20 \\
+乙 & 200 & 0.15 \\
+\hline
+\end{tabular}
+\end{table}
+
+见表~\ref{tab:cn} 与式~\eqref{eq:cn}。
+\end{document}

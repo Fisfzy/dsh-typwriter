@@ -17,6 +17,7 @@
 	import { EditorSelection } from '../../attach/editorSelection.svelte';
 	import { ImageAttachments } from '../../attach/imageAttachments.svelte';
 	import { droppedPaths } from '../../attach/dropPaths';
+	import { consumeAgentPrompt } from '../../pendingPrompt.svelte';
 	import { tip } from '$lib/components/tooltip.svelte';
 	import { m } from '$lib/paraglide/messages';
 	import { agentSession } from '../../agentSession.svelte';
@@ -40,6 +41,11 @@
 	};
 	const props: Props = $props();
 	let text = $state('');
+	// 外部入口（文件菜单的导出 Word 等）注入的预填指令：落到输入框让用户改完自己发
+	$effect(() => {
+		const injected = consumeAgentPrompt();
+		if (injected) text = injected;
+	});
 	const images = new ImageAttachments(() => props.takesImages);
 	const slash = new SlashMenu(
 		() => text,

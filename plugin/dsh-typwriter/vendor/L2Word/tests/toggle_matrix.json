@@ -1,0 +1,170 @@
+[
+  {
+    "i": 1,
+    "name": "分式",
+    "objects": 1,
+    "residual_delim": false,
+    "ok": true,
+    "text": "◊"
+  },
+  {
+    "i": 2,
+    "name": "根式(可选指数)",
+    "objects": 0,
+    "residual_delim": false,
+    "ok": false,
+    "text": ""
+  },
+  {
+    "i": 3,
+    "name": "求和/积分",
+    "objects": 1,
+    "residual_delim": false,
+    "ok": true,
+    "text": "◊"
+  },
+  {
+    "i": 4,
+    "name": "希腊字母",
+    "objects": 1,
+    "residual_delim": false,
+    "ok": true,
+    "text": "◊"
+  },
+  {
+    "i": 5,
+    "name": "aligned 多行",
+    "objects": 1,
+    "residual_delim": false,
+    "ok": true,
+    "text": "◊"
+  },
+  {
+    "i": 6,
+    "name": "array 多行",
+    "objects": 1,
+    "residual_delim": false,
+    "ok": true,
+    "text": "◊"
+  },
+  {
+    "i": 7,
+    "name": "pmatrix",
+    "objects": 1,
+    "residual_delim": false,
+    "ok": true,
+    "text": "◊"
+  },
+  {
+    "i": 8,
+    "name": "cases",
+    "objects": 1,
+    "residual_delim": false,
+    "ok": true,
+    "text": "◊"
+  },
+  {
+    "i": 9,
+    "name": "\\text",
+    "objects": 1,
+    "residual_delim": false,
+    "ok": true,
+    "text": "◊"
+  },
+  {
+    "i": 10,
+    "name": "粗体/花体/黑板体",
+    "objects": 1,
+    "residual_delim": false,
+    "ok": true,
+    "text": "◊"
+  },
+  {
+    "i": 11,
+    "name": "left-right 括号",
+    "objects": 1,
+    "residual_delim": false,
+    "ok": true,
+    "text": "◊"
+  },
+  {
+    "i": 12,
+    "name": "hat/vec/bar",
+    "objects": 1,
+    "residual_delim": false,
+    "ok": true,
+    "text": "◊"
+  },
+  {
+    "i": 13,
+    "name": "上下标嵌套",
+    "objects": 1,
+    "residual_delim": false,
+    "ok": true,
+    "text": "◊"
+  },
+  {
+    "i": 14,
+    "name": "极限",
+    "objects": 1,
+    "residual_delim": false,
+    "ok": true,
+    "text": "◊"
+  },
+  {
+    "i": 15,
+    "name": "上划线",
+    "objects": 1,
+    "residual_delim": false,
+    "ok": true,
+    "text": "◊"
+  },
+  {
+    "i": 16,
+    "name": "关系符",
+    "objects": 1,
+    "residual_delim": false,
+    "ok": true,
+    "text": "◊"
+  },
+  {
+    "i": 17,
+    "name": "组合数",
+    "objects": 1,
+    "residual_delim": false,
+    "ok": true,
+    "text": "◊"
+  },
+  {
+    "i": 18,
+    "name": "偏导",
+    "objects": 1,
+    "residual_delim": false,
+    "ok": true,
+    "text": "◊"
+  },
+  {
+    "i": 19,
+    "name": "公式内中文",
+    "objects": 1,
+    "residual_delim": false,
+    "ok": true,
+    "text": "◊"
+  },
+  {
+    "i": 20,
+    "name": "行内公式",
+    "objects": 1,
+    "residual_delim": false,
+    "ok": true,
+    "text": "◊"
+  },
+  {
+    "i": 21,
+    "name": "编号环境内容",
+    "objects": 1,
+    "residual_delim": false,
+    "ok": true,
+    "text": "速度 ◊ 是导数"
+  }
+]

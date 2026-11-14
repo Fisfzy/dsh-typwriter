@@ -843,6 +843,22 @@
         return { ok: false, token: null };
       });
     },
+    // Word 导出（L2Word）：体检 + skill 部署状态
+    wordDoctor: function () {
+      return invoke('wordExport:doctor').catch(function () {
+        return { ok: false, error: '通道不可用' };
+      });
+    },
+    wordDeploySkill: function () {
+      return invoke('wordExport:deploySkill').catch(function () {
+        return { ok: false };
+      });
+    },
+    wordSkillDeployed: function () {
+      return invoke('wordExport:skillDeployed').catch(function () {
+        return { ok: false, deployed: false };
+      });
+    },
     models: function () {
       // 形状必须与 AgentModelList 一致：{ ok: true, models: [...] }
       return Promise.resolve({ ok: true, models: [] });

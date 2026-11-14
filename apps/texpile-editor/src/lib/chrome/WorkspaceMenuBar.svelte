@@ -15,6 +15,7 @@
 	import { commandPalette } from '$lib/workspace/commandPalette.svelte';
 	import { attachNativeMenu, publishMenuState } from '$lib/workspace/nativeMenu';
 	import { typstExport } from '$lib/languages/typst/export/dialog/typstExportState.svelte';
+	import { injectAgentPrompt } from '$lib/ai/agentPanel/pendingPrompt.svelte';
 	import { titleBarLayout } from '$lib/chrome/titleBarLayout.svelte';
 	import { whatsNewOpen } from '$lib/whatsNew';
 	import { triggerClass, menuContentClass } from '$lib/menus/menuStyles';
@@ -178,6 +179,7 @@
 		else if (value === 'new-window') openNewWindow();
 		else if (value === 'open-folder-new-window') openFolderInNewWindow();
 		else if (value === 'export-typst') typstExport.show();
+		else if (value === 'export-word') void driveWordExport();
 		else if (value === 'clone') onCloneRepository?.();
 		else if (value === 'local-history') onLocalHistory?.();
 		else if (value === 'restore-deleted') onRestoreDeleted?.();
@@ -218,6 +220,26 @@
 		else if (value === 'dictionary' || value === 'settings') openPreferencesAt('proofing');
 	}
 
+	async function driveWordExport(): Promise<void> {
+		const main = activeFilePath.current;
+		// 体检先行：结果随指令一起交给 AGENT，缺件时它给修复指引而不是硬跑
+		const doctor = await (
+			window as unknown as {
+				texpileAgent?: { wordDoctor?: () => Promise<{ ok: boolean; blocked?: boolean; report?: unknown; error?: string }> };
+			}
+		).texpileAgent?.wordDoctor?.();
+		const summary = doctor?.ok ? JSON.stringify(doctor.report) : `体检失败：${doctor?.error ?? '未知原因'}（请先补齐环境）`;
+		void (window as unknown as { texpileAgent?: { wordDeploySkill?: () => Promise<unknown> } }).texpileAgent?.wordDeploySkill?.();
+		injectAgentPrompt(
+			[
+				'请把当前论文导出为 Word（.docx），公式必须是 MathType 对象（走 l2word-typst skill，禁止 OMML）。',
+				`主文件：${main ?? '(未打开)'}`,
+				`doctor 体检：${summary}`,
+				'流程按 skill：先 pandoc 转 LaTeX 并抽查公式/引用，再走五阶段。',
+				'S4 每落地约 50 个公式报告一次计数；完成后跑 verify，把判定卡贴出来（OMML 残留必须为 0）。'
+			].join('\n')
+		);
+	}
 	function terminalSelect(value: string) {
 		if (value === 'compile') onCompile?.();
 		else if (value === 'configure') onConfigureCompile?.();
@@ -263,6 +285,7 @@
 			canNewFile: !!onNewFile,
 			typstProject,
 			canExportTypst: typstExport.available,
+			canExportWord: typstProject,
 			canInsertImage: !!imageDir,
 			insertParts: nativeInsertParts(insertItems.current),
 			canOpenFolder: !!onOpenFolder,
@@ -349,6 +372,7 @@
 			canNewFile={!!onNewFile}
 			{typstProject}
 			canExportTypst={typstExport.available}
+			canExportWord={typstProject}
 			canOpenFolder={!!onOpenFolder}
 			canSaveAsTemplate={!!onSaveAsTemplate}
 			canClone={!!onCloneRepository}

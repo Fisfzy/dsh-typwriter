@@ -1,0 +1,70 @@
+\documentclass{article}
+\usepackage{graphicx}
+\usepackage{subcaption}
+\usepackage{longtable}
+\usepackage{amsthm}
+\newtheorem{theorem}{Theorem}
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{custom}{Custom}[section]
+\begin{document}
+\tableofcontents
+
+\section{First}\label{sec:first}
+\label{sec:first-again}
+
+Body refers to \ref{sec:first} (same-line label), \autoref{sec:second-nl}
+(next-line label) and \eqref{eq:one}.
+
+\begin{equation}\label{eq:one}
+  a = b
+\end{equation}
+
+\begin{theorem}\label{thm:a} T. \end{theorem}
+\begin{lemma}\label{lem:a} L. \end{lemma}
+\begin{custom}\label{cus:a} C. \end{custom}
+
+Numbering: \ref{thm:a} \ref{lem:a} \ref{cus:a}.
+
+\section{Second}
+\label{sec:second-nl}
+
+\begin{figure}
+\begin{subfigure}{0.4\textwidth}
+\includegraphics[width=\linewidth]{fig.png}
+\caption{Left\label{fig:left}}
+\end{subfigure}
+\hfill
+\begin{subfigure}{0.4\textwidth}
+\includegraphics[width=\linewidth]{fig.png}
+\caption{Right\label{fig:right}}
+\end{subfigure}
+\caption{Both\label{fig:both}}
+\end{figure}
+
+Sub figs \ref{fig:left} and \ref{fig:right}, main \ref{fig:both}.
+
+\begin{longtable}{lc}
+\caption{Long table\label{tab:long}}\\
+\hline
+A & B \\
+\hline
+\endfirsthead
+\hline
+A & B \\
+\hline
+\endhead
+1 & 2 \\
+\hline
+\end{longtable}
+
+Cite \cite[p.~7]{k1} and \cite{k1,k2}.
+
+\appendix
+\section{Proofs}\label{app:proofs}
+
+Appendix body, ref back to \ref{app:proofs}.
+
+\bibliographystyle{unsrt}
+\bibliography{08-struct}
+
+\end{document}

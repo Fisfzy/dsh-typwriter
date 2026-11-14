@@ -7,6 +7,7 @@ import { delimiter, join, resolve } from 'node:path';
 import * as fsops from './fsops.js';
 import * as agentlist from './agentlist.js';
 import * as mcplist from './mcplist.js';
+import * as wordexport from './wordexport.js';
 import { AcpHost } from './acp.js';
 import { dshHome } from './state.js';
 import { preparedPreviewHtml } from './previewPage.js';
@@ -324,6 +325,10 @@ export function createDispatch({ store, terminals, lsp, acp, appDir, binDir, cle
     },
     'agent:mcpTest': async (server) => mcplist.mcpTest(server || {}),
     'agent:zoteroToken': async () => ({ ok: true, token: await mcplist.zoteroMcpToken() }),
+    // Word 导出（L2Word 流水线）：环境体检 + skill 部署（AGENT 对话按 skill 驱动五阶段）
+    'wordExport:doctor': async () => wordexport.doctor(),
+    'wordExport:deploySkill': async () => wordexport.deploySkill(dshHome),
+    'wordExport:skillDeployed': async () => ({ ok: true, deployed: wordexport.skillDeployed(dshHome) }),
     'agent:run': (body) => runRefine(body || {}),
     'agent:cancel': () => {
       if (refineHost) {

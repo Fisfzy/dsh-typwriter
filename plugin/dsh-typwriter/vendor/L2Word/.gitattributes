@@ -1,0 +1,7 @@
+# 统一换行符：源码走 LF，二进制不处理
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.docx binary
+*.pdf binary

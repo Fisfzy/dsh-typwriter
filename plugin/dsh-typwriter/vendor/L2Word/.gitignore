@@ -1,0 +1,18 @@
+# Python
+__pycache__/
+*.py[cod]
+
+# 测试与转换中间产物
+tests/_out/
+build/
+*.pandoc.docx
+*.pandoc.md
+
+# 系统
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# 编辑器
+.vscode/
+.idea/
