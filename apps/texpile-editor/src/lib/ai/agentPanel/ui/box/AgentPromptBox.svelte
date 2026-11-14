@@ -18,6 +18,8 @@
 	import { ImageAttachments } from '../../attach/imageAttachments.svelte';
 	import { droppedPaths } from '../../attach/dropPaths';
 	import { consumeAgentPrompt } from '../../pendingPrompt.svelte';
+	import { permissionState, permLabel, permissionOptions, loadPermission, selectPermission } from '../../permissionState.svelte';
+	import PermissionConfirm from './PermissionConfirm.svelte';
 	import { tip } from '$lib/components/tooltip.svelte';
 	import { m } from '$lib/paraglide/messages';
 	import { agentSession } from '../../agentSession.svelte';
@@ -198,6 +200,18 @@
 		const m = modelData?.models.find((x) => x.provider === cur?.provider && x.id === cur?.model);
 		return m?.efforts ?? modelData?.efforts ?? [];
 	});
+
+	// ---- 权限预设（仅可查看 / 工作区内修改 / 完全权限）----
+	// 状态与读写逻辑在 permissionState.svelte.ts（写 DSH profile patch 的 defaultPreset，
+	// 与 DSH 设置界面同一落点），**新对话生效**；完全权限走确认框。
+	const currentPermLabel = $derived(permLabel(permissionState.current.preset));
+	const permGroups = $derived.by(() => [{ label: '权限（新对话生效）', options: permissionOptions() }]);
+	$effect(() => {
+		loadPermission();
+	});
+	function applyPermission(preset: string): void {
+		selectPermission(preset);
+	}
 	/** 每组直接可见的模型数；更长的一组把余下收进组尾的子菜单（MenuDropdown 的 more） */
 	const GROUP_VISIBLE = 8;
 	const modelGroups = $derived.by(() => {
@@ -362,6 +376,18 @@
 						</button>
 					{/snippet}
 				</MenuDropdown>
+				<MenuDropdown groups={permGroups} placement="bottom-start" onSelect={(v) => applyPermission(String(v))}>
+					{#snippet trigger(attrs)}
+						<button
+							{...attrs}
+							class="text-muted hover:bg-surface-200-800 rounded-base flex h-6 shrink-0 items-center gap-0.5 px-1.5 text-xs whitespace-nowrap transition-colors"
+							use:tip={'权限（新对话生效）'}
+						>
+							<span class="max-w-24 truncate">{currentPermLabel}</span>
+							<ChevronDown class="size-3 shrink-0" />
+						</button>
+					{/snippet}
+				</MenuDropdown>
 			{/if}
 			{#each props.config as option (option.id)}
 				<MenuDropdown groups={configOptionMenu(option)} placement="bottom-start" onSelect={(v) => props.onConfig(option.id, v)}>
@@ -411,4 +437,5 @@
 		</div>
 	</div>
 	{#if images.refused}<p class="text-muted mt-1 px-1 text-xs">{m.agent_panel_no_images({ agent: props.agent })}</p>{/if}
+	<PermissionConfirm />
 </div>

@@ -8,6 +8,7 @@ import * as fsops from './fsops.js';
 import * as agentlist from './agentlist.js';
 import * as mcplist from './mcplist.js';
 import * as wordexport from './wordexport.js';
+import * as permissions from './permissions.js';
 import { AcpHost } from './acp.js';
 import { dshHome } from './state.js';
 import { preparedPreviewHtml } from './previewPage.js';
@@ -329,6 +330,9 @@ export function createDispatch({ store, terminals, lsp, acp, appDir, binDir, cle
     'wordExport:doctor': async () => wordexport.doctor(),
     'wordExport:deploySkill': async () => wordexport.deploySkill(dshHome),
     'wordExport:skillDeployed': async () => ({ ok: true, deployed: wordexport.skillDeployed(dshHome) }),
+    // AGENT 会话权限预设（面板下拉；写 profile patch 的 defaultPreset，新对话生效）
+    'agent:permissionGet': async () => permissions.permissionGet(dshHome),
+    'agent:permissionSet': async (preset) => permissions.permissionSet(dshHome, preset),
     'agent:run': (body) => runRefine(body || {}),
     'agent:cancel': () => {
       if (refineHost) {

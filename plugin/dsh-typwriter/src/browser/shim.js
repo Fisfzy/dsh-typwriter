@@ -859,6 +859,16 @@
         return { ok: false, deployed: false };
       });
     },
+    permissionGet: function () {
+      return invoke('agent:permissionGet').catch(function () {
+        return { ok: false, preset: 'workspace-write' };
+      });
+    },
+    permissionSet: function (preset) {
+      return invoke('agent:permissionSet', preset).catch(function () {
+        return { ok: false };
+      });
+    },
     models: function () {
       // 形状必须与 AgentModelList 一致：{ ok: true, models: [...] }
       return Promise.resolve({ ok: true, models: [] });
