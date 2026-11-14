@@ -57,6 +57,14 @@ async function commitPermission(preset: string): Promise<void> {
 	} catch {
 		/* 写盘失败：保持现状 */
 	}
+	// 权限预设只影响新建会话（DSH 设计如此）——"实时生效"的另一半：立即以新权限
+	// 重建当前对话（fresh），用户不必再手动开新对话。旧会话在 DSH 侧栏仍可回看。
+	try {
+		const { agentSession, restartAgentSession } = await import('./agentSession.svelte');
+		if (agentSession.chat || agentSession.state === 'ready') await restartAgentSession(undefined, { fresh: true });
+	} catch {
+		/* 无活动会话（面板尚未 start）：无需重建 */
+	}
 }
 
 /** 确认框的两个动作 */
