@@ -9,6 +9,7 @@
 	import { EditorView } from 'prosemirror-view';
 	import type { Node as PMNode } from 'prosemirror-model';
 	import { padTablesInState } from '$lib/editor/visual/padTables';
+	import { isTypstLargeDocument } from './largeDocument';
 	import { typSchema } from './schema';
 	import { typstEditorPlugins, typstNodeViews } from './typstEditorSetup';
 	import { typstNamesNow } from './core/scope/fileScopeNow.svelte';
@@ -141,7 +142,12 @@
 		editorState = padTablesInState(editorState);
 
 		editorView = new EditorView(editor, {
-			attributes: { class: 'TexpileEditor TypstEditor', spellcheck: 'false' },
+			// 大文档挂 .TexpileEditor-large：视口外块走 content-visibility（见 largeDocument.ts）。
+			// 每个事务重算，文档长过阈值/缩回阈值下都即时切换
+			attributes: (state) => ({
+				class: isTypstLargeDocument(state.doc) ? 'TexpileEditor TypstEditor TexpileEditor-large' : 'TexpileEditor TypstEditor',
+				spellcheck: 'false'
+			}),
 			state: editorState,
 			nodeViews: typstNodeViews(() => docDir),
 			editable: group.editable,
