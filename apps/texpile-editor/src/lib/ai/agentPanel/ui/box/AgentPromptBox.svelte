@@ -20,6 +20,8 @@
 	import { consumeAgentPrompt } from '../../pendingPrompt.svelte';
 	import { permissionState, permLabel, permissionOptions, loadPermission, selectPermission } from '../../permissionState.svelte';
 	import PermissionConfirm from './PermissionConfirm.svelte';
+	import PanelExpandToggle from './PanelExpandToggle.svelte';
+	import { PRESET_PROMPTS } from '../../presetPrompts';
 	import { tip } from '$lib/components/tooltip.svelte';
 	import { m } from '$lib/paraglide/messages';
 	import { agentSession } from '../../agentSession.svelte';
@@ -107,14 +109,6 @@
 	function takeCommand(command: AgentCommand): void {
 		text = slash.completion(command);
 	}
-
-	// 空输入时的预设快捷指令（参考 llm-for-zotero 的 Summarize/Key Points 行）：点击填入，可改再发
-	const PRESETS: { label: string; prompt: string }[] = [
-		{ label: '总结当前文件', prompt: '请总结当前打开文件的主要内容与结构。' },
-		{ label: '润色选中文本', prompt: '请润色我选中的文本：保持学术语气，改动最小化，并说明每处改动的原因。' },
-		{ label: '检查语法', prompt: '请检查当前文件的语法与格式错误，逐条给出位置和修改建议。' },
-		{ label: '改进表达', prompt: '请找出当前文件中表达不够清晰或学术性不足的段落并改写。' }
-	];
 
 	// ---- 模型 / 思考强度 ----
 	// 两条数据源，按宿主择一：
@@ -308,7 +302,7 @@
 		{#if !text.trim() && !slash.open}
 			<!-- 预设快捷指令：空输入才出现，点一下填入（润色那条实际带不带选区由附件决定） -->
 			<div class="mb-1.5 flex flex-wrap gap-1">
-				{#each PRESETS as p (p.label)}
+				{#each PRESET_PROMPTS as p (p.label)}
 					<button
 						type="button"
 						class="preset-tonal hover:preset-tonal-primary rounded-full px-2 py-0.5 text-[11px]"
@@ -388,6 +382,7 @@
 						</button>
 					{/snippet}
 				</MenuDropdown>
+				<PanelExpandToggle />
 			{/if}
 			{#each props.config as option (option.id)}
 				<MenuDropdown groups={configOptionMenu(option)} placement="bottom-start" onSelect={(v) => props.onConfig(option.id, v)}>

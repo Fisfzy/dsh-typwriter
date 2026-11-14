@@ -7,13 +7,16 @@
 	import AgentStepRow from './AgentStepRow.svelte';
 	import type { ToolItem } from '../../agentPanel.types';
 	import type { PathLabels } from '$lib/workspace/scm/ui/changes/pathLabels';
+	import { agentPanelView } from '../../agentPanelView.svelte';
 
 	type Props = { tools: ToolItem[]; labels: PathLabels };
 	const props: Props = $props();
 	const done = $derived(props.tools.filter((t) => t.status === 'completed'));
 	const open = $derived(props.tools.filter((t) => t.status !== 'completed'));
 	const kinds = $derived([...new Set(done.map((t) => t.toolKind))].slice(0, 4));
-	let expanded = $state(false);
+	// null = 跟随面板开关；手动展开/折叠过则本地覆盖
+	let localOverride = $state<boolean | null>(null);
+	const expanded = $derived(localOverride ?? agentPanelView.current.expanded);
 </script>
 
 <div class="flex flex-col gap-1">
@@ -21,7 +24,7 @@
 		<button
 			class="border-surface-200-800 bg-surface-100-900 hover:preset-tonal rounded-base flex h-7 items-center gap-2 border px-2 text-left text-sm"
 			aria-expanded={expanded}
-			onclick={() => (expanded = !expanded)}
+			onclick={() => (localOverride = !(localOverride ?? agentPanelView.current.expanded))}
 		>
 			{#if expanded}<ChevronDown class="text-muted size-3.5 shrink-0" />{:else}<ChevronRight class="text-muted size-3.5 shrink-0" />{/if}
 			<span class="text-muted flex shrink-0 gap-1">
