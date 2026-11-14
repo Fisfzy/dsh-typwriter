@@ -1,6 +1,7 @@
 // AGENT 面板的权限预设状态：读/写 DSH profile patch 的 defaultPreset（与 DSH 设置界面
 // 同一落点），新对话继承。完全权限（danger-full-access）的确认交互也在这里管理——
 // AgentPromptBox 只渲染状态。
+// 注意：box 是浅响应——所有状态变更都必须整体替换 current，嵌套属性赋值不会触发更新。
 import { box } from '$lib/runes/box.svelte';
 
 const PERM_LABELS: Record<string, string> = {
@@ -18,6 +19,11 @@ export const permissionState = box({
 	pending: null as string | null
 });
 
+/** 整体替换 current：浅响应 box 的唯一合法写法（嵌套赋值不触发更新） */
+export function patchState(patch: Partial<typeof permissionState.current>): void {
+	permissionState.current = { ...permissionState.current, ...patch };
+}
+
 export function permLabel(preset: string): string {
 	return PERM_LABELS[preset] ?? preset;
 }
@@ -30,19 +36,16 @@ export function loadPermission(): void {
 	void (window as unknown as { texpileAgent?: { permissionGet?: () => Promise<{ preset?: string }> } }).texpileAgent
 		?.permissionGet?.()
 		.then((r) => {
-			if (r?.preset) permissionState.current.preset = r.preset;
-			permissionState.current.loaded = true;
+			patchState({ preset: r?.preset ?? permissionState.current.preset, loaded: true });
 		})
-		.catch(() => (permissionState.current.loaded = true));
+		.catch(() => patchState({ loaded: true }));
 }
 
 /** 选了新预设：danger 走确认框，其余直接落盘 */
 export function selectPermission(preset: string): void {
 	if (preset === permissionState.current.preset) return;
 	if (preset === 'danger-full-access') {
-		permissionState.current.confirming = true;
-		permissionState.current.confirmChecked = false;
-		permissionState.current.pending = preset;
+		patchState({ confirming: true, confirmChecked: false, pending: preset });
 		return;
 	}
 	void commitPermission(preset);
@@ -53,7 +56,7 @@ async function commitPermission(preset: string): Promise<void> {
 	if (!api?.permissionSet) return;
 	try {
 		const r = await api.permissionSet(preset);
-		if (r?.ok) permissionState.current.preset = preset;
+		if (r?.ok) patchState({ preset });
 	} catch {
 		/* 写盘失败：保持现状 */
 	}
@@ -70,12 +73,10 @@ async function commitPermission(preset: string): Promise<void> {
 /** 确认框的两个动作 */
 export function confirmDanger(): void {
 	const pending = permissionState.current.pending ?? 'danger-full-access';
-	permissionState.current.confirming = false;
-	permissionState.current.pending = null;
+	patchState({ confirming: false, pending: null });
 	void commitPermission(pending);
 }
 
 export function cancelDanger(): void {
-	permissionState.current.confirming = false;
-	permissionState.current.pending = null;
+	patchState({ confirming: false, pending: null });
 }

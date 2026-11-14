@@ -319,7 +319,7 @@ export function createDispatch({ store, terminals, lsp, acp, appDir, binDir, cle
       return { ok: true, servers: await mcplist.mcpList(s) };
     },
     'agent:mcpSet': async (servers) => {
-      const r = await mcplist.mcpSet(servers || [], dshHome);
+      const r = await mcplist.mcpSet(servers || [], dshHome());
       // 配置的源头是插件设置：patch 是派生物，两边一起落
       await store.setSettings({ mcpServers: r.servers });
       return { ok: true, servers: r.servers };
@@ -331,8 +331,8 @@ export function createDispatch({ store, terminals, lsp, acp, appDir, binDir, cle
     'wordExport:deploySkill': async () => wordexport.deploySkill(dshHome),
     'wordExport:skillDeployed': async () => ({ ok: true, deployed: wordexport.skillDeployed(dshHome) }),
     // AGENT 会话权限预设（面板下拉；写 profile patch 的 defaultPreset，新对话生效）
-    'agent:permissionGet': async () => permissions.permissionGet(dshHome),
-    'agent:permissionSet': async (preset) => permissions.permissionSet(dshHome, preset),
+    'agent:permissionGet': async () => permissions.permissionGet(dshHome()),
+    'agent:permissionSet': async (preset) => permissions.permissionSet(dshHome(), preset),
     'agent:run': (body) => runRefine(body || {}),
     'agent:cancel': () => {
       if (refineHost) {
