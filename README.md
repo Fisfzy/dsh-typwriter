@@ -109,3 +109,24 @@ Typwriter 是 [Texpile](https://github.com/texpile/texpile) 的 **AGPL-3.0 fork*
 ## 许可
 
 **AGPL-3.0** —— 见 [`LICENSE`](LICENSE)。作为 Texpile 的衍生作品，我们的修改同样适用该许可；若以网络服务形式运行修改版，AGPL §13 要求向用户提供对应源码。
+### 安装体积（slim 包）
+
+插件默认提供一个精简 app 包：只保留 Typst 工作台需要的编辑器/预览/AGENT 资源，去掉 Texpile
+完整版里可选的 Grammarly 类功能资产：
+
+| 被剪掉的内容 | 大小 |
+|---|---:|
+| `app/assets/data/`（CTAN LaTeX 包元数据，约 6900 个文件） | 23 MB |
+| `app/spell/`（8 种非英语 CSpell 词典） | 14 MB |
+| `app/assets/harper_wasm_*.wasm`（Harper 英语语法检查） | 19 MB |
+| 启动页演示视频 | 1.4 MB |
+
+瘦身后 app 约 **23 MB / 644 个文件**（原 80.7 MB / 7548 个），Typst 编辑、编译、预览和 AGENT
+面板不受影响；LaTeX 补全退化为内置基础表，拼写/语法检查关闭。
+
+构建时在打包前执行：
+
+```bash
+node plugin/dsh-typwriter/scripts/prune-app.mjs plugin/dsh-typwriter/app
+```
+
