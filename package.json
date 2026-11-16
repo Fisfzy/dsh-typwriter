@@ -33,14 +33,14 @@
 		"preflight": "pnpm run patch:check && pnpm run check:svelte"
 	},
 	"devDependencies": {
-		"@agentclientprotocol/claude-agent-acp": "^0.99.1",
+		"@agentclientprotocol/claude-agent-acp": "^0.101.0",
 		"@agentclientprotocol/codex-acp": "^2.5.0",
 		"@agentclientprotocol/sdk": "^2.0.2",
 		"@eslint/js": "^10.0.1",
 		"@modelcontextprotocol/sdk": "^1.32.2",
 		"@types/node": "^24.13.3",
 		"chokidar": "^6.0.0",
-		"concurrently": "^10.0.6",
+		"concurrently": "^10.0.7",
 		"cross-env": "^10.1.0",
 		"electron": "^45.0.0",
 		"electron-builder": "^26.18.0",
