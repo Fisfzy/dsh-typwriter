@@ -30,6 +30,8 @@
 		termDock: TerminalDockState;
 		/** only a compiled PDF splits; live mode and the Typst preview draw their own */
 		splittable: boolean;
+		/** the open document is HTML: its page preview has no window of its own */
+		previewHtml: boolean;
 	};
 	const props: Props = $props();
 
@@ -136,6 +138,7 @@
 					icon={PictureInPicture2}
 					open={props.panes.pdfPopout}
 					label={m.wsview_popout_preview()}
+					unavailable={props.previewHtml ? m.wsview_popout_unavailable() : undefined}
 					onclick={() => toggle(() => props.panes.setPdfPopout(!props.panes.pdfPopout))}
 				/>
 			</div>

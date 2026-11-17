@@ -66,6 +66,8 @@
 			disabled: boolean;
 			/** kind of the open file; the menus adapt to what it supports (see WorkspaceMenuBar) */
 			fileKind: import('$lib/workspace/documentBuffer.svelte').FileKind;
+			/** the open file is HTML, whose page preview the popout window cannot host */
+			previewHtml: boolean;
 			imageDir: string | undefined;
 			shareable: boolean;
 			/** the disk-backed host rather than a guest: folder lifecycle, terminal, on-disk checks */
@@ -152,7 +154,7 @@
 			<!-- no preview bar to carry them: one place for the project's controls, however the editors are split -->
 			<div class="app-no-drag mr-2 flex items-center self-center">{@render documentControls.current(true)}</div>
 		{/if}
-		<LayoutControls panes={layout} {termDock} project={!fileMode.current} splittable={previewSplittable} />
+		<LayoutControls panes={layout} {termDock} project={!fileMode.current} splittable={previewSplittable} previewHtml={menu.previewHtml} />
 	{/snippet}
 	{#snippet menus()}
 		<WorkspaceMenuBar

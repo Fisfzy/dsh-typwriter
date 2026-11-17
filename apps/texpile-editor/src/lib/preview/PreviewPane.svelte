@@ -24,6 +24,8 @@
 		mainUnset: boolean;
 		/** open the set-main-file prompt */
 		onPickMain: () => void;
+		/** the open document is an HTML file: the pane previews the page instead of a build */
+		htmlPreviewPath: string | null;
 		pdfFilename: string;
 		draft: DraftController;
 		/** `host:port` of a running Typst preview, or null while one is still starting */
@@ -61,6 +63,7 @@
 		guestPdf,
 		guestTypstOffered,
 		mainUnset,
+		htmlPreviewPath,
 		onPickMain,
 		pdfFilename,
 		draft,
@@ -126,6 +129,7 @@
 		{guestPdf}
 		{guestTypstOffered}
 		{mainUnset}
+		{htmlPreviewPath}
 		{onPickMain}
 		{pdfFilename}
 		{draft}

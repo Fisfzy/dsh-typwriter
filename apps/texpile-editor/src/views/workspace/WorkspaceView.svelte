@@ -73,7 +73,7 @@
 	const canTrash = $derived(!!provider.trash && !!provider.restore);
 	// a guest session: host chrome (compile/terminal/git/file-ops/share) hidden
 	const guest = $derived(session.isGuest);
-	import { hasVisualMode, isRawTextKind } from '$lib/workspace/documentBuffer.svelte';
+	import { hasVisualMode, isRawTextKind, isHtmlPath } from '$lib/workspace/documentBuffer.svelte';
 	import { spellingFor } from '$lib/editor/spellcheck/languages/spellingLanguage.svelte';
 
 	// the open document, its parse/mode lifecycle, and the edit-persistence flow live in
@@ -374,6 +374,8 @@
 		menu={{
 			disabled: !doc.path,
 			fileKind: kind,
+			// an HTML file previews its own page, which has no window of its own (see PreviewBody)
+			previewHtml: isHtmlPath(doc.path),
 			// an image is written next to the document, so a workspace that takes no tree writes has
 			// nowhere to put one however good the path looks
 			imageDir: provider.caps.manageTree && doc.path && hasVisualMode(kind) ? dirname(doc.path) : undefined,

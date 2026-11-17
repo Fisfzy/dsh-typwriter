@@ -85,6 +85,8 @@
 				get mainUnset() {
 					return mainUnset;
 				},
+				// the popped-out window has no HTML lane: a page preview stays in the docked pane
+				htmlPreviewPath: null,
 				get onPickMain() {
 					return onPickMain;
 				},

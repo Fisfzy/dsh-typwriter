@@ -6,6 +6,8 @@
 	// stays with the docked pane, which is the only place it means anything.
 	import PDFViewer from './PDFViewer.svelte';
 	import PreviewHeader from './PreviewHeader.svelte';
+	import HtmlPreview from './HtmlPreview.svelte';
+	import { basename } from '$lib/workspace/fileSystem';
 	import { documentControls } from './documentControls.svelte';
 	import { untrack } from 'svelte';
 	import type DraftView from '$lib/draft/DraftView.svelte';
@@ -56,6 +58,8 @@
 		guestTypstOffered: boolean;
 		/** no main file in a folder that has candidates: the pane shows the picker */
 		mainUnset: boolean;
+		/** the open document is an HTML file: the pane shows the page itself, not a build product */
+		htmlPreviewPath: string | null;
 		/** open the set-main-file prompt */
 		onPickMain: () => void;
 		pdfFilename: string;
@@ -91,6 +95,7 @@
 		guestPdf,
 		guestTypstOffered,
 		mainUnset,
+		htmlPreviewPath,
 		onPickMain,
 		pdfFilename,
 		draft,
@@ -116,16 +121,21 @@
 				: guestPdf
 					? 'pdf'
 					: 'waiting'
-			: mainUnset
-				? 'no-main'
-				: typstPreviewWanted
-					? 'typst'
-					: latexLiveMode()
-						? 'draft'
-						: 'pdf'
+			: htmlPreviewPath
+				? 'html'
+				: mainUnset
+					? 'no-main'
+					: typstPreviewWanted
+						? 'typst'
+						: latexLiveMode()
+							? 'draft'
+							: 'pdf'
 	);
-	/** what the bar calls this pane; live mode is a different thing from a compiled PDF */
-	const previewLabel = $derived(!guest && latexLiveMode() ? m.wsview_live_preview_label() : m.wsview_pdf_preview_label());
+	/** what the bar calls this pane; live mode is a different thing from a compiled PDF, and an
+	 *  HTML preview is the file itself, so it goes by its own name */
+	const previewLabel = $derived(
+		htmlPreviewPath ? basename(htmlPreviewPath) : !guest && latexLiveMode() ? m.wsview_live_preview_label() : m.wsview_pdf_preview_label()
+	);
 	/** docked, every body's bar starts with the project's controls and stands where a tab strip would */
 	const controls = $derived(docked ? (documentControls.current ?? undefined) : undefined);
 	const strip = $derived(docked);
@@ -158,7 +168,9 @@
 
 <div class="relative flex h-full w-full flex-col">
 	{#if !ownsItsBar}
-		<PreviewHeader label={previewLabel} {controls} {onPopout} asTabStrip={strip} />
+		<!-- the popped-out window mounts PreviewBody without an HTML lane, so it offers no
+		     popout for one: the button would move a page it cannot show -->
+		<PreviewHeader label={previewLabel} {controls} onPopout={body === 'html' ? null : onPopout} asTabStrip={strip} />
 	{/if}
 	<div class="min-h-0 flex-1">
 		{#if body === 'typst-remote'}
@@ -202,6 +214,11 @@
 			     `wanted` rather than on the host so the PDF never flashes up while it starts. -->
 			{#if TypstPreviewComp}
 				<TypstPreviewComp host={typstPreviewHost} {paneDragging} {onPopout} asTabStrip={strip} {controls} />
+			{/if}
+		{:else if body === 'html'}
+			<!-- the file as a page: no compile, no main file, no sync -->
+			{#if htmlPreviewPath}
+				<HtmlPreview path={htmlPreviewPath} {paneDragging} />
 			{/if}
 		{:else if body === 'draft'}
 			{#if DraftViewComp}

@@ -16,6 +16,8 @@
 		/** a file opened on its own has nothing to arrange, so no menu */
 		project: boolean;
 		splittable: boolean;
+		/** the open document is HTML: the pane previews the page, which the popout window cannot host */
+		previewHtml: boolean;
 	};
 	const props: Props = $props();
 	// the browser build ends the bar with its download link; the desktop app with whatever window buttons sit on the right
@@ -46,7 +48,7 @@
 				<span class="hidden xl:inline">AGENT 对话</span>
 			</button>
 		{/if}
-		<LayoutMenu panes={props.panes} termDock={props.termDock} splittable={props.splittable} />
+		<LayoutMenu panes={props.panes} termDock={props.termDock} splittable={props.splittable} previewHtml={props.previewHtml} />
 	</div>
 {/if}
 {#if divided}

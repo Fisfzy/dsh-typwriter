@@ -58,6 +58,12 @@ export function hasVisualMode(kind: FileKind): kind is 'tex' | 'md' | 'typ' {
 	return kind === 'tex' || kind === 'md' || kind === 'typ';
 }
 
+/** An HTML file is its own output: nothing compiles it, so the preview pane shows the page and
+ *  the compile controls read as preview controls. */
+export function isHtmlPath(path: string | null | undefined): boolean {
+	return !!path && /\.html?$/i.test(path);
+}
+
 /** the dialect the parser / serializer should use for a structured kind. */
 export function formatOf(kind: FileKind): 'tex' | 'md' | 'typ' {
 	return kind === 'md' ? 'md' : kind === 'typ' ? 'typ' : 'tex';

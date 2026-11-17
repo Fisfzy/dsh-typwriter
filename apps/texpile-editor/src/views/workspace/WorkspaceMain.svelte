@@ -3,6 +3,7 @@
 	// from the workspace's state objects rather than a long list of scalar props, which is what
 	// makes this splittable at all - the state lives in lib/workspace/*.svelte.ts, not in the view.
 	import { fileMode } from '$lib/workspace/fileMode.svelte';
+	import { isHtmlPath } from '$lib/workspace/documentBuffer.svelte';
 	import EditorTopbar from './EditorTopbar.svelte';
 	import { agentCanvas } from '$lib/languages/typst/preview/agentCanvas/agentCanvasState.svelte';
 	import { SquareDashedMousePointer } from '@lucide/svelte';
@@ -87,6 +88,9 @@
 		untrack(() => layout.setEditorAside(width));
 	});
 	const syncToCursor = $derived(canSync ? (actions.syncForward as () => void) : null);
+	// An HTML file has no compiler: the pane previews the page itself while one is open, and goes
+	// back to the PDF lanes for everything else. Only the docked pane, not the popped-out window.
+	const htmlPreviewPath = $derived(isHtmlPath(doc.path) ? doc.path : null);
 	// a lone file has no project to hold the log, so the menus drop their Add comment entry
 	const canComment = $derived(!fileMode.current);
 	async function toggleSuggest(next: boolean) {
@@ -253,6 +257,7 @@
 				{typstPreviewWanted}
 				{guestTypstOffered}
 				{mainUnset}
+				{htmlPreviewPath}
 				{onPickMain}
 				onSyncToCursor={syncToCursor}
 				onPopout={() => layout.setPdfPopout(true)}

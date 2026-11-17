@@ -13,6 +13,7 @@
 	import { m } from '$lib/paraglide/messages';
 	import { combo } from '$lib/chrome/shortcutText';
 	import type { FileKind } from '$lib/workspace/documentBuffer.svelte';
+	import { isHtmlPath } from '$lib/workspace/documentBuffer.svelte';
 	import EditModePicker from './EditModePicker.svelte';
 	import {
 		ArrowRight,
@@ -121,6 +122,10 @@
 	// Live button does not flip back to Compile when a .bib or an image has focus.
 	const typstLive = $derived(typstPreviewWanted);
 
+	// An HTML file is its own output: there is no compile, no log and no compile options. The same
+	// slot instead turns the preview pane on for the page, and reads live while it follows the file.
+	const htmlPreview = $derived(isHtmlPath(loadedPath));
+
 	/**
 	 * What the compile slot is right now: colour, icon, label and click, in one place.
 	 *
@@ -149,6 +154,23 @@
 				title: m.wsview_stop_compile_title({ combo: combo('Enter', { alt: true }) }),
 				onclick: onStopCompile
 			};
+		// nothing to compile and nothing to stop: the slot drives the pane instead of the toolchain
+		if (htmlPreview)
+			return pdfPaneOpen
+				? {
+						tone: 'success',
+						dot: true,
+						label: m.wsview_live_label(),
+						title: m.wsview_html_preview_live_title(),
+						onclick: onTogglePdf
+					}
+				: {
+						tone: 'primary',
+						icon: Play,
+						label: m.wsview_preview_label(),
+						title: m.wsview_html_preview_title(),
+						onclick: onTogglePdf
+					};
 		// the preview is attached; closing the pane is its stop (the pane detaches the server task
 		// on close), so this is both indicator and off switch
 		if (typstLive && pdfPaneOpen)
@@ -196,19 +218,21 @@
 		{:else if terminalAvailable && !showPdf}
 			<div class="relative flex items-center">
 				<CompileButton {...compile} {compact} />
-				<!-- border-l-0: the button's right edge already draws the seam, and two hairlines
-				     meeting there would read as a heavier line than the outline itself -->
-				<button
-					class="btn btn-xs {COMPILE_TONE[compile.tone]} self-stretch rounded-l-none border-l-0 {compact ? 'px-0.5' : 'px-1'}"
-					bind:this={compileMenu.button}
-					onclick={compileMenu.toggle}
-					use:tip={m.wsview_compile_options()}
-					aria-label={m.wsview_compile_options()}
-					aria-haspopup="menu"
-					aria-expanded={compileMenu.open}
-				>
-					<ChevronDown class="{compact ? 'size-3' : 'size-3.5'} transition-transform {compileMenu.open ? 'rotate-180' : ''}" />
-				</button>
+				{#if !htmlPreview}
+					<!-- border-l-0: the button's right edge already draws the seam, and two hairlines
+					     meeting there would read as a heavier line than the outline itself -->
+					<button
+						class="btn btn-xs {COMPILE_TONE[compile.tone]} self-stretch rounded-l-none border-l-0 {compact ? 'px-0.5' : 'px-1'}"
+						bind:this={compileMenu.button}
+						onclick={compileMenu.toggle}
+						use:tip={m.wsview_compile_options()}
+						aria-label={m.wsview_compile_options()}
+						aria-haspopup="menu"
+						aria-expanded={compileMenu.open}
+					>
+						<ChevronDown class="{compact ? 'size-3' : 'size-3.5'} transition-transform {compileMenu.open ? 'rotate-180' : ''}" />
+					</button>
+				{/if}
 				<CompileOptionsMenu
 					menu={compileMenu}
 					onConfigure={onConfigureCompile}
@@ -239,7 +263,7 @@
 				</button>
 			{/if}
 		{/if}
-		{#if compileLog.current && (compileLog.current.errors.length > 0 || compileLog.current.warnings.length > 0)}
+		{#if !htmlPreview && compileLog.current && (compileLog.current.errors.length > 0 || compileLog.current.warnings.length > 0)}
 			<button
 				class="{quiet} gap-1 {compileLog.current.errors.length > 0 ? 'text-error-ink' : 'text-warning-ink'}"
 				onclick={onShowProblems}
@@ -282,7 +306,7 @@
 			<!-- unboxed like Layout beside it: a border made it the heaviest thing in the title bar -->
 			<button class="title-bar-button gap-1" onclick={onTogglePdf}>
 				<PanelRight class="size-3.5" />
-				<span class="cap-center">{m.wsview_show_pdf()}</span>
+				<span class="cap-center">{htmlPreview ? m.wsview_preview_label() : m.wsview_show_pdf()}</span>
 			</button>
 		{/if}
 	</div>
