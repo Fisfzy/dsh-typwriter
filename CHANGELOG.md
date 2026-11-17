@@ -5,9 +5,12 @@ Release notes for Texpile Desktop. Add notes under `## [Unreleased]` as you work
 
 ## [Unreleased]
 
+## [1.7.0] - 2026-11-17
+
 - feat: the Agent tab shows how much of the context the chat uses (by @anarghya-das)
 - feat: the Agent tab marks where the agent compacted the chat, with its summary (by @anarghya-das)
 - feat: compact the agent's chat from the context ring (by @anarghya-das)
+- feat: an HTML file previews as the page it is, and the compile controls read as preview controls while one is open
 
 ## [1.6.2] - 2026-10-24
 
