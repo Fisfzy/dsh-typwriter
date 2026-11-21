@@ -484,8 +484,15 @@
   // ================= window.texpileNative =================
   window.texpileNative = {
     // 必须是同步的：Texpile 在首帧之前就读它（openWorkspace.ts 的 bootOpen）
+    // 润色菜单默认整块不出现：Texpile 的 settings.refineAgents 默认是 null，而插件版唯一可用的
+    // 润色代理就是本机 DSH（宿主 agent:detect 只报 dsh:true）。这里补出厂默认值，且只在
+    // 「键不存在」时补——用户显式关掉（[]）或选了别的代理都必须原样保留（issue #26）。
     get bootstrap() {
-      return window.__TEXPILE_BOOTSTRAP__ || { open: null, settings: {} };
+      var b = window.__TEXPILE_BOOTSTRAP__ || { open: null, settings: {} };
+      var s = b.settings;
+      if (s && Object.prototype.hasOwnProperty.call(s, 'refineAgents')) return b;
+      var settings = Object.assign({}, s || {}, { refineAgents: ['dsh'] });
+      return Object.assign({}, b, { settings: settings });
     },
 
     // ---- 会话 / 设置 / 窗口 ----
@@ -670,8 +677,13 @@
     removeTinymist: function () {
       return invoke('typst:tinymist:remove');
     },
-    onTinymistProgress: noopUnsub,
-    onTinymistFinished: noopUnsub,
+    // 安装进度/结果：宿主在同一个 SSE 上广播，所有窗口看到的是同一次安装
+    onTinymistProgress: function (cb) {
+      return on('typst:tinymist:progress', cb);
+    },
+    onTinymistFinished: function (cb) {
+      return on('typst:tinymist:finished', cb);
+    },
     onInstallProgress: noopUnsub,
 
     // ---- LSP：裸 JSON 字符串双向 ----
@@ -750,7 +762,27 @@
     }
   };
 
-  window.texpileSnippets = { list: function () { return Promise.resolve([]); } };
+  // Texpile 的代码片段面板会按方法名逐个调用（PreferencesDialog 的 readGlobal/onGlobalChanged、
+  // WorkspaceView 的 reloadProjectState 的 readPackages/locations）。`?.` 只挡得住对象为 null，
+  // 挡不住「对象在、方法没了」——缺一个就抛 TypeError，偏好设置初始化直接失败（issue #23）。
+  // 所以这里按契约给全空实现：语义上「没有代码片段」。
+  window.texpileSnippets = {
+    list: function () {
+      return Promise.resolve([]);
+    },
+    readGlobal: function () {
+      return Promise.resolve(null);
+    },
+    readPackages: function () {
+      return Promise.resolve({ global: {}, project: {} });
+    },
+    locations: function () {
+      return Promise.resolve({ snippets: null, packages: null });
+    },
+    onGlobalChanged: function () {
+      return function () {};
+    }
+  };
   window.texpileZotero = undefined;
   window.texpileDoi = undefined;
   window.texpileTemplates = undefined;

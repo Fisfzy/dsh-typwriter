@@ -5,6 +5,12 @@ Release notes for Texpile Desktop. Add notes under `## [Unreleased]` as you work
 
 ## [Unreleased]
 
+Plugin (DSH `dsh-typwriter`, released as npm 1.7.1):
+
+- fix: the host really installs tinymist (and the typst CLI) when `bin/` is missing — download, verify by running it, unpack, with progress over SSE (#22)
+- fix: `window.texpileSnippets` answers every method Texpile calls, so Preferences and the workspace refresh stop throwing (#23)
+- fix: the shim fills in `settings.refineAgents` only when the key is absent, so the refine menu shows up on a fresh profile (#26)
+
 ## [1.7.0] - 2026-11-17
 
 - feat: the Agent tab shows how much of the context the chat uses (by @anarghya-das)

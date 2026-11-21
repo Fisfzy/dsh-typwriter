@@ -10,6 +10,7 @@ import * as mcplist from './mcplist.js';
 import * as wordexport from './wordexport.js';
 import * as permissions from './permissions.js';
 import { AcpHost } from './acp.js';
+import { TinymistInstaller } from './tinymist.js';
 import { dshHome } from './state.js';
 import { preparedPreviewHtml } from './previewPage.js';
 
@@ -20,13 +21,24 @@ export function setOriginHint(h) {
 	originHint = String(h ?? '');
 }
 
-export function createDispatch({ store, terminals, lsp, acp, appDir, binDir, clearPendingLsp, previewServer, pickDirectory, logger, watcher }) {
+export function createDispatch({ store, terminals, lsp, acp, appDir, binDir, clearPendingLsp, previewServer, pickDirectory, logger, watcher, emit }) {
   // 选择器列出的是论文助手实际会看到的家目录：与 index.js 里 ACP 的 env() 同一规则
   const agentHome = async () => {
     const s = await store.getSettings();
     if (s.agentInheritHostPlugins === false) return join(dshHome(), 'typwriter-agent');
     return dshHome();
   };
+
+  // 自带 tinymist 的安装器：插件包不再随附 bin/，所以「安装」必须真的能装（issue #22）
+  const tinymist = new TinymistInstaller({
+    binDir,
+    emit,
+    logger,
+    probe: () => tinymistInfo(binDir),
+    forget: () => {
+      tinymistCache = undefined;
+    }
+  });
 
   // ---- 润色（Refine）：起一个临时 ACP 会话，收完文本就关掉 ----
   // 不用 `dsh --profile headless`：那个 profile 会被用户级 cordis.patch.yml 里失败的插件拖垮
@@ -170,29 +182,16 @@ export function createDispatch({ store, terminals, lsp, acp, appDir, binDir, cle
     // 少 version 时 Preferences 会把内置 tinymist 判成「无法运行」，typstVersion/source
     // 缺了则详情行显示 "null (Typst undefined, ...)"——这也是"连不上 tinymist"观感的一部分。
     'typst:resolve': () => tinymistInfo(binDir),
-    'typst:tinymist:status': () => {
-      const info = tinymistInfo(binDir);
-      return {
-        // pinned 只是 UI 文案；内置的就是当前这份
-        pinned: info?.version ?? '0.15.12',
-        // 内置二进制随插件发布，没有"下载安装"这一步 → 不提供安装/卸载行
-        supported: false,
-        installed: info ? { command: info.command, version: info.version, typstVersion: info.typstVersion } : null,
-        step: null
-      };
+    // 形状见 app.d.ts 的 ManagedTinymistStatus：{pinned, supported, installed, step}
+    'typst:tinymist:status': () => tinymist.status(),
+    // 插件包不带 bin/（见 tinymist.js 的头注），这里是真的下载安装：进度走 SSE
+    // typst:tinymist:progress，结果走 typst:tinymist:finished
+    'typst:tinymist:install': () => tinymist.install(),
+    'typst:tinymist:remove': () => tinymist.remove(),
+    'typst:tinymist:cancel': () => {
+      tinymist.cancel();
+      return null;
     },
-    'typst:tinymist:install': () => ({
-      ok: false,
-      reason: 'unsupported',
-      detail: '内置 tinymist 随 Typwriter 插件提供，无需也无法在这里单独安装。重装插件即可恢复。'
-    }),
-    'typst:tinymist:remove': () => ({
-      ok: false,
-      reason: 'unsupported',
-      detail: '内置 tinymist 随 Typwriter 插件提供，不能单独移除。'
-    }),
-    // 单向下发通道，没有下载任务可取消；给个处理器避免"未实现的通道"
-    'typst:tinymist:cancel': () => null,
     'typst:packageFiles': () => null,
 
     // ---- 工具链探测（Preferences › Toolchain 的数据源） ----

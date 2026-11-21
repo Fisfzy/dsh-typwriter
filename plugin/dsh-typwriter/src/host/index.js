@@ -129,7 +129,9 @@ export default {
       previewServer,
       pickDirectory,
       logger,
-      watcher
+      watcher,
+      // 下载安装器的进度/结果走同一条 SSE（面板用 window.texpileTypst.onTinymist* 订阅）
+      emit
     });
 
     // 工作区围栏：只有已打开（activeRoot）或本次 claim 过的目录可以读字节
