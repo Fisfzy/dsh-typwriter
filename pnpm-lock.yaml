@@ -154,8 +154,8 @@ importers:
         specifier: ^1.2.2
         version: 1.2.2
       harper.js:
-        specifier: ^2.13.0
-        version: 2.13.0
+        specifier: ^3.0.0
+        version: 3.0.0
       lib0:
         specifier: ^0.2.120
         version: 0.2.120
@@ -2911,8 +2911,8 @@ packages:
   graceful-fs@4.2.12:
     resolution: {integrity: sha512-iuyGF2E4oafQfPsRrG2wtY2ILupMhvtdrhzrxB+0VcjsPpSPttpfYdjnGFGsTi5MaJFjI1jOKHPQ6UTbTj9TAw==}
 
-  harper.js@2.13.0:
-    resolution: {integrity: sha512-kUj+WLx8NSEVxQMoRqoBHGAPECAkATS9eCyYfQHWp1rEcOxtDkSKgjV+N0VHPd5xYKIF6cufJ7+evwaHfRF3WA==}
+  harper.js@3.0.0:
+    resolution: {integrity: sha512-Dyj1Q/mk8zr8vzGOZ6RJpUOj2BYbYPHMOmO4pIzKgOza9M/VHHfwwnFohIxpchPxeCoH3K/UlEI2Jkt7d6OeiA==}
 
   has-flag@4.0.0:
     resolution: {integrity: sha512-EykJT/Q1KjTWctppgIAgfSO0tKVuZUjhgMr17kqTumMl6Afv3EISleU7qZUzoXDFTAHTDC4NOoG/ZxU3EvlMPQ==}
@@ -7576,7 +7576,7 @@ snapshots:
 
   graceful-fs@4.2.12: {}
 
-  harper.js@2.13.0:
+  harper.js@3.0.0:
     dependencies:
       fflate: 0.8.3
 
